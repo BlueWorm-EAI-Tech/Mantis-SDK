@@ -1,8 +1,6 @@
-# Mantis SDK V1.0.1 Release Notes
+# Mantis SDK V1.0.3 Release Notes
 
 📅 2025-12-30
-
----
 
 ## 概述
 
