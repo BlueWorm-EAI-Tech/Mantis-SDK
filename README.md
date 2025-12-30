@@ -1,12 +1,13 @@
 # Mantis Robot SDK
 
+[![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
 基于 Zenoh 的 Mantis 机器人控制 SDK，**无需安装 ROS2**。
 
-> **V1.0.0** | 2025-12-30 | [Release Notes](./CHANGELOG.md)
+> **V1.0.0** | 2025-12-30 | [Release Notes](./RELEASE_NOTES.md)
 
 ## 特性
 
@@ -19,8 +20,7 @@
 ## 安装
 
 ```bash
-pip install eclipse-zenoh
-pip install -e .
+pip install bw-mantis-sdk
 ```
 
 ## 快速开始
