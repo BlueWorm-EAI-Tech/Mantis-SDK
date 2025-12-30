@@ -1,0 +1,22 @@
+dataset
+__pycache__/
+
+build
+install
+log
+motion_recorder
+
+.cache
+.vscode
+
+# 环境配置脚本，仍在开发中
+install.sh
+test.sh
+MUJOCO_LOG.TXT
+
+# gemini-cli prompt
+GEMINI.md
+
+!README.md
+__pycache__
+frames*
