@@ -1,20 +1,36 @@
 # Mantis Robot SDK
 
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](./VERSION)
+[![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
+
 基于 Zenoh 的 Mantis 机器人控制 SDK，**无需安装 ROS2**。
+
+> **V1.0.0** | 2025-12-30 | [Release Notes](./CHANGELOG.md)
+
+## 特性
+
+- 🚀 **无 ROS2 依赖**: 客户端只需 Python + Zenoh
+- 🤖 **完整控制**: 双臂、夹爪、头部、底盘
+- 🔒 **安全限位**: 自动限制在 URDF 定义范围内
+- 🎯 **仿真预览**: RViz 实时预览（带平滑）
+- 📚 **完整文档**: Google 风格 docstring
 
 ## 安装
 
 ```bash
 pip install eclipse-zenoh
+pip install -e .
 ```
 
 ## 快速开始
 
 ```python
-from mantis_sdk import Mantis
+from mantis import Mantis
 
+# 控制实机
 with Mantis(ip="192.168.1.100") as robot:
-    robot.left_arm.set_shoulder_pitch(0.5)
+    robot.left_arm.set_shoulder_pitch(-0.5)
     robot.left_gripper.open()
     robot.head.look_up()
     robot.chassis.forward(0.1)
@@ -23,7 +39,7 @@ with Mantis(ip="192.168.1.100") as robot:
 ## 连接方式
 
 ```python
-# 方式1：指定 IP 连接
+# 方式1：指定 IP 连接实机
 robot = Mantis(ip="192.168.1.100")
 
 # 方式2：自动发现（同一局域网）
@@ -31,6 +47,45 @@ robot = Mantis()
 
 # 方式3：指定 IP 和端口
 robot = Mantis(ip="192.168.1.100", port=7447)
+
+# 方式4：仿真预览模式（在 RViz 中显示）
+robot = Mantis(sim=True)
+```
+
+## 仿真预览模式
+
+仿真模式可以在 RViz 中预览机器人动作，无需连接实机：
+
+```python
+from mantis import Mantis
+import time
+
+# 启用仿真模式
+with Mantis(sim=True) as robot:
+    # 可选：调整平滑参数
+    robot.set_smoothing(alpha=0.1)  # 默认值
+    
+    # 控制手臂（在 RViz 中实时显示）
+    robot.left_arm.set_shoulder_pitch(-0.5)
+    robot.right_arm.set_elbow_pitch(0.8)
+    
+    # 控制头部
+    robot.head.look_left()
+    
+    time.sleep(3)
+```
+
+**启动仿真环境：**
+
+```bash
+# 终端 1: 启动仿真环境
+ros2 launch bw_sim2real sdk_sim.launch.py
+
+# 终端 2: 启动 zenoh 桥接
+zenoh-bridge-ros2dds -d 99
+
+# 终端 3: 运行 SDK
+python test_sim.py
 ```
 
 ---
@@ -47,6 +102,7 @@ robot = Mantis(ip="192.168.1.100", port=7447)
 | `right_gripper` | Gripper | 右夹爪控制器 |
 | `head` | Head | 头部控制器 |
 | `chassis` | Chassis | 底盘控制器 |
+| `is_sim_mode` | bool | 是否为仿真模式 |
 
 | 方法 | 说明 |
 |------|------|

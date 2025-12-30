@@ -45,20 +45,25 @@ class CDREncoder:
     ) -> bytes:
         """
         编码 sensor_msgs/JointState
+        
+        CDR 格式要求:
+        - 字符串: 4字节长度 + 数据 + null + 对齐到4
+        - float64数组: 4字节长度 + 对齐到8 + 数据
         """
         buf = bytearray(CDREncoder.HEADER)
         
-        # Header.stamp
+        # Header.stamp.sec (int32)
         buf += struct.pack('<i', sec)
+        # Header.stamp.nanosec (uint32)
         buf += struct.pack('<I', nanosec)
         
-        # Header.frame_id
+        # Header.frame_id (string)
         frame_bytes = frame_id.encode('utf-8')
         buf += struct.pack('<I', len(frame_bytes) + 1)
         buf += frame_bytes + b'\x00'
         CDREncoder._align(buf, 4)
         
-        # name[]
+        # name[] (sequence<string>)
         buf += struct.pack('<I', len(names))
         for name in names:
             name_bytes = name.encode('utf-8')
@@ -66,28 +71,29 @@ class CDREncoder:
             buf += name_bytes + b'\x00'
             CDREncoder._align(buf, 4)
         
-        # position[] (float64)
-        CDREncoder._align(buf, 8)
+        # position[] (sequence<float64>)
+        # 写入数组长度
         buf += struct.pack('<I', len(positions))
-        buf += b'\x00' * 4  # padding
+        # 关键：在写 float64 数据前必须对齐到 8 字节
+        CDREncoder._align(buf, 8)
         for pos in positions:
-            buf += struct.pack('<d', pos)
+            buf += struct.pack('<d', float(pos))
         
-        # velocity[]
+        # velocity[] (sequence<float64>)
         vel = velocities if velocities else []
         buf += struct.pack('<I', len(vel))
         if vel:
-            buf += b'\x00' * 4
+            CDREncoder._align(buf, 8)
             for v in vel:
-                buf += struct.pack('<d', v)
+                buf += struct.pack('<d', float(v))
         
-        # effort[]
+        # effort[] (sequence<float64>)
         eff = efforts if efforts else []
         buf += struct.pack('<I', len(eff))
         if eff:
-            buf += b'\x00' * 4
+            CDREncoder._align(buf, 8)
             for e in eff:
-                buf += struct.pack('<d', e)
+                buf += struct.pack('<d', float(e))
         
         return bytes(buf)
     

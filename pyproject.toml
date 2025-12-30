@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mantis-sdk"
+version = "1.0.0"
+description = "Mantis 机器人 Python SDK，基于 Zenoh 通信，无需安装 ROS2"
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "BlueWorm-EAI-Tech"}
+]
+keywords = ["robot", "mantis", "zenoh", "ros2", "sdk", "sim2real"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Robotics",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "eclipse-zenoh>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "build",
+    "twine",
+]
+
+[project.urls]
+Homepage = "https://github.com/BlueWorm-EAI-Tech/mantis-sdk"
+Repository = "https://github.com/BlueWorm-EAI-Tech/mantis-sdk"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mantis*"]
