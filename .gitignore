@@ -20,3 +20,5 @@ GEMINI.md
 !README.md
 __pycache__
 frames*
+*.egg-info
+dist
