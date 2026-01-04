@@ -454,12 +454,16 @@ class Mantis:
         
         if self._sim_mode:
             # 仿真模式：更新目标夹爪关节（由平滑线程逐渐逼近并发布）
-            # 左夹爪：L_Hand_R_Joint 和 L_Hand_L_Joint（对称运动）
-            # 右夹爪：R_Hand_R_Joint 和 R_Hand_L_Joint
-            self._sim_target_states["L_Hand_R_Joint"] = self._left_gripper._position
-            self._sim_target_states["L_Hand_L_Joint"] = -self._left_gripper._position  # 对称
-            self._sim_target_states["R_Hand_R_Joint"] = self._right_gripper._position
-            self._sim_target_states["R_Hand_L_Joint"] = -self._right_gripper._position  # 对称
+            # 夹爪是 prismatic 类型，范围 0.0-0.04 米
+            # 用户输入是归一化值 0.0-1.0，需要转换为实际位置
+            # 左夹爪：L_Hand_R_Joint 和 L_Hand_L_Joint（同向运动，都是正值）
+            # 右夹爪：R_Hand_R_Joint 和 R_Hand_L_Joint（同向运动，都是正值）
+            left_pos = self._left_gripper._position * 0.04  # 归一化 -> 实际位置
+            right_pos = self._right_gripper._position * 0.04
+            self._sim_target_states["L_Hand_R_Joint"] = left_pos
+            self._sim_target_states["L_Hand_L_Joint"] = left_pos
+            self._sim_target_states["R_Hand_R_Joint"] = right_pos
+            self._sim_target_states["R_Hand_L_Joint"] = right_pos
             # 不再手动调用 _publish_sim_state，由平滑线程处理
         else:
             payload = CDREncoder.encode_joint_state(

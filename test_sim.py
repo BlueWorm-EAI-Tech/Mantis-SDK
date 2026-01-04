@@ -25,6 +25,8 @@ def main():
         # 1. 双臂抬起
         print("1. 双臂抬起")
         robot.left_arm.set_shoulder_pitch(-0.5)
+        robot.left_arm.set_shoulder_pitch(-0.5)
+
         robot.right_arm.set_shoulder_pitch(-0.5)
         time.sleep(1)
         

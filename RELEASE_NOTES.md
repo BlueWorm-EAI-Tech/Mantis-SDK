@@ -1,6 +1,6 @@
-# Mantis SDK V1.0.3 Release Notes
+# Mantis SDK V1.0.4 Release Notes
 
-📅 2025-12-30
+📅 2026-1-4
 
 ## 概述
 
@@ -167,11 +167,16 @@ python your_script.py
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+### [1.0.4] - 2026-01-04
+
+**修复**
+
+- 修复夹爪控制时关节位置计算错误导致夹爪移动方向异常的问题
+- 修正夹爪归一化值到实际关节位置的单位转换 (0.0-1.0 → 0.0-0.04m)
+
 ### [1.0.2] - 2025-12-30
 
-
 优化代码框架
-
 
 **问题反馈**: [GitHub Issues](https://github.com/BlueWorm-EAI-Tech/mantis-sdk/issues)
 
