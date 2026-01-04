@@ -39,6 +39,7 @@ except ImportError:
 from .arm import Arm
 from .gripper import Gripper
 from .head import Head
+from .waist import Waist
 from .chassis import Chassis
 from .cdr import CDREncoder, CDRDecoder
 from .constants import (
@@ -129,21 +130,29 @@ class Mantis:
         self._left_gripper = Gripper(self, "left")
         self._right_gripper = Gripper(self, "right")
         self._head = Head(self)
+        self._waist = Waist(self)
         self._chassis = Chassis(self)
         
         # 反馈数据
         self._feedback_callback: Optional[Callable] = None
         
-        # 仿真模式：存储所有关节状态（用于完整发布）
-        self._sim_joint_states = {name: 0.0 for name in ALL_URDF_JOINTS}
+        # 存储所有关节状态（用于完整发布）
+        self._joint_states = {name: 0.0 for name in ALL_URDF_JOINTS}
         
-        # 仿真平滑参数
-        self._sim_target_states = {name: 0.0 for name in ALL_URDF_JOINTS}  # 目标位置
-        self._sim_current_states = {name: 0.0 for name in ALL_URDF_JOINTS}  # 当前平滑位置
-        self._sim_alpha = 0.1  # EMA 平滑因子，越小越平滑
-        self._sim_frequency = 100.0  # 发布频率 Hz
-        self._sim_thread: Optional[threading.Thread] = None
-        self._sim_running = False
+        # 平滑参数（仿真和实机模式通用）
+        self._target_states = {name: 0.0 for name in ALL_URDF_JOINTS}  # 目标位置
+        self._current_states = {name: 0.0 for name in ALL_URDF_JOINTS}  # 当前平滑位置
+        self._smooth_alpha = 0.1  # EMA 平滑因子，越小越平滑
+        self._smooth_frequency = 100.0  # 发布频率 Hz
+        self._smooth_enabled = True  # 是否启用平滑
+        self._smooth_thread: Optional[threading.Thread] = None
+        self._smooth_running = False
+        
+        # 实机模式：存储各模块的目标状态
+        self._real_arm_positions = [0.0] * 14  # 双臂 14 个关节
+        self._real_gripper_positions = [0.0, 0.0]  # 左右夹爪
+        self._real_head_positions = [0.0, 0.0]  # pitch, yaw
+        self._real_waist_position = 0.0  # 腰部高度
     
     # ==================== 属性访问 ====================
     
@@ -193,6 +202,15 @@ class Mantis:
         return self._head
     
     @property
+    def waist(self) -> Waist:
+        """腰部控制器。
+        
+        Returns:
+            Waist: 腰部升降控制器
+        """
+        return self._waist
+    
+    @property
     def chassis(self) -> Chassis:
         """底盘控制器。
         
@@ -219,8 +237,8 @@ class Mantis:
         """
         return self._sim_mode
     
-    def set_smoothing(self, alpha: float = 0.1, rate: float = 100.0):
-        """设置仿真模式的运动平滑参数。
+    def set_smoothing(self, alpha: float = 0.1, rate: float = 100.0, enabled: bool = True):
+        """设置运动平滑参数（仿真和实机模式通用）。
         
         使用 EMA（指数移动平均）算法进行平滑：
         ``current = current + alpha * (target - current)``
@@ -232,16 +250,19 @@ class Mantis:
                 - 0.3: 较快响应
                 - 1.0: 无平滑，立即到达目标
             rate: 发布频率 (Hz)，默认 100Hz。
+            enabled: 是否启用平滑，默认 True。
         
         Example:
             .. code-block:: python
             
-                robot = Mantis(sim=True)
+                robot = Mantis(ip="192.168.1.100")
                 robot.set_smoothing(alpha=0.2)  # 更快响应
+                robot.set_smoothing(enabled=False)  # 禁用平滑
                 robot.connect()
         """
-        self._sim_alpha = max(0.01, min(1.0, alpha))
-        self._sim_frequency = max(10.0, min(500.0, rate))
+        self._smooth_alpha = max(0.01, min(1.0, alpha))
+        self._smooth_frequency = max(10.0, min(500.0, rate))
+        self._smooth_enabled = enabled
     
     # ==================== 连接管理 ====================
     
@@ -289,6 +310,8 @@ class Mantis:
             if self._sim_mode:
                 # 仿真模式：发布到 /joint_states（纯仿真，绕过 input_router）
                 self._publishers['sim_joints'] = self._session.declare_publisher(Topics.SIM_JOINT_STATES)
+                # 仿真底盘：发布到 sdk/chassis（Gazebo 桥接节点订阅）
+                self._publishers['sim_chassis'] = self._session.declare_publisher(Topics.SIM_CHASSIS)
             else:
                 # 实机模式：发布到控制话题
                 self._publishers['joints'] = self._session.declare_publisher(Topics.JOINT_CMD)
@@ -333,9 +356,9 @@ class Mantis:
             mode_str = "仿真预览" if self._sim_mode else "实机控制"
             print(f"✅ 已连接到 Mantis 机器人 ({mode_str})")
             
-            # 仿真模式：启动平滑发布线程
-            if self._sim_mode:
-                self._start_sim_smooth_thread()
+            # 启动平滑发布线程（仿真和实机模式都启用）
+            if self._smooth_enabled:
+                self._start_smooth_thread()
             
             return True
             
@@ -354,10 +377,10 @@ class Mantis:
         """
         if self._session:
             # 停止平滑线程
-            if self._sim_thread is not None:
-                self._sim_running = False
-                self._sim_thread.join(timeout=1.0)
-                self._sim_thread = None
+            if self._smooth_thread is not None:
+                self._smooth_running = False
+                self._smooth_thread.join(timeout=1.0)
+                self._smooth_thread = None
             
             # 停止运动
             self._chassis.stop()
@@ -374,39 +397,94 @@ class Mantis:
             self._connected = False
             print("✅ 已断开连接")
     
-    # ==================== 仿真平滑处理 ====================
+    # ==================== 平滑处理（仿真和实机通用） ====================
     
-    def _start_sim_smooth_thread(self):
-        """启动仿真平滑发布线程。
+    def _start_smooth_thread(self):
+        """启动平滑发布线程。
         
-        在仿真模式连接成功后自动调用，启动后台线程进行关节位置平滑插值。
+        连接成功后自动调用，启动后台线程进行关节位置平滑插值。
+        仿真模式和实机模式都会使用此线程。
         """
-        if self._sim_thread is not None:
+        if self._smooth_thread is not None:
             return
         
-        self._sim_running = True
-        self._sim_thread = threading.Thread(target=self._sim_smooth_loop, daemon=True)
-        self._sim_thread.start()
+        self._smooth_running = True
+        self._smooth_thread = threading.Thread(target=self._smooth_loop, daemon=True)
+        self._smooth_thread.start()
     
-    def _sim_smooth_loop(self):
+    def _smooth_loop(self):
         """平滑插值循环。
         
         使用 EMA 算法逐渐将当前关节状态逼近目标状态，
-        并以固定频率发布到仿真话题。
+        并以固定频率发布。
         """
-        interval = 1.0 / self._sim_frequency
+        interval = 1.0 / self._smooth_frequency
         
-        while self._sim_running:
-            # EMA 平滑：current = current + alpha * (target - current)
-            for name in ALL_URDF_JOINTS:
-                current = self._sim_current_states[name]
-                target = self._sim_target_states[name]
-                self._sim_current_states[name] = current + self._sim_alpha * (target - current)
-            
-            # 发布平滑后的状态
-            self._publish_sim_state()
+        while self._smooth_running:
+            if self._sim_mode:
+                # 仿真模式：平滑所有 URDF 关节
+                for name in ALL_URDF_JOINTS:
+                    current = self._current_states[name]
+                    target = self._target_states[name]
+                    self._current_states[name] = current + self._smooth_alpha * (target - current)
+                
+                # 发布平滑后的状态到仿真
+                self._publish_sim_state()
+            else:
+                # 实机模式：平滑各模块的目标状态并发布
+                self._smooth_and_publish_real()
             
             time.sleep(interval)
+    
+    def _smooth_and_publish_real(self):
+        """实机模式：平滑并发布所有控制指令。"""
+        # 平滑双臂关节
+        positions = self._left_arm._positions + self._right_arm._positions
+        for i in range(14):
+            current = self._real_arm_positions[i]
+            target = positions[i]
+            self._real_arm_positions[i] = current + self._smooth_alpha * (target - current)
+        
+        # 发布平滑后的手臂位置
+        payload = CDREncoder.encode_joint_state(
+            names=JOINT_NAMES,
+            positions=self._real_arm_positions
+        )
+        self._publishers['joints'].put(payload)
+        
+        # 平滑夹爪
+        left_target = self._left_gripper._position
+        right_target = self._right_gripper._position
+        self._real_gripper_positions[0] += self._smooth_alpha * (left_target - self._real_gripper_positions[0])
+        self._real_gripper_positions[1] += self._smooth_alpha * (right_target - self._real_gripper_positions[1])
+        
+        payload = CDREncoder.encode_joint_state(
+            names=["left_gripper", "right_gripper"],
+            positions=self._real_gripper_positions
+        )
+        self._publishers['gripper'].put(payload)
+        
+        # 平滑头部
+        pitch_target = self._head._pitch
+        yaw_target = self._head._yaw
+        self._real_head_positions[0] += self._smooth_alpha * (pitch_target - self._real_head_positions[0])
+        self._real_head_positions[1] += self._smooth_alpha * (yaw_target - self._real_head_positions[1])
+        
+        payload = CDREncoder.encode_joint_state(
+            names=["head_pitch", "head_yaw"],
+            positions=self._real_head_positions
+        )
+        self._publishers['head'].put(payload)
+        
+        # 平滑腰部
+        waist_target = self._waist._height
+        self._real_waist_position += self._smooth_alpha * (waist_target - self._real_waist_position)
+        
+        payload = CDREncoder.encode_joint_state(
+            names=["waist"],
+            positions=[self._real_waist_position]
+        )
+        self._publishers['pelvis'].put(payload)
     
     # ==================== 内部发布方法 ====================
     
@@ -423,6 +501,7 @@ class Mantis:
         """发布手臂关节角度。
         
         将左右臂的关节位置发送到机器人或仿真环境。
+        平滑模式下仅更新目标状态，由平滑线程发布。
         """
         self._check_connection()
         
@@ -435,10 +514,13 @@ class Mantis:
                 urdf_name = SERIAL_TO_URDF_MAP.get(serial_name)
                 if urdf_name:
                     direction = JOINT_DIRECTION_MAP.get(serial_name, 1)
-                    self._sim_target_states[urdf_name] = pos * direction
-            # 不再手动调用 _publish_sim_state，由平滑线程处理
+                    self._target_states[urdf_name] = pos * direction
+            # 由平滑线程处理
+        elif self._smooth_enabled:
+            # 实机平滑模式：仅更新目标，由平滑线程发布
+            pass  # 目标状态已在子模块中更新，平滑线程会读取
         else:
-            # 实机模式：直接发送
+            # 实机无平滑模式：直接发送
             payload = CDREncoder.encode_joint_state(
                 names=JOINT_NAMES,
                 positions=positions
@@ -449,6 +531,7 @@ class Mantis:
         """发布夹爪位置。
         
         将左右夹爪的位置发送到机器人或仿真环境。
+        平滑模式下仅更新目标状态，由平滑线程发布。
         """
         self._check_connection()
         
@@ -456,16 +539,18 @@ class Mantis:
             # 仿真模式：更新目标夹爪关节（由平滑线程逐渐逼近并发布）
             # 夹爪是 prismatic 类型，范围 0.0-0.04 米
             # 用户输入是归一化值 0.0-1.0，需要转换为实际位置
-            # 左夹爪：L_Hand_R_Joint 和 L_Hand_L_Joint（同向运动，都是正值）
-            # 右夹爪：R_Hand_R_Joint 和 R_Hand_L_Joint（同向运动，都是正值）
             left_pos = self._left_gripper._position * 0.04  # 归一化 -> 实际位置
             right_pos = self._right_gripper._position * 0.04
-            self._sim_target_states["L_Hand_R_Joint"] = left_pos
-            self._sim_target_states["L_Hand_L_Joint"] = left_pos
-            self._sim_target_states["R_Hand_R_Joint"] = right_pos
-            self._sim_target_states["R_Hand_L_Joint"] = right_pos
-            # 不再手动调用 _publish_sim_state，由平滑线程处理
+            self._target_states["L_Hand_R_Joint"] = left_pos
+            self._target_states["L_Hand_L_Joint"] = left_pos
+            self._target_states["R_Hand_R_Joint"] = right_pos
+            self._target_states["R_Hand_L_Joint"] = right_pos
+            # 由平滑线程处理
+        elif self._smooth_enabled:
+            # 实机平滑模式：仅更新目标，由平滑线程发布
+            pass
         else:
+            # 实机无平滑模式：直接发送
             payload = CDREncoder.encode_joint_state(
                 names=["left_gripper", "right_gripper"],
                 positions=[self._left_gripper._position, self._right_gripper._position]
@@ -483,7 +568,7 @@ class Mantis:
         
         # 构建完整的关节状态消息（JSON 格式），使用平滑后的当前位置
         names = ALL_URDF_JOINTS
-        positions = [float(self._sim_current_states[name]) for name in names]
+        positions = [float(self._current_states[name]) for name in names]
         
         msg = {
             'name': names,
@@ -499,33 +584,66 @@ class Mantis:
         """发布头部姿态。
         
         将头部的俯仰和偏航角度发送到机器人或仿真环境。
+        平滑模式下仅更新目标状态，由平滑线程发布。
         """
         self._check_connection()
         
         if self._sim_mode:
             # 仿真模式：更新目标头部关节（由平滑线程逐渐逼近并发布）
-            self._sim_target_states["Neck_Joint"] = self._head._yaw
-            self._sim_target_states["Head_Joint"] = self._head._pitch
-            # 不再手动调用 _publish_sim_state，由平滑线程处理
+            self._target_states["Neck_Joint"] = self._head._yaw
+            self._target_states["Head_Joint"] = self._head._pitch
+            # 由平滑线程处理
+        elif self._smooth_enabled:
+            # 实机平滑模式：仅更新目标，由平滑线程发布
+            pass
         else:
+            # 实机无平滑模式：直接发送
             payload = CDREncoder.encode_joint_state(
                 names=["head_pitch", "head_yaw"],
                 positions=[self._head._pitch, self._head._yaw]
             )
             self._publishers['head'].put(payload)
     
-    def _publish_chassis(self):
-        """发布底盘速度。
+    def _publish_waist(self):
+        """发布腰部高度。
         
-        将底盘的线速度和角速度发送到机器人。
-        
-        Note:
-            仿真模式下底盘控制暂不支持预览。
+        将腰部的高度发送到机器人或仿真环境。
+        平滑模式下仅更新目标状态，由平滑线程发布。
         """
         self._check_connection()
         
         if self._sim_mode:
-            # 仿真模式暂不支持底盘预览
+            # 仿真模式：更新目标腰部关节（由平滑线程逐渐逼近并发布）
+            self._target_states["Waist_Joint"] = self._waist._height
+            # 由平滑线程处理
+        elif self._smooth_enabled:
+            # 实机平滑模式：仅更新目标，由平滑线程发布
+            pass
+        else:
+            # 实机无平滑模式：直接发送
+            payload = CDREncoder.encode_joint_state(
+                names=["waist"],
+                positions=[self._waist._height]
+            )
+            self._publishers['pelvis'].put(payload)
+    
+    def _publish_chassis(self):
+        """发布底盘速度。
+        
+        将底盘的线速度和角速度发送到机器人。
+        仿真模式下通过 Zenoh 发送给 Gazebo 桥接节点。
+        """
+        self._check_connection()
+        
+        if self._sim_mode:
+            # 仿真模式：发送 JSON 给 Gazebo 桥接节点
+            import json
+            data = {
+                'vx': self._chassis._vx,
+                'vy': self._chassis._vy,
+                'omega': self._chassis._omega
+            }
+            self._publishers['sim_chassis'].put(json.dumps(data).encode('utf-8'))
             return
         
         payload = CDREncoder.encode_twist(
@@ -540,16 +658,60 @@ class Mantis:
     
     # ==================== 便捷方法 ====================
     
-    def home(self):
+    def home(self, block: bool = True):
         """所有关节回到零位。
         
         将双臂、头部回零，夹爪闭合。
+        
+        Args:
+            block: 是否阻塞等待完成，默认 True
         """
-        self._left_arm.home()
-        self._right_arm.home()
-        self._head.center()
-        self._left_gripper.close()
-        self._right_gripper.close()
+        self._left_arm.home(block=False)
+        self._right_arm.home(block=False)
+        self._head.center(block=False)
+        self._waist.home(block=False)
+        self._left_gripper.close(block=False)
+        self._right_gripper.close(block=False)
+        
+        if block:
+            self.wait()
+    
+    def wait(self):
+        """等待所有部件运动完成。
+        
+        阻塞直到所有正在运动的部件都完成运动。
+        
+        Example:
+            .. code-block:: python
+            
+                # 启动多个非阻塞运动
+                robot.left_arm.set_shoulder_pitch(-0.5, block=False)
+                robot.right_arm.set_shoulder_pitch(-0.5, block=False)
+                robot.head.look_left(block=False)
+                
+                # 等待全部完成
+                robot.wait()
+        """
+        import time
+        while self.is_any_moving:
+            time.sleep(0.01)
+    
+    @property
+    def is_any_moving(self) -> bool:
+        """是否有任何部件正在运动。
+        
+        Returns:
+            bool: True 如果有部件在运动中
+        """
+        return (
+            self._left_arm.is_moving or
+            self._right_arm.is_moving or
+            self._head.is_moving or
+            self._waist.is_moving or
+            self._left_gripper.is_moving or
+            self._right_gripper.is_moving or
+            self._chassis.is_moving
+        )
     
     def stop(self):
         """停止所有运动。

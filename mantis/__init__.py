@@ -52,11 +52,12 @@ from .mantis import Mantis
 from .arm import Arm
 from .gripper import Gripper
 from .head import Head
+from .waist import Waist
 from .chassis import Chassis
 from .constants import *
 
 #: SDK 版本号
-__version__ = "1.0.4"
+__version__ = "1.1.0"
 
 #: 作者
 __author__ = "BlueWorm-EAI-Tech"
@@ -69,6 +70,7 @@ __all__ = [
     "Arm", 
     "Gripper",
     "Head",
+    "Waist",
     "Chassis",
     "JOINT_NAMES",
     "LEFT_ARM_JOINTS",

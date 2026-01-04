@@ -51,7 +51,7 @@ NUM_TOTAL_JOINTS = 14
 #: 
 #: 索引对应关系：
 #:   0. shoulder_pitch: -2.61 ~ 0.78
-#:   1. shoulder_yaw:   0.08 ~ 1.04
+#:   1. shoulder_yaw:   -0.213 ~ 2.029
 #:   2. shoulder_roll:  -1.57 ~ 1.57
 #:   3. elbow_pitch:    -0.78 ~ 1.57
 #:   4. wrist_roll:     -1.57 ~ 1.57
@@ -59,7 +59,7 @@ NUM_TOTAL_JOINTS = 14
 #:   6. wrist_yaw:      -1.57 ~ 1.57
 LEFT_ARM_LIMITS = [
     (-2.61, 0.78),   # shoulder_pitch: L_Shoulder_Pitch_Joint
-    (0.08, 1.04),    # shoulder_yaw:   L_Shoulder_Yaw_Joint
+    (-0.213, 2.029), # shoulder_yaw:   L_Shoulder_Yaw_Joint
     (-1.57, 1.57),   # shoulder_roll:  L_Shoulder_Roll_Joint
     (-0.78, 1.57),   # elbow_pitch:    L_Elbow_Pitch_Joint
     (-1.57, 1.57),   # wrist_roll:     L_Wrist_Roll_Joint
@@ -70,10 +70,10 @@ LEFT_ARM_LIMITS = [
 #: 右臂关节限位 (lower, upper)，单位：弧度
 #:
 #: Note:
-#:   右臂 shoulder_yaw 方向与左臂相反
+#:   右臂 shoulder_yaw 限位与左臂相同（URDF 中轴方向已处理）
 RIGHT_ARM_LIMITS = [
     (-2.61, 0.78),   # shoulder_pitch: R_Shoulder_Pitch_Joint
-    (-1.04, -0.08),  # shoulder_yaw:   R_Shoulder_Yaw_Joint (注意方向相反)
+    (-0.213, 2.029), # shoulder_yaw:   R_Shoulder_Yaw_Joint
     (-1.57, 1.57),   # shoulder_roll:  R_Shoulder_Roll_Joint
     (-0.78, 1.57),   # elbow_pitch:    R_Elbow_Pitch_Joint
     (-1.57, 1.57),   # wrist_roll:     R_Wrist_Roll_Joint
@@ -223,3 +223,6 @@ class Topics:
     
     #: 仿真关节状态（发送 JSON 给 sdk_bridge_node）
     SIM_JOINT_STATES = "sdk/joint_states"
+    
+    #: 仿真底盘命令（发送 JSON 给 gazebo_bridge_node）
+    SIM_CHASSIS = "sdk/chassis"

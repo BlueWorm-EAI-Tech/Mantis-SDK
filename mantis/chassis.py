@@ -4,8 +4,10 @@
 
 提供 Mantis 机器人底盘的控制接口。底盘支持全向移动（前后、左右、旋转）。
 
-Note:
-    仿真模式下底盘控制暂不支持预览。
+安全设计：
+    - 所有运动命令必须指定距离或角度，运动完成后自动停止
+    - 不提供持续速度控制，避免代码异常导致机器人失控
+    - 支持自定义速度，但必须同时指定运动量
 
 Example:
     .. code-block:: python
@@ -13,103 +15,64 @@ Example:
         from mantis import Mantis
         
         with Mantis(ip="192.168.1.100") as robot:
-            # 设置具体速度
-            robot.chassis.set_velocity(vx=0.1, vy=0.0, omega=0.0)
+            # 前进 0.5 米
+            robot.chassis.forward(0.5)
             
-            # 使用便捷方法
-            robot.chassis.forward(0.2)
-            robot.chassis.turn_left(0.5)
-            robot.chassis.stop()
+            # 左转 90 度
+            robot.chassis.turn_left(90)
+            
+            # 自定义速度前进
+            robot.chassis.forward(1.0, speed=0.2)
+            
+            # 组合运动：边走边转
+            robot.chassis.move(x=0.5, y=0.2, angle=45)
 """
 
-from typing import TYPE_CHECKING
+import time
+import math
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from .mantis import Mantis
 
 
-# 移动动作: (方法名, vx系数, vy系数, omega系数, 默认速度, 说明)
-_MOVE_ACTIONS = [
-    ("forward",      1,  0,  0, 0.1, "前进"),
-    ("backward",    -1,  0,  0, 0.1, "后退"),
-    ("strafe_left",  0,  1,  0, 0.1, "左移"),
-    ("strafe_right", 0, -1,  0, 0.1, "右移"),
-    ("turn_left",    0,  0,  1, 0.3, "左转"),
-    ("turn_right",   0,  0, -1, 0.3, "右转"),
-]
-
-
-def _make_move_action(vx_sign, vy_sign, omega_sign, default_speed, doc):
-    """工厂函数：生成移动方法。
-    
-    Args:
-        vx_sign: 前后速度符号
-        vy_sign: 左右速度符号
-        omega_sign: 旋转速度符号
-        default_speed: 默认速度值
-        doc: 方法说明
-        
-    Returns:
-        Callable: 生成的移动方法
-    """
-    def action(self, speed: float = default_speed):
-        """执行移动动作。
-        
-        Args:
-            speed: 速度大小（m/s 或 rad/s）
-        """
-        s = abs(speed)
-        self.set_velocity(
-            vx=vx_sign * s if vx_sign else 0.0,
-            vy=vy_sign * s if vy_sign else 0.0,
-            omega=omega_sign * s if omega_sign else 0.0
-        )
-    action.__doc__ = f"""{doc}。
-    
-    Args:
-        speed: 速度大小，默认 {default_speed}
-    """
-    return action
-
-
 class Chassis:
-    """底盘控制类。
+    """底盘控制类（基于距离/角度的安全控制）。
     
-    底盘支持三个方向的运动：
+    所有运动命令都需要指定目标距离或角度，运动完成后自动停止。
+    这种设计确保即使程序异常退出，机器人也会在完成当前运动后停止。
     
-    ========  ==============  ========
-    参数      含义            单位
-    ========  ==============  ========
-    vx        前后速度        m/s
-    vy        左右速度        m/s
-    omega     旋转速度        rad/s
-    ========  ==============  ========
-    
-    - ``vx > 0``: 前进
-    - ``vx < 0``: 后退
-    - ``vy > 0``: 左移
-    - ``vy < 0``: 右移
-    - ``omega > 0``: 左转
-    - ``omega < 0``: 右转
-    
-    Attributes:
-        vx: 当前前后速度 (m/s)
-        vy: 当前左右速度 (m/s)
-        omega: 当前旋转速度 (rad/s)
+    默认速度：
+        - 线速度: 0.1 m/s
+        - 角速度: 0.5 rad/s (约 28.6 °/s)
     
     Example:
         .. code-block:: python
         
-            # 设置具体速度
-            robot.chassis.set_velocity(vx=0.1, omega=0.2)
+            # 基本运动
+            robot.chassis.forward(0.5)      # 前进 0.5 米
+            robot.chassis.backward(0.3)     # 后退 0.3 米
+            robot.chassis.strafe_left(0.2)  # 左移 0.2 米
+            robot.chassis.turn_left(90)     # 左转 90 度
             
-            # 便捷方法
-            robot.chassis.forward(0.2)     # 前进
-            robot.chassis.backward()       # 后退（默认速度）
-            robot.chassis.strafe_left()    # 左移
-            robot.chassis.turn_right(0.5)  # 右转
-            robot.chassis.stop()           # 停止
+            # 自定义速度
+            robot.chassis.forward(1.0, speed=0.2)  # 0.2m/s 前进 1 米
+            
+            # 组合运动
+            robot.chassis.move(x=0.5, y=0.2, angle=45)
     """
+    
+    #: 默认线速度 (m/s)
+    DEFAULT_LINEAR_SPEED = 0.1
+    
+    #: 默认角速度 (rad/s)
+    DEFAULT_ANGULAR_SPEED = 0.5
+    
+    #: 最大线速度 (m/s)
+    MAX_LINEAR_SPEED = 0.5
+    
+    #: 最大角速度 (rad/s)
+    MAX_ANGULAR_SPEED = 1.0
     
     def __init__(self, robot: "Mantis"):
         """初始化底盘控制器。
@@ -121,65 +84,217 @@ class Chassis:
         self._vx = 0.0
         self._vy = 0.0
         self._omega = 0.0
+        self._default_linear_speed = self.DEFAULT_LINEAR_SPEED
+        self._default_angular_speed = self.DEFAULT_ANGULAR_SPEED
+        self._is_moving = False
     
     @property
-    def vx(self) -> float:
-        """当前前后速度 (m/s)。
-        
-        Returns:
-            float: 正值前进，负值后退
-        """
-        return self._vx
+    def is_moving(self) -> bool:
+        """是否正在运动中。"""
+        return self._is_moving
     
-    @property
-    def vy(self) -> float:
-        """当前左右速度 (m/s)。
-        
-        Returns:
-            float: 正值左移，负值右移
-        """
-        return self._vy
-    
-    @property
-    def omega(self) -> float:
-        """当前旋转速度 (rad/s)。
-        
-        Returns:
-            float: 正值左转，负值右转
-        """
-        return self._omega
-    
-    def set_velocity(self, vx: float = None, vy: float = None, omega: float = None):
-        """设置底盘速度。
+    def set_default_speed(self, linear: float = None, angular: float = None):
+        """设置默认速度。
         
         Args:
-            vx: 前后速度 (m/s)，正值前进
-            vy: 左右速度 (m/s)，正值左移
-            omega: 旋转速度 (rad/s)，正值左转
+            linear: 默认线速度 (m/s)，范围 0.01-0.5
+            angular: 默认角速度 (rad/s)，范围 0.1-1.0
             
         Example:
             .. code-block:: python
             
-                robot.chassis.set_velocity(vx=0.1)          # 只设置前后
-                robot.chassis.set_velocity(vx=0.1, omega=0.2)  # 边走边转
+                robot.chassis.set_default_speed(linear=0.15, angular=0.8)
         """
-        if vx is not None:
-            self._vx = vx
-        if vy is not None:
-            self._vy = vy
-        if omega is not None:
-            self._omega = omega
-        self._robot._publish_chassis()
+        if linear is not None:
+            self._default_linear_speed = max(0.01, min(self.MAX_LINEAR_SPEED, abs(linear)))
+        if angular is not None:
+            self._default_angular_speed = max(0.1, min(self.MAX_ANGULAR_SPEED, abs(angular)))
+    
+    def forward(self, distance: float, speed: float = None, block: bool = True):
+        """前进指定距离。
+        
+        Args:
+            distance: 前进距离 (米)，必须为正数
+            speed: 速度 (m/s)，默认使用 default_linear_speed
+            block: 是否阻塞等待完成，默认 True
+            
+        Example:
+            .. code-block:: python
+            
+                robot.chassis.forward(0.5)           # 前进 0.5 米
+                robot.chassis.forward(1.0, speed=0.2)  # 以 0.2m/s 前进 1 米
+        """
+        self._move_linear(abs(distance), 0, speed, block)
+    
+    def backward(self, distance: float, speed: float = None, block: bool = True):
+        """后退指定距离。
+        
+        Args:
+            distance: 后退距离 (米)，必须为正数
+            speed: 速度 (m/s)，默认使用 default_linear_speed
+            block: 是否阻塞等待完成，默认 True
+        """
+        self._move_linear(-abs(distance), 0, speed, block)
+    
+    def strafe_left(self, distance: float, speed: float = None, block: bool = True):
+        """左移指定距离。
+        
+        Args:
+            distance: 左移距离 (米)，必须为正数
+            speed: 速度 (m/s)，默认使用 default_linear_speed
+            block: 是否阻塞等待完成，默认 True
+        """
+        self._move_linear(0, abs(distance), speed, block)
+    
+    def strafe_right(self, distance: float, speed: float = None, block: bool = True):
+        """右移指定距离。
+        
+        Args:
+            distance: 右移距离 (米)，必须为正数
+            speed: 速度 (m/s)，默认使用 default_linear_speed
+            block: 是否阻塞等待完成，默认 True
+        """
+        self._move_linear(0, -abs(distance), speed, block)
+    
+    def turn_left(self, degrees: float, speed: float = None, block: bool = True):
+        """左转指定角度。
+        
+        Args:
+            degrees: 左转角度 (度)，必须为正数
+            speed: 角速度 (rad/s)，默认使用 default_angular_speed
+            block: 是否阻塞等待完成，默认 True
+            
+        Example:
+            .. code-block:: python
+            
+                robot.chassis.turn_left(90)   # 左转 90 度
+                robot.chassis.turn_left(180)  # 左转 180 度
+        """
+        self._rotate(abs(degrees), speed, block)
+    
+    def turn_right(self, degrees: float, speed: float = None, block: bool = True):
+        """右转指定角度。
+        
+        Args:
+            degrees: 右转角度 (度)，必须为正数
+            speed: 角速度 (rad/s)，默认使用 default_angular_speed
+            block: 是否阻塞等待完成，默认 True
+        """
+        self._rotate(-abs(degrees), speed, block)
+    
+    def move(self, x: float = 0, y: float = 0, angle: float = 0, 
+             linear_speed: float = None, angular_speed: float = None,
+             block: bool = True):
+        """组合运动：先平移再旋转。
+        
+        Args:
+            x: 前后移动距离 (米)，正值前进，负值后退
+            y: 左右移动距离 (米)，正值左移，负值右移
+            angle: 旋转角度 (度)，正值左转，负值右转
+            linear_speed: 线速度 (m/s)
+            angular_speed: 角速度 (rad/s)
+            block: 是否阻塞等待完成，默认 True
+            
+        Example:
+            .. code-block:: python
+            
+                # 前进 0.5m，左移 0.2m，左转 45 度
+                robot.chassis.move(x=0.5, y=0.2, angle=45)
+        """
+        # 先执行平移
+        if x != 0 or y != 0:
+            self._move_linear(x, y, linear_speed, block=True)
+        
+        # 再执行旋转
+        if angle != 0:
+            self._rotate(angle, angular_speed, block)
     
     def stop(self):
-        """停止所有运动。"""
-        self.set_velocity(0.0, 0.0, 0.0)
+        """立即停止所有运动。"""
+        self._vx = 0.0
+        self._vy = 0.0
+        self._omega = 0.0
+        self._is_moving = False
+        self._robot._publish_chassis()
+    
+    # ==================== 内部方法 ====================
+    
+    def _move_linear(self, dx: float, dy: float, speed: float = None, block: bool = True):
+        """执行线性移动。
+        
+        Args:
+            dx: X 方向距离 (前后)
+            dy: Y 方向距离 (左右)
+            speed: 速度 (m/s)
+            block: 是否阻塞
+        """
+        distance = math.sqrt(dx * dx + dy * dy)
+        if distance < 0.001:  # 距离太小，忽略
+            return
+        
+        # 计算速度
+        spd = speed if speed is not None else self._default_linear_speed
+        spd = max(0.01, min(self.MAX_LINEAR_SPEED, abs(spd)))
+        
+        # 计算各分量速度
+        self._vx = (dx / distance) * spd
+        self._vy = (dy / distance) * spd
+        self._omega = 0.0
+        
+        # 计算运动时间
+        duration = distance / spd
+        
+        self._execute_motion(duration, block)
+    
+    def _rotate(self, degrees: float, speed: float = None, block: bool = True):
+        """执行旋转。
+        
+        Args:
+            degrees: 角度 (度)，正值左转
+            speed: 角速度 (rad/s)
+            block: 是否阻塞
+        """
+        radians = math.radians(degrees)
+        if abs(radians) < 0.001:  # 角度太小，忽略
+            return
+        
+        # 计算速度
+        spd = speed if speed is not None else self._default_angular_speed
+        spd = max(0.1, min(self.MAX_ANGULAR_SPEED, abs(spd)))
+        
+        # 设置角速度方向
+        self._vx = 0.0
+        self._vy = 0.0
+        self._omega = spd if degrees > 0 else -spd
+        
+        # 计算运动时间
+        duration = abs(radians) / spd
+        
+        self._execute_motion(duration, block)
+    
+    def _execute_motion(self, duration: float, block: bool):
+        """执行运动。
+        
+        Args:
+            duration: 运动时长 (秒)
+            block: 是否阻塞等待完成
+        """
+        self._is_moving = True
+        self._robot._publish_chassis()
+        
+        if block:
+            time.sleep(duration)
+            self.stop()
+        else:
+            # 非阻塞模式：启动定时器在后台停止
+            import threading
+            def _delayed_stop():
+                time.sleep(duration)
+                if self._is_moving:  # 检查是否已被手动停止
+                    self.stop()
+            threading.Thread(target=_delayed_stop, daemon=True).start()
     
     def __repr__(self) -> str:
         """返回底盘的字符串表示。"""
-        return f"Chassis(vx={self._vx:.2f}, vy={self._vy:.2f}, ω={self._omega:.2f})"
-
-
-# 动态生成移动方法
-for name, vx, vy, omega, speed, doc in _MOVE_ACTIONS:
-    setattr(Chassis, name, _make_move_action(vx, vy, omega, speed, doc))
+        status = "运动中" if self._is_moving else "停止"
+        return f"Chassis({status}, vx={self._vx:.2f}, vy={self._vy:.2f}, ω={self._omega:.2f})"
