@@ -63,16 +63,22 @@ class Chassis:
     """
     
     #: 默认线速度 (m/s)
-    DEFAULT_LINEAR_SPEED = 0.1
+    DEFAULT_LINEAR_SPEED = 1.0
     
     #: 默认角速度 (rad/s)
-    DEFAULT_ANGULAR_SPEED = 0.5
+    DEFAULT_ANGULAR_SPEED = 0.3
     
     #: 最大线速度 (m/s)
-    MAX_LINEAR_SPEED = 0.5
+    MAX_LINEAR_SPEED = 3.0
     
     #: 最大角速度 (rad/s)
-    MAX_ANGULAR_SPEED = 1.0
+    MAX_ANGULAR_SPEED = 2.0
+    
+    #: 默认摩擦补偿系数（线速度）
+    DEFAULT_LINEAR_FRICTION = 1.0
+    
+    #: 默认摩擦补偿系数（角速度）
+    DEFAULT_ANGULAR_FRICTION = 1.0
     
     def __init__(self, robot: "Mantis"):
         """初始化底盘控制器。
@@ -86,12 +92,34 @@ class Chassis:
         self._omega = 0.0
         self._default_linear_speed = self.DEFAULT_LINEAR_SPEED
         self._default_angular_speed = self.DEFAULT_ANGULAR_SPEED
+        self._linear_friction = self.DEFAULT_LINEAR_FRICTION
+        self._angular_friction = self.DEFAULT_ANGULAR_FRICTION
         self._is_moving = False
     
     @property
     def is_moving(self) -> bool:
         """是否正在运动中。"""
         return self._is_moving
+    
+    def set_friction(self, linear: float = None, angular: float = None):
+        """设置摩擦补偿系数。
+        
+        系数越大，运动时间越长，用于补偿地面摩擦力导致的距离/角度损失。
+        
+        Args:
+            linear: 线性运动摩擦补偿系数，默认 1.0，建议范围 1.0-3.0
+            angular: 旋转运动摩擦补偿系数，默认 1.0，建议范围 1.0-3.0
+            
+        Example:
+            .. code-block:: python
+            
+                # 地面摩擦力大，需要更长时间才能走到目标距离
+                robot.chassis.set_friction(linear=1.5, angular=2.0)
+        """
+        if linear is not None:
+            self._linear_friction = max(0.5, min(5.0, abs(linear)))
+        if angular is not None:
+            self._angular_friction = max(0.5, min(5.0, abs(angular)))
     
     def set_default_speed(self, linear: float = None, angular: float = None):
         """设置默认速度。
@@ -241,8 +269,8 @@ class Chassis:
         self._vy = (dy / distance) * spd
         self._omega = 0.0
         
-        # 计算运动时间
-        duration = distance / spd
+        # 计算运动时间（应用摩擦补偿系数）
+        duration = distance / spd * self._linear_friction
         
         self._execute_motion(duration, block)
     
@@ -267,8 +295,8 @@ class Chassis:
         self._vy = 0.0
         self._omega = spd if degrees > 0 else -spd
         
-        # 计算运动时间
-        duration = abs(radians) / spd
+        # 计算运动时间（应用摩擦补偿系数）
+        duration = abs(radians) / spd * self._angular_friction
         
         self._execute_motion(duration, block)
     

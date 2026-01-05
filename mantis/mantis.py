@@ -2,27 +2,25 @@
 Mantis 机器人主控制类
 ======================
 
-提供 Mantis 机器人的统一控制接口，支持实机控制和仿真预览两种模式。
+提供 Mantis 机器人的统一控制接口。
 
 通信协议:
     使用 Zenoh 协议进行通信，无需安装 ROS2。
-
-模式:
-    - **实机模式**: 连接真实机器人进行控制
-    - **仿真模式**: 在 RViz 中预览机器人动作（带平滑）
+    SDK 通过纯 Python Zenoh 发送 JSON 格式数据，
+    机器人端通过 Python 桥接节点 (sdk_bridge) 转发到 ROS2。
 
 Example:
     .. code-block:: python
     
         from mantis import Mantis
         
-        # 实机控制
+        # 连接机器人
         with Mantis(ip="192.168.1.100") as robot:
             robot.left_arm.set_shoulder_pitch(-0.5)
             robot.head.look_left()
         
-        # 仿真预览
-        with Mantis(sim=True) as robot:
+        # 本地调试（同一局域网）
+        with Mantis() as robot:
             robot.left_arm.set_joints([0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0])
 """
 
@@ -41,7 +39,6 @@ from .gripper import Gripper
 from .head import Head
 from .waist import Waist
 from .chassis import Chassis
-from .cdr import CDREncoder, CDRDecoder
 from .constants import (
     Topics, JOINT_NAMES,
     SERIAL_TO_URDF_MAP, JOINT_DIRECTION_MAP,
@@ -53,7 +50,6 @@ class Mantis:
     """Mantis 机器人主控制类。
     
     提供对 Mantis 机器人的统一控制接口，包括双臂、夹爪、头部和底盘。
-    支持实机控制和仿真预览两种模式。
     
     Attributes:
         left_arm (Arm): 左臂控制器
@@ -63,7 +59,6 @@ class Mantis:
         head (Head): 头部控制器
         chassis (Chassis): 底盘控制器
         is_connected (bool): 是否已连接
-        is_sim_mode (bool): 是否为仿真模式
     
     Example:
         使用上下文管理器（推荐）::
@@ -74,31 +69,27 @@ class Mantis:
         
         手动管理连接::
         
-            robot = Mantis(sim=True)
+            robot = Mantis(ip="192.168.1.100")
             robot.connect()
             robot.left_arm.home()
             robot.disconnect()
     
     Note:
-        仿真模式需要先启动仿真环境::
+        使用前需启动机器人端的 Python 桥接节点::
         
-            ros2 launch bw_sim2real sdk_sim.launch.py
-            zenoh-bridge-ros2dds -d 99
+            ros2 run bw_sdk_bridge sdk_bridge
     """
     
     #: 默认 Zenoh 端口
     DEFAULT_PORT = 7447
     
-    def __init__(self, ip: Optional[str] = None, port: int = None, sim: bool = False):
+    def __init__(self, ip: Optional[str] = None, port: int = None):
         """初始化 Mantis 机器人。
         
         Args:
             ip: 机器人 IP 地址，例如 "192.168.1.100"。
                 如果为 None，则使用 Zenoh 自动发现（需在同一局域网）。
             port: Zenoh 端口，默认 7447。
-            sim: 仿真模式开关。
-                - False（默认）: 实机控制模式
-                - True: 仿真预览模式，在 RViz 中显示
         
         Example:
             .. code-block:: python
@@ -108,9 +99,6 @@ class Mantis:
                 
                 # 自动发现（同一局域网）
                 robot = Mantis()
-                
-                # 仿真模式
-                robot = Mantis(sim=True)
         """
         if ip:
             p = port or self.DEFAULT_PORT
@@ -118,7 +106,6 @@ class Mantis:
         else:
             self._router = None
         
-        self._sim_mode = sim
         self._session: Optional[zenoh.Session] = None
         self._publishers = {}
         self._subscribers = {}
@@ -228,15 +215,6 @@ class Mantis:
         """
         return self._connected
     
-    @property
-    def is_sim_mode(self) -> bool:
-        """是否为仿真预览模式。
-        
-        Returns:
-            bool: True 为仿真模式，False 为实机模式
-        """
-        return self._sim_mode
-    
     def set_smoothing(self, alpha: float = 0.1, rate: float = 100.0, enabled: bool = True):
         """设置运动平滑参数（仿真和实机模式通用）。
         
@@ -293,11 +271,8 @@ class Mantis:
                     print("连接失败")
         """
         if self._connected:
+            self.home()
             return True
-        
-        # 仿真模式不验证
-        if self._sim_mode:
-            verify = False
         
         try:
             config = zenoh.Config()
@@ -306,19 +281,9 @@ class Mantis:
             
             self._session = zenoh.open(config)
             
-            # 创建发布者
-            if self._sim_mode:
-                # 仿真模式：发布到 /joint_states（纯仿真，绕过 input_router）
-                self._publishers['sim_joints'] = self._session.declare_publisher(Topics.SIM_JOINT_STATES)
-                # 仿真底盘：发布到 sdk/chassis（Gazebo 桥接节点订阅）
-                self._publishers['sim_chassis'] = self._session.declare_publisher(Topics.SIM_CHASSIS)
-            else:
-                # 实机模式：发布到控制话题
-                self._publishers['joints'] = self._session.declare_publisher(Topics.JOINT_CMD)
-                self._publishers['gripper'] = self._session.declare_publisher(Topics.GRIPPER)
-                self._publishers['head'] = self._session.declare_publisher(Topics.HEAD)
-                self._publishers['chassis'] = self._session.declare_publisher(Topics.CHASSIS)
-                self._publishers['pelvis'] = self._session.declare_publisher(Topics.PELVIS)
+            # 创建发布者（统一使用 JSON 格式，通过 Python 桥接节点转发到 ROS2）
+            self._publishers['joints'] = self._session.declare_publisher(Topics.SDK_JOINT_STATES)
+            self._publishers['chassis'] = self._session.declare_publisher(Topics.SDK_CHASSIS)
             
             # 验证机器人是否在线
             if verify:
@@ -347,16 +312,15 @@ class Mantis:
                     target = self._router if self._router else "本机 (自动发现)"
                     print(f"❌ 连接超时: 未检测到机器人 ({target})")
                     print("   请检查:")
-                    print("   1) zenoh-bridge-ros2dds 是否已启动")
+                    print("   1) 机器人端 sdk_bridge 节点是否已启动")
                     print("   2) ROS2 节点是否在发布 /joint_states_fdb")
-                    print("   3) Domain ID 是否一致")
+                    print("   3) Zenoh 网络是否可达")
                     return False
             
             self._connected = True
-            mode_str = "仿真预览" if self._sim_mode else "实机控制"
-            print(f"✅ 已连接到 Mantis 机器人 ({mode_str})")
+            print(f"✅ 已连接到 Mantis 机器人")
             
-            # 启动平滑发布线程（仿真和实机模式都启用）
+            # 启动平滑发布线程
             if self._smooth_enabled:
                 self._start_smooth_thread()
             
@@ -421,23 +385,12 @@ class Mantis:
         interval = 1.0 / self._smooth_frequency
         
         while self._smooth_running:
-            if self._sim_mode:
-                # 仿真模式：平滑所有 URDF 关节
-                for name in ALL_URDF_JOINTS:
-                    current = self._current_states[name]
-                    target = self._target_states[name]
-                    self._current_states[name] = current + self._smooth_alpha * (target - current)
-                
-                # 发布平滑后的状态到仿真
-                self._publish_sim_state()
-            else:
-                # 实机模式：平滑各模块的目标状态并发布
-                self._smooth_and_publish_real()
-            
+            # 平滑各模块的目标状态并发布
+            self._smooth_and_publish()
             time.sleep(interval)
     
-    def _smooth_and_publish_real(self):
-        """实机模式：平滑并发布所有控制指令。"""
+    def _smooth_and_publish(self):
+        """平滑并发布所有控制指令（使用 JSON 格式）。"""
         # 平滑双臂关节
         positions = self._left_arm._positions + self._right_arm._positions
         for i in range(14):
@@ -445,24 +398,11 @@ class Mantis:
             target = positions[i]
             self._real_arm_positions[i] = current + self._smooth_alpha * (target - current)
         
-        # 发布平滑后的手臂位置
-        payload = CDREncoder.encode_joint_state(
-            names=JOINT_NAMES,
-            positions=self._real_arm_positions
-        )
-        self._publishers['joints'].put(payload)
-        
         # 平滑夹爪
         left_target = self._left_gripper._position
         right_target = self._right_gripper._position
         self._real_gripper_positions[0] += self._smooth_alpha * (left_target - self._real_gripper_positions[0])
         self._real_gripper_positions[1] += self._smooth_alpha * (right_target - self._real_gripper_positions[1])
-        
-        payload = CDREncoder.encode_joint_state(
-            names=["left_gripper", "right_gripper"],
-            positions=self._real_gripper_positions
-        )
-        self._publishers['gripper'].put(payload)
         
         # 平滑头部
         pitch_target = self._head._pitch
@@ -470,21 +410,45 @@ class Mantis:
         self._real_head_positions[0] += self._smooth_alpha * (pitch_target - self._real_head_positions[0])
         self._real_head_positions[1] += self._smooth_alpha * (yaw_target - self._real_head_positions[1])
         
-        payload = CDREncoder.encode_joint_state(
-            names=["head_pitch", "head_yaw"],
-            positions=self._real_head_positions
-        )
-        self._publishers['head'].put(payload)
-        
         # 平滑腰部
         waist_target = self._waist._height
         self._real_waist_position += self._smooth_alpha * (waist_target - self._real_waist_position)
         
-        payload = CDREncoder.encode_joint_state(
-            names=["waist"],
-            positions=[self._real_waist_position]
-        )
-        self._publishers['pelvis'].put(payload)
+        # 构建完整的关节状态 JSON（与仿真模式相同格式）
+        # 使用 URDF 关节名称
+        names = []
+        values = []
+        
+        # 双臂关节 (14个)
+        for i, serial_name in enumerate(JOINT_NAMES):
+            urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
+            direction = JOINT_DIRECTION_MAP.get(serial_name, 1)
+            names.append(urdf_name)
+            values.append(self._real_arm_positions[i] * direction)
+        
+        # 夹爪 (4个关节)
+        left_grip = self._real_gripper_positions[0] * 0.04  # 归一化 -> 实际位置
+        right_grip = self._real_gripper_positions[1] * 0.04
+        names.extend(["L_Hand_R_Joint", "L_Hand_L_Joint", "R_Hand_R_Joint", "R_Hand_L_Joint"])
+        values.extend([left_grip, left_grip, right_grip, right_grip])
+        
+        # 头部 (2个关节)
+        names.extend(["Head_Joint", "Neck_Joint"])
+        values.extend([self._real_head_positions[0], self._real_head_positions[1]])
+        
+        # 腰部 (1个关节)
+        names.append("Waist_Joint")
+        values.append(self._real_waist_position)
+        
+        # 发布 JSON 格式
+        msg = {
+            'name': names,
+            'position': values,
+            'velocity': [],
+            'effort': []
+        }
+        payload = json.dumps(msg).encode('utf-8')
+        self._publishers['joints'].put(payload)
     
     # ==================== 内部发布方法 ====================
     
@@ -500,161 +464,72 @@ class Mantis:
     def _publish_joints(self):
         """发布手臂关节角度。
         
-        将左右臂的关节位置发送到机器人或仿真环境。
+        将左右臂的关节位置发送到机器人。
         平滑模式下仅更新目标状态，由平滑线程发布。
         """
         self._check_connection()
         
-        # 合并左右臂位置
-        positions = self._left_arm._positions + self._right_arm._positions
-        
-        if self._sim_mode:
-            # 仿真模式：更新目标关节状态（由平滑线程逐渐逼近并发布）
-            for i, (serial_name, pos) in enumerate(zip(JOINT_NAMES, positions)):
-                urdf_name = SERIAL_TO_URDF_MAP.get(serial_name)
-                if urdf_name:
-                    direction = JOINT_DIRECTION_MAP.get(serial_name, 1)
-                    self._target_states[urdf_name] = pos * direction
-            # 由平滑线程处理
-        elif self._smooth_enabled:
-            # 实机平滑模式：仅更新目标，由平滑线程发布
+        # 平滑模式：仅更新目标，由平滑线程发布
+        if self._smooth_enabled:
             pass  # 目标状态已在子模块中更新，平滑线程会读取
         else:
-            # 实机无平滑模式：直接发送
-            payload = CDREncoder.encode_joint_state(
-                names=JOINT_NAMES,
-                positions=positions
-            )
-            self._publishers['joints'].put(payload)
+            # 无平滑模式：直接发送 JSON
+            positions = self._left_arm._positions + self._right_arm._positions
+            names = []
+            values = []
+            for i, serial_name in enumerate(JOINT_NAMES):
+                urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
+                direction = JOINT_DIRECTION_MAP.get(serial_name, 1)
+                names.append(urdf_name)
+                values.append(positions[i] * direction)
+            
+            msg = {'name': names, 'position': values, 'velocity': [], 'effort': []}
+            self._publishers['joints'].put(json.dumps(msg).encode('utf-8'))
     
     def _publish_grippers(self):
         """发布夹爪位置。
         
-        将左右夹爪的位置发送到机器人或仿真环境。
+        将左右夹爪的位置发送到机器人。
         平滑模式下仅更新目标状态，由平滑线程发布。
         """
         self._check_connection()
-        
-        if self._sim_mode:
-            # 仿真模式：更新目标夹爪关节（由平滑线程逐渐逼近并发布）
-            # 夹爪是 prismatic 类型，范围 0.0-0.04 米
-            # 用户输入是归一化值 0.0-1.0，需要转换为实际位置
-            left_pos = self._left_gripper._position * 0.04  # 归一化 -> 实际位置
-            right_pos = self._right_gripper._position * 0.04
-            self._target_states["L_Hand_R_Joint"] = left_pos
-            self._target_states["L_Hand_L_Joint"] = left_pos
-            self._target_states["R_Hand_R_Joint"] = right_pos
-            self._target_states["R_Hand_L_Joint"] = right_pos
-            # 由平滑线程处理
-        elif self._smooth_enabled:
-            # 实机平滑模式：仅更新目标，由平滑线程发布
-            pass
-        else:
-            # 实机无平滑模式：直接发送
-            payload = CDREncoder.encode_joint_state(
-                names=["left_gripper", "right_gripper"],
-                positions=[self._left_gripper._position, self._right_gripper._position]
-            )
-            self._publishers['gripper'].put(payload)
-    
-    def _publish_sim_state(self):
-        """发布仿真关节状态。
-        
-        仿真模式专用：将完整的关节状态以 JSON 格式发布，
-        由 sdk_bridge_node 转发到 ROS2 的 /joint_states 话题。
-        """
-        if not self._sim_mode:
-            return
-        
-        # 构建完整的关节状态消息（JSON 格式），使用平滑后的当前位置
-        names = ALL_URDF_JOINTS
-        positions = [float(self._current_states[name]) for name in names]
-        
-        msg = {
-            'name': names,
-            'position': positions,
-            'velocity': [],
-            'effort': []
-        }
-        
-        payload = json.dumps(msg).encode('utf-8')
-        self._publishers['sim_joints'].put(payload)
+        # 夹爪数据由 _smooth_and_publish 统一发送
+        pass
     
     def _publish_head(self):
         """发布头部姿态。
         
-        将头部的俯仰和偏航角度发送到机器人或仿真环境。
+        将头部的俯仰和偏航角度发送到机器人。
         平滑模式下仅更新目标状态，由平滑线程发布。
         """
         self._check_connection()
-        
-        if self._sim_mode:
-            # 仿真模式：更新目标头部关节（由平滑线程逐渐逼近并发布）
-            self._target_states["Neck_Joint"] = self._head._yaw
-            self._target_states["Head_Joint"] = self._head._pitch
-            # 由平滑线程处理
-        elif self._smooth_enabled:
-            # 实机平滑模式：仅更新目标，由平滑线程发布
-            pass
-        else:
-            # 实机无平滑模式：直接发送
-            payload = CDREncoder.encode_joint_state(
-                names=["head_pitch", "head_yaw"],
-                positions=[self._head._pitch, self._head._yaw]
-            )
-            self._publishers['head'].put(payload)
+        # 头部数据由 _smooth_and_publish 统一发送
+        pass
     
     def _publish_waist(self):
         """发布腰部高度。
         
-        将腰部的高度发送到机器人或仿真环境。
+        将腰部的高度发送到机器人。
         平滑模式下仅更新目标状态，由平滑线程发布。
         """
         self._check_connection()
-        
-        if self._sim_mode:
-            # 仿真模式：更新目标腰部关节（由平滑线程逐渐逼近并发布）
-            self._target_states["Waist_Joint"] = self._waist._height
-            # 由平滑线程处理
-        elif self._smooth_enabled:
-            # 实机平滑模式：仅更新目标，由平滑线程发布
-            pass
-        else:
-            # 实机无平滑模式：直接发送
-            payload = CDREncoder.encode_joint_state(
-                names=["waist"],
-                positions=[self._waist._height]
-            )
-            self._publishers['pelvis'].put(payload)
+        # 腰部数据由 _smooth_and_publish 统一发送
+        pass
     
     def _publish_chassis(self):
         """发布底盘速度。
         
         将底盘的线速度和角速度发送到机器人。
-        仿真模式下通过 Zenoh 发送给 Gazebo 桥接节点。
         """
         self._check_connection()
         
-        if self._sim_mode:
-            # 仿真模式：发送 JSON 给 Gazebo 桥接节点
-            import json
-            data = {
-                'vx': self._chassis._vx,
-                'vy': self._chassis._vy,
-                'omega': self._chassis._omega
-            }
-            self._publishers['sim_chassis'].put(json.dumps(data).encode('utf-8'))
-            return
-        
-        payload = CDREncoder.encode_twist(
-            linear_x=self._chassis._vx,
-            linear_y=self._chassis._vy,
-            linear_z=0.0,
-            angular_x=0.0,
-            angular_y=0.0,
-            angular_z=self._chassis._omega
-        )
-        self._publishers['chassis'].put(payload)
+        # 统一使用 JSON 格式发送底盘命令
+        data = {
+            'vx': self._chassis._vx,
+            'vy': self._chassis._vy,
+            'omega': self._chassis._omega
+        }
+        self._publishers['chassis'].put(json.dumps(data).encode('utf-8'))
     
     # ==================== 便捷方法 ====================
     
@@ -744,7 +619,8 @@ class Mantis:
         
         def _on_feedback(sample):
             try:
-                data = CDRDecoder.decode_joint_state(sample.payload.to_bytes())
+                # 解析 JSON 格式的反馈数据
+                data = json.loads(sample.payload.to_bytes().decode('utf-8'))
                 if self._feedback_callback:
                     self._feedback_callback(data)
             except Exception as e:

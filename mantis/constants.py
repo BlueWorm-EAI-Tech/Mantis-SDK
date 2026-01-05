@@ -162,18 +162,19 @@ SERIAL_TO_URDF_MAP = dict(zip(JOINT_NAMES, URDF_ARM_JOINT_NAMES))
 
 #: 方向修正映射：Serial 名称 → 方向系数
 #:
-#: 某些电机在 URDF 中的安装方向与实际相反，需要乘以 -1 修正
+#: SDK 端不做方向修正，方向修正在接收端（sdk_bridge）处理
+#: 这样 RViz 和实机可以分别应用不同的方向系数
 JOINT_DIRECTION_MAP = {
     # 左臂
-    "left_shoulder_pitch_joint": -1,
+    "left_shoulder_pitch_joint": 1,
     "left_shoulder_yaw_joint": 1,
-    "left_shoulder_roll_joint": -1,
+    "left_shoulder_roll_joint": 1,
     "left_elbow_pitch_joint": 1,
     "left_wrist_roll_joint": 1,
-    "left_wrist_pitch_joint": -1,
+    "left_wrist_pitch_joint": 1,
     "left_wrist_yaw_joint": 1,
     # 右臂
-    "right_shoulder_pitch_joint": -1,
+    "right_shoulder_pitch_joint": 1,
     "right_shoulder_yaw_joint": 1,
     "right_shoulder_roll_joint": 1,
     "right_elbow_pitch_joint": 1,
@@ -187,42 +188,23 @@ JOINT_DIRECTION_MAP = {
 class Topics:
     """Zenoh 话题定义。
     
-    话题名称对应 ROS2 话题，通过 zenoh-bridge-ros2dds 桥接。
+    所有话题使用纯 Zenoh 通信，通过 Python 桥接节点转发到 ROS2。
     
     Attributes:
-        JOINT_CMD: 关节角度命令话题
-        GRIPPER: 夹爪位置命令话题
-        HEAD: 头部姿态命令话题
-        CHASSIS: 底盘速度命令话题
-        PELVIS: 骨盆速度命令话题
-        JOINT_FEEDBACK: 关节反馈话题
-        FORCE_FEEDBACK: 力反馈话题
-        SIM_JOINT_STATES: 仿真关节状态话题（SDK→Bridge）
+        SDK_JOINT_STATES: 关节状态话题（SDK→Python桥接→ROS2）
+        SDK_CHASSIS: 底盘速度话题（SDK→Python桥接→ROS2）
+        JOINT_FEEDBACK: 关节反馈话题（ROS2→Python桥接→SDK）
+        FORCE_FEEDBACK: 力反馈话题（ROS2→Python桥接→SDK）
     """
     
-    #: 关节角度命令（实机）
-    JOINT_CMD = "Teleop/joint_angle_solution/smooth"
+    #: 关节状态（SDK 发布，Python 桥接节点订阅）
+    SDK_JOINT_STATES = "sdk/joint_states"
     
-    #: 夹爪位置命令（实机）
-    GRIPPER = "Teleop/gripper_pos"
+    #: 底盘速度命令（SDK 发布，Python 桥接节点订阅）
+    SDK_CHASSIS = "sdk/chassis"
     
-    #: 头部姿态命令（实机）
-    HEAD = "Teleop/head_pose"
+    #: 关节状态反馈（Python 桥接节点发布，SDK 订阅）
+    JOINT_FEEDBACK = "sdk/joint_feedback"
     
-    #: 底盘速度命令（实机）
-    CHASSIS = "Teleop/cmd_vel"
-    
-    #: 骨盆速度命令（实机）
-    PELVIS = "Teleop/pelvis_speed"
-    
-    #: 关节状态反馈（实机）
-    JOINT_FEEDBACK = "joint_states_fdb"
-    
-    #: 力反馈（实机）
-    FORCE_FEEDBACK = "force_feedback"
-    
-    #: 仿真关节状态（发送 JSON 给 sdk_bridge_node）
-    SIM_JOINT_STATES = "sdk/joint_states"
-    
-    #: 仿真底盘命令（发送 JSON 给 gazebo_bridge_node）
-    SIM_CHASSIS = "sdk/chassis"
+    #: 力反馈（Python 桥接节点发布，SDK 订阅）
+    FORCE_FEEDBACK = "sdk/force_feedback"

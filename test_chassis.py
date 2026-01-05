@@ -26,38 +26,39 @@ import time
 def test_basic_movement(robot):
     """测试基本运动：前进、后退、左右移动、旋转"""
     print("\n=== 测试基本运动 ===\n")
-    
+    robot.chassis.set_friction(linear=3.0, angular=2.0)
+
     # 前进
     print("1. 前进 0.3 米")
-    robot.chassis.forward(0.3)
+    robot.chassis.forward(1.0)
     time.sleep(0.5)
     
-    # 后退
-    print("2. 后退 0.3 米")
-    robot.chassis.backward(0.3)
-    time.sleep(0.5)
+    # # 后退
+    # print("2. 后退 0.3 米")
+    # robot.chassis.backward(1.0)
+    # time.sleep(0.5)
     
-    # 左移
-    print("3. 左移 0.2 米")
-    robot.chassis.strafe_left(0.2)
-    time.sleep(0.5)
+    # # 左移
+    # print("3. 左移 0.2 米")
+    # robot.chassis.strafe_left(1.0)
+    # time.sleep(0.5)
     
-    # 右移
-    print("4. 右移 0.2 米")
-    robot.chassis.strafe_right(0.2)
-    time.sleep(0.5)
+    # # 右移
+    # print("4. 右移 0.2 米")
+    # robot.chassis.strafe_right(1.0)
+    # time.sleep(0.5)
     
     # 左转
-    print("5. 左转 90 度")
-    robot.chassis.turn_left(90)
-    time.sleep(0.5)
+    # print("5. 左转 90 度")
+    # robot.chassis.turn_left(90)
+    # time.sleep(0.5)
     
-    # 右转
-    print("6. 右转 90 度")
-    robot.chassis.turn_right(90)
-    time.sleep(0.5)
+    # # 右转
+    # print("6. 右转 90 度")
+    # robot.chassis.turn_right(90)
+    # time.sleep(0.5)
     
-    print("基本运动测试完成！")
+    # print("基本运动测试完成！")
 
 
 def test_custom_speed(robot):
@@ -187,33 +188,34 @@ def main():
     print()
     
     choice = input("请选择 (1-7): ").strip()
+    robot = Mantis(ip="192.168.1.111")
+    robot.connect(verify=False)
+
+    print("\n机器人已连接，开始测试...\n")
+    time.sleep(1)  # 等待连接稳定
     
-    with Mantis(sim=True) as robot:
-        print("\n机器人已连接，开始测试...\n")
-        time.sleep(1)  # 等待连接稳定
-        
-        if choice == '1':
-            test_basic_movement(robot)
-        elif choice == '2':
-            test_custom_speed(robot)
-        elif choice == '3':
-            test_square_path(robot)
-        elif choice == '4':
-            test_combined_movement(robot)
-        elif choice == '5':
-            test_non_blocking(robot)
-        elif choice == '6':
-            interactive_control(robot)
-        elif choice == '7':
-            test_basic_movement(robot)
-            test_custom_speed(robot)
-            test_square_path(robot)
-            test_combined_movement(robot)
-        else:
-            print("无效选择，运行基本测试...")
-            test_basic_movement(robot)
-        
-        print("\n测试完成！")
+    if choice == '1':
+        test_basic_movement(robot)
+    elif choice == '2':
+        test_custom_speed(robot)
+    elif choice == '3':
+        test_square_path(robot)
+    elif choice == '4':
+        test_combined_movement(robot)
+    elif choice == '5':
+        test_non_blocking(robot)
+    elif choice == '6':
+        interactive_control(robot)
+    elif choice == '7':
+        test_basic_movement(robot)
+        test_custom_speed(robot)
+        test_square_path(robot)
+        test_combined_movement(robot)
+    else:
+        print("无效选择，运行基本测试...")
+        test_basic_movement(robot)
+    
+    print("\n测试完成！")
 
 
 if __name__ == "__main__":

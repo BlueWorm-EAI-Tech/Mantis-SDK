@@ -9,7 +9,7 @@ Features:
     - 夹爪控制：左右夹爪开合
     - 头部控制：俯仰/偏航两自由度
     - 底盘控制：全向移动底盘
-    - 仿真预览：RViz 实时预览（带平滑）
+    - 平滑运动：自动平滑插值
     - 关节限位：自动限制在安全范围内
 
 Installation:
@@ -23,15 +23,15 @@ Quick Start:
     
         from mantis import Mantis
         
-        # 实机控制
+        # 连接机器人
         with Mantis(ip="192.168.1.100") as robot:
             robot.left_arm.set_shoulder_pitch(-0.5)
             robot.right_arm.set_joints([0.0] * 7)
             robot.head.look_left()
             robot.left_gripper.open()
         
-        # 仿真预览
-        with Mantis(sim=True) as robot:
+        # 本地调试（同一局域网）
+        with Mantis() as robot:
             robot.left_arm.set_shoulder_pitch(-0.5)
 
 Modules:
@@ -42,10 +42,9 @@ Modules:
     - :class:`Chassis`: 底盘控制
 
 Note:
-    仿真模式需要先启动 ROS2 仿真环境::
+    使用前需启动机器人端的 Python 桥接节点::
     
-        ros2 launch bw_sim2real sdk_sim.launch.py
-        zenoh-bridge-ros2dds -d 99
+        ros2 run bw_sdk_bridge sdk_bridge
 """
 
 from .mantis import Mantis
@@ -57,7 +56,7 @@ from .chassis import Chassis
 from .constants import *
 
 #: SDK 版本号
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 #: 作者
 __author__ = "BlueWorm-EAI-Tech"
