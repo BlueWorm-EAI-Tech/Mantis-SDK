@@ -1,7 +1,7 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.2.1-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
@@ -93,8 +93,13 @@ cd ~/bw_motion_ws && source install/setup.bash
 ros2 launch bw_sim2real sdk_sim.launch.py
 
 # 实机控制
-cd ~/bw_teleoperate_ws && source install/setup.bash
-ros2 run bw_sdk_bridge sdk_to_real_bridge
+# 1) 进入遥操作文件夹
+cd ~/bw_system_ws
+# 2) 修改.env文件
+# 修改文件中的内容不是终端运行
+RUN_MODE=sdk
+# 3) 运行启动脚本
+./run.sh
 ```
 
 > 💡 **提示**: 不再需要启动 zenoh-bridge-ros2dds
@@ -454,8 +459,14 @@ with Mantis(ip="192.168.1.100") as robot:
 
 ```bash
 # ===== 实机控制 =====
-cd ~/bw_teleoperate_ws
-./sdk_bridge.sh
+# 实机控制
+# 1) 进入遥操作文件夹
+cd ~/bw_system_ws
+# 2) 修改.env文件
+# 修改文件中的内容不是终端运行
+RUN_MODE=sdk
+# 3) 运行启动脚本
+./run.sh
 ```
 
 > ⚠️ **注意**: v1.2.0 起不再需要 zenoh-bridge-ros2dds
