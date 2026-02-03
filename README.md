@@ -1,7 +1,7 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.3.1-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.2-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 

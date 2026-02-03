@@ -56,7 +56,7 @@ from .chassis import Chassis
 from .constants import *
 
 #: SDK 版本号
-__version__ = "1.3.1"
+__version__ = "1.3.2"
 
 #: 作者
 __author__ = "BlueWorm-EAI-Tech"
