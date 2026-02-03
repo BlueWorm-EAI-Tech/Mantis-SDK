@@ -70,7 +70,6 @@ class Waist:
         self._robot = robot
         self._height = 0.0
         self._limits = WAIST_LIMITS
-        self._is_moving = False
         self._speed = self.DEFAULT_SPEED
     
     @property
@@ -82,11 +81,6 @@ class Waist:
     def limits(self) -> tuple:
         """限位元组 (lower, upper)。"""
         return self._limits
-    
-    @property
-    def is_moving(self) -> bool:
-        """是否正在运动中。"""
-        return self._is_moving
     
     def set_speed(self, speed: float):
         """设置移动速度。
@@ -101,26 +95,19 @@ class Waist:
         lower, upper = self._limits
         return max(lower, min(upper, value))
     
-    def _execute_motion(self, duration: float, block: bool):
+    def _execute_motion(self, block: bool):
         """执行运动。"""
-        if duration < 0.01:
-            return
-        
-        self._is_moving = True
-        
         if block:
-            time.sleep(duration)
-            self._is_moving = False
-        else:
-            def _delayed_stop():
-                time.sleep(duration)
-                self._is_moving = False
-            threading.Thread(target=_delayed_stop, daemon=True).start()
+            self.wait()
     
     def wait(self):
         """等待当前运动完成。"""
-        while self._is_moving:
-            time.sleep(0.01)
+        self._robot.wait(['waist'])
+    
+    @property
+    def is_moving(self) -> bool:
+        """是否正在运动中。"""
+        return self._robot.is_moving(['waist'])
     
     def set_height(self, height: float, clamp: bool = True, block: bool = True):
         """设置腰部高度。
@@ -133,10 +120,8 @@ class Waist:
         old_height = self._height
         self._height = self._clamp(height) if clamp else height
         
-        duration = abs(self._height - old_height) / self._speed
-        
         self._robot._publish_waist()
-        self._execute_motion(duration, block)
+        self._execute_motion(block)
     
     def up(self, delta: float = 0.05, block: bool = True):
         """安全上升（相对移动）。

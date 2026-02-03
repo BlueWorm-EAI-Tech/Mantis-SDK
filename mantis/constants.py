@@ -58,7 +58,7 @@ NUM_TOTAL_JOINTS = 14
 #:   5. wrist_pitch:    -0.52 ~ 0.52
 #:   6. wrist_yaw:      -1.57 ~ 1.57
 LEFT_ARM_LIMITS = [
-    (-2.61, 0.78),   # shoulder_pitch: L_Shoulder_Pitch_Joint
+    (-2.61, 1.5),   # shoulder_pitch: L_Shoulder_Pitch_Joint
     (-0.213, 2.029), # shoulder_yaw:   L_Shoulder_Yaw_Joint
     (-1.57, 1.57),   # shoulder_roll:  L_Shoulder_Roll_Joint
     (-0.78, 1.57),   # elbow_pitch:    L_Elbow_Pitch_Joint
@@ -72,7 +72,7 @@ LEFT_ARM_LIMITS = [
 #: Note:
 #:   右臂 shoulder_yaw 限位与左臂相同（URDF 中轴方向已处理）
 RIGHT_ARM_LIMITS = [
-    (-2.61, 0.78),   # shoulder_pitch: R_Shoulder_Pitch_Joint
+    (-2.61, 1.5),   # shoulder_pitch: R_Shoulder_Pitch_Joint
     (-0.213, 2.029), # shoulder_yaw:   R_Shoulder_Yaw_Joint
     (-1.57, 1.57),   # shoulder_roll:  R_Shoulder_Roll_Joint
     (-0.78, 1.57),   # elbow_pitch:    R_Elbow_Pitch_Joint
@@ -203,8 +203,8 @@ class Topics:
     #: 底盘速度命令（SDK 发布，Python 桥接节点订阅）
     SDK_CHASSIS = "sdk/chassis"
     
-    #: 关节状态反馈（Python 桥接节点发布，SDK 订阅）
-    JOINT_FEEDBACK = "sdk/joint_feedback"
+    #: 系统状态反馈（Python 桥接节点发布，SDK 订阅）
+    SYSTEM_STATUS = "sdk/system_status"
     
     #: 力反馈（Python 桥接节点发布，SDK 订阅）
     FORCE_FEEDBACK = "sdk/force_feedback"

@@ -136,7 +136,6 @@ class Arm:
         self._limits = LEFT_ARM_LIMITS if side == "left" else RIGHT_ARM_LIMITS
         self._positions = [0.0] * NUM_ARM_JOINTS
         self._target_positions = [0.0] * NUM_ARM_JOINTS
-        self._is_moving = False
         self._joint_speed = self.DEFAULT_JOINT_SPEED
     
     @property
@@ -159,11 +158,6 @@ class Arm:
         """关节限位列表。"""
         return self._limits.copy()
     
-    @property
-    def is_moving(self) -> bool:
-        """是否正在运动中。"""
-        return self._is_moving
-    
     def set_speed(self, speed: float):
         """设置关节运动速度。
         
@@ -182,14 +176,6 @@ class Arm:
         """限制值在关节限位范围内。"""
         lower, upper = self._limits[index]
         return max(lower, min(upper, value))
-    
-    def _estimate_duration(self, new_positions: List[float]) -> float:
-        """估算运动时间。"""
-        max_delta = 0.0
-        for i in range(NUM_ARM_JOINTS):
-            delta = abs(new_positions[i] - self._positions[i])
-            max_delta = max(max_delta, delta)
-        return max_delta / self._joint_speed
     
     def set_joints(self, positions: List[float], clamp: bool = True, block: bool = True):
         """设置所有关节角度。
@@ -218,16 +204,13 @@ class Arm:
         else:
             new_positions = list(positions)
         
-        # 估算运动时间
-        duration = self._estimate_duration(new_positions)
-        
         # 更新位置
         self._target_positions = new_positions
         self._positions = new_positions
         self._robot._publish_joints()
         
         # 执行运动
-        self._execute_motion(duration, block)
+        self._execute_motion(block)
     
     def set_joint(self, index: int, position: float, clamp: bool = True, block: bool = True):
         """设置单个关节角度。
@@ -244,38 +227,29 @@ class Arm:
         if clamp:
             position = self._clamp(index, position)
         
-        # 估算运动时间
-        duration = abs(position - self._positions[index]) / self._joint_speed
-        
         # 更新位置
         self._positions[index] = position
         self._target_positions[index] = position
         self._robot._publish_joints()
         
         # 执行运动
-        self._execute_motion(duration, block)
+        self._execute_motion(block)
     
-    def _execute_motion(self, duration: float, block: bool):
+    def _execute_motion(self, block: bool):
         """执行运动。"""
-        if duration < 0.01:
-            return
-        
-        self._is_moving = True
-        
+        # 这里仅用于非阻塞模式下的即时返回
         if block:
-            time.sleep(duration)
-            self._is_moving = False
-        else:
-            def _delayed_stop():
-                time.sleep(duration)
-                self._is_moving = False
-            threading.Thread(target=_delayed_stop, daemon=True).start()
-    
+            self.wait()
+
     def wait(self):
         """等待当前运动完成。"""
-        while self._is_moving:
-            time.sleep(0.01)
+        self._robot.wait(self.joint_names)
     
+    @property
+    def is_moving(self) -> bool:
+        """是否正在运动中（基于整机状态）。"""
+        return self._robot.is_moving(self.joint_names)
+
     def home(self, block: bool = True):
         """回到零位。
         
@@ -286,7 +260,7 @@ class Arm:
     
     def __repr__(self) -> str:
         """返回手臂的字符串表示。"""
-        status = "运动中" if self._is_moving else "停止"
+        status = "运动中" if self.is_moving else "停止"
         return f"Arm(side='{self._side}', {status})"
 
 

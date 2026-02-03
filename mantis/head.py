@@ -53,11 +53,8 @@ def _make_look_action(attr: str, sign: int, default: float, doc: str):
         setattr(self, f"_{attr}", new_value)
         self._apply_limits()
         
-        # 估算运动时间
-        duration = abs(new_value - old_value) / self._speed
-        
         self._robot._publish_head()
-        self._execute_motion(duration, block)
+        self._execute_motion(block)
         
     action.__doc__ = f"""{doc}。
     
@@ -109,7 +106,6 @@ class Head:
         self._pitch = 0.0
         self._yaw = 0.0
         self._limits = HEAD_LIMITS
-        self._is_moving = False
         self._speed = self.DEFAULT_SPEED
     
     @property
@@ -121,12 +117,7 @@ class Head:
     def yaw(self) -> float:
         """当前偏航角（弧度）。"""
         return self._yaw
-    
-    @property
-    def is_moving(self) -> bool:
-        """是否正在运动中。"""
-        return self._is_moving
-    
+
     @property
     def limits(self) -> dict:
         """限位字典。"""
@@ -150,26 +141,19 @@ class Head:
         self._pitch = self._clamp("pitch", self._pitch)
         self._yaw = self._clamp("yaw", self._yaw)
     
-    def _execute_motion(self, duration: float, block: bool):
+    def _execute_motion(self, block: bool):
         """执行运动。"""
-        if duration < 0.01:
-            return
-        
-        self._is_moving = True
-        
         if block:
-            time.sleep(duration)
-            self._is_moving = False
-        else:
-            def _delayed_stop():
-                time.sleep(duration)
-                self._is_moving = False
-            threading.Thread(target=_delayed_stop, daemon=True).start()
+            self.wait()
     
     def wait(self):
         """等待当前运动完成。"""
-        while self._is_moving:
-            time.sleep(0.01)
+        self._robot.wait(['head'])
+    
+    @property
+    def is_moving(self) -> bool:
+        """是否正在运动中。"""
+        return self._robot.is_moving(['head'])
     
     def set_pose(self, pitch: float = None, yaw: float = None, clamp: bool = True, block: bool = True):
         """设置头部姿态。
@@ -180,11 +164,6 @@ class Head:
             clamp: 是否自动限制在限位范围内，默认 True
             block: 是否阻塞等待完成，默认 True
         """
-        # 计算变化量
-        delta_pitch = abs((pitch if pitch is not None else self._pitch) - self._pitch)
-        delta_yaw = abs((yaw if yaw is not None else self._yaw) - self._yaw)
-        max_delta = max(delta_pitch, delta_yaw)
-        duration = max_delta / self._speed
         
         if pitch is not None:
             self._pitch = self._clamp("pitch", pitch) if clamp else pitch
@@ -192,7 +171,7 @@ class Head:
             self._yaw = self._clamp("yaw", yaw) if clamp else yaw
         
         self._robot._publish_head()
-        self._execute_motion(duration, block)
+        self._execute_motion(block)
     
     def set_pitch(self, angle: float, clamp: bool = True, block: bool = True):
         """设置俯仰角。

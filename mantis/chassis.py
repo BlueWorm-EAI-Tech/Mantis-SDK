@@ -94,12 +94,12 @@ class Chassis:
         self._default_angular_speed = self.DEFAULT_ANGULAR_SPEED
         self._linear_friction = self.DEFAULT_LINEAR_FRICTION
         self._angular_friction = self.DEFAULT_ANGULAR_FRICTION
-        self._is_moving = False
+        # self._is_moving = False # 移除
     
-    @property
-    def is_moving(self) -> bool:
-        """是否正在运动中。"""
-        return self._is_moving
+    # @property # 移除
+    # def is_moving(self) -> bool:
+    #     """是否正在运动中。"""
+    #     return self._is_moving
     
     def set_friction(self, linear: float = None, angular: float = None):
         """设置摩擦补偿系数。
@@ -242,7 +242,7 @@ class Chassis:
         self._vx = 0.0
         self._vy = 0.0
         self._omega = 0.0
-        self._is_moving = False
+        # self._is_moving = False # 移除
         self._robot._publish_chassis()
     
     # ==================== 内部方法 ====================
@@ -304,25 +304,36 @@ class Chassis:
         """执行运动。
         
         Args:
-            duration: 运动时长 (秒)
+            duration: 运动时长 (秒) - 用于计算停止时间，但停止判断基于整机状态
             block: 是否阻塞等待完成
         """
-        self._is_moving = True
         self._robot._publish_chassis()
         
-        if block:
+        # 启动停止线程（底盘比较特殊，需要手动发送 0 速度来停止，所以保留时间控制逻辑）
+        # 但是 is_moving 状态改为查询整机状态
+        
+        def _delayed_stop():
             time.sleep(duration)
-            self.stop()
+            self.stop() # 发送停止指令
+
+        if block:
+            _delayed_stop() # 阻塞执行直到时间结束发送停止指令
+            self.wait() # 确保真正停止
         else:
             # 非阻塞模式：启动定时器在后台停止
             import threading
-            def _delayed_stop():
-                time.sleep(duration)
-                if self._is_moving:  # 检查是否已被手动停止
-                    self.stop()
             threading.Thread(target=_delayed_stop, daemon=True).start()
+
+    def wait(self):
+        """等待当前运动完成。"""
+        self._robot.wait(['chassis'])
+
+    @property
+    def is_moving(self) -> bool:
+        """是否正在运动中。"""
+        return self._robot.is_moving(['chassis'])
     
     def __repr__(self) -> str:
         """返回底盘的字符串表示。"""
-        status = "运动中" if self._is_moving else "停止"
+        status = "运动中" if self.is_moving else "停止"
         return f"Chassis({status}, vx={self._vx:.2f}, vy={self._vy:.2f}, ω={self._omega:.2f})"
