@@ -294,8 +294,12 @@ with Mantis(ip="192.168.1.100") as robot:
     time.sleep(1)
 
     # IK 控制 (新增)
-    # 移动左臂到指定位置 (x, y, z) 和姿态 (roll, pitch, yaw)
-    robot.left_arm.ik(0.5, 0.2, 0.3, 0, 0, 0)
+    # 绝对位姿控制，移动左臂到指定位置 (x, y, z) 和姿态 (roll, pitch, yaw)
+    robot.left_arm.ik(0.5, 0.2, 0.3, 0, 0, 0, True)
+    
+    # 增量控制，移动左臂在目前的位姿上增量
+    robot.left_arm.ik(0.5, 0.2, 0.3, 0, 0, 0, False)
+
 ```
 
 ### 2. 夹爪控制
@@ -512,6 +516,7 @@ mantis/
 │   ├── head.py         # 头部控制（俯仰/偏航）
 │   ├── waist.py        # 腰部控制（升降）
 │   ├── chassis.py      # 底盘控制（全向移动）
+│   ├── ik_solver.py    # ik求解器
 │   └── constants.py    # 关节限位常量
 ├── test_sim.py         # 仿真测试脚本
 ├── test_real.py        # 实机测试脚本
@@ -531,26 +536,6 @@ mantis/
 7. **阻塞模式**：默认 `block=True`，使用 `block=False` 实现并行运动
 8. **连接超时**：默认 5 秒，可通过 `connect(timeout=10)` 调整
 9. **跳过验证**：调试时可用 `connect(verify=False)` 跳过连接验证
-
----
-
-## 更新日志
-
-### v1.2.0 (2026-01-05)
-
-- **重构**: 移除 zenoh-bridge-ros2dds 依赖，改用纯 Python Zenoh + JSON 通讯
-- **重构**: 移除 CDR 编解码模块，简化代码
-- **重构**: 统一 sim/real 模式，SDK 不再区分仿真和实机
-- **修复**: 夹爪开合方向映射问题
-- **修复**: 机器人连接初始化问题
-- **优化**: 提高底盘默认速度（1.5 m/s）
-- **新增**: 底盘摩擦补偿系数 `set_friction()`
-
-### v1.1.0 (2025-12-30)
-
-- 新增腰部控制模块
-- 新增安全底盘控制（基于距离/角度）
-- 优化并行运动支持
 
 ---
 
