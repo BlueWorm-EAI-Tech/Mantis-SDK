@@ -83,7 +83,7 @@ RIGHT_ARM_LIMITS = [
 
 #: 头部限位，单位：弧度
 HEAD_LIMITS = {
-    "pitch": (-0.7, 0.2),   # Head_Joint: 俯仰（正值低头）
+    "pitch": (-0.7, 0.9),   # Head_Joint: 俯仰（正值低头）
     "yaw": (-1.57, 1.57),   # Neck_Joint: 偏航（正值左转）
 }
 
@@ -193,7 +193,6 @@ class Topics:
     Attributes:
         SDK_JOINT_STATES: 关节状态话题（SDK→Python桥接→ROS2）
         SDK_CHASSIS: 底盘速度话题（SDK→Python桥接→ROS2）
-        JOINT_FEEDBACK: 关节反馈话题（ROS2→Python桥接→SDK）
         FORCE_FEEDBACK: 力反馈话题（ROS2→Python桥接→SDK）
     """
     

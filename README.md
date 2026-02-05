@@ -1,26 +1,18 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.3.2-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.3-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
 基于 Zenoh 的 Mantis 机器人控制 SDK，**无需安装 ROS2**。
 
-> 2026-01-05 | [Release Notes](./RELEASE_NOTES.md)
-
-## ✨ v1.2.0 更新亮点
-
-- 🔧 **重构通讯架构**: 移除 zenoh-bridge-ros2dds 依赖，改用纯 Python Zenoh + JSON 格式
-- 🎯 **统一控制接口**: 不再区分 sim/real 模式，SDK 统一驱动 RViz 和实机
-- 🦾 **修复夹爪映射**: 修正夹爪开合方向与限位映射问题
-- 🚀 **优化底盘控制**: 提高默认速度，新增摩擦补偿系数
-- 🔗 **改进连接稳定性**: 修复连接初始化和验证问题
-
+> 2026-02-05 | [Release Notes](./RELEASE_NOTES.md)
 ## 特性
 
 - 🚀 **无 ROS2 依赖**: 客户端只需 Python + Zenoh
 - 🤖 **完整控制**: 双臂、夹爪、头部、腰部、底盘
+- 🦾 **逆运动学 (IK)**: 基于 Pinocchio 的高性能解算，支持绝对位姿与相对增量控制
 - 🔒 **安全限位**: 自动限制在 URDF 定义范围内
 - 🎯 **统一驱动**: 同一套代码控制 RViz 仿真和实机
 - ⚡ **并行运动**: 阻塞/非阻塞模式，支持多部件同时运动
@@ -32,6 +24,24 @@
 
 ```bash
 pip install bw-mantis-sdk
+```
+
+### 依赖安装 (IK 功能)
+
+如果需要使用 IK (逆运动学) 功能，请按照以下步骤安装 Pinocchio 依赖：
+
+```bash
+# Ensure you have some required installation dependencies 
+sudo apt install -qqy lsb-release curl 
+# Register the authentication certificate of robotpkg: 
+sudo mkdir -p /etc/apt/keyrings 
+curl http://robotpkg.openrobots.org/packages/debian/robotpkg.asc \
+  | sudo tee /etc/apt/keyrings/robotpkg.asc 
+# Add robotpkg as source repository to apt: 
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/robotpkg.asc] http://robotpkg.openrobots.org/packages/debian/pub $(lsb_release -cs) robotpkg" \
+  | sudo tee /etc/apt/sources.list.d/robotpkg.list 
+sudo apt update 
+sudo apt install -qqy robotpkg-py310-pinocchio
 ```
 
 ## 快速开始
@@ -155,6 +165,9 @@ RUN_MODE=sdk
 - `wait()` - 等待当前运动完成
 - `is_moving` - 是否正在运动中
 - `set_speed(speed)` - 设置关节速度 (rad/s)
+- `ik(x, y, z, roll, pitch, yaw, block=True, abs=True)` - 末端位姿控制 (IK)。
+  - `abs=True`: 绝对位姿 (位置: m, 姿态: rad)。会自动重置内部目标点。
+  - `abs=False`: 相对增量 (位置: 全局 m, 姿态: 局部 rad)。基于内部维护的目标位姿进行累积，支持连续调用。
 
 ### Gripper (夹爪)
 
@@ -267,6 +280,10 @@ with Mantis(ip="192.168.1.100") as robot:
     robot.left_arm.home()
     robot.right_arm.home()
     time.sleep(1)
+
+    # IK 控制 (新增)
+    # 移动左臂到指定位置 (x, y, z) 和姿态 (roll, pitch, yaw)
+    robot.left_arm.ik(0.5, 0.2, 0.3, 0, 0, 0)
 ```
 
 ### 2. 夹爪控制

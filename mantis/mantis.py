@@ -626,6 +626,90 @@ class Mantis:
         if callback:
             print("✅ 已订阅系统状态")
     
+    # ==================== IK Solver 接口 ====================
+
+    def _get_ik_solver(self):
+        if not hasattr(self, '_ik_solver_instance') or self._ik_solver_instance is None:
+             from .ik_solver import MantisArmIK
+             self._ik_solver_instance = MantisArmIK()
+             # 初始化时同步 IK 状态到当前的指令位置
+             self.sync_ik_with_commands()
+        return self._ik_solver_instance
+
+    def _get_commanded_joint_config(self):
+        """获取基于当前指令位置的关节配置 (14维)。"""
+        solver = self._get_ik_solver()
+        names = solver.get_joint_names() # URDF names
+        
+        # 构建当前指令的映射
+        commanded_map = {}
+        
+        # 左臂
+        for i, serial_name in enumerate(self._left_arm.joint_names):
+            urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
+            direction = JOINT_DIRECTION_MAP.get(serial_name, 1.0)
+            # URDF angle = Serial angle / direction (direction is +/- 1)
+            commanded_map[urdf_name] = self._left_arm._positions[i] / direction
+            
+        # 右臂
+        for i, serial_name in enumerate(self._right_arm.joint_names):
+            urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
+            direction = JOINT_DIRECTION_MAP.get(serial_name, 1.0)
+            commanded_map[urdf_name] = self._right_arm._positions[i] / direction
+            
+        config = []
+        for name in names:
+            config.append(commanded_map.get(name, 0.0))
+        return config
+
+    def sync_ik_with_commands(self):
+        """将 IK Solver 的内部状态和目标点同步到当前的指令位置。
+        
+        当手动控制关节 (如 home, set_joints) 时应调用此方法，
+        以防止 IK 增量控制基于过期的目标点。
+        """
+        solver = self._get_ik_solver()
+        q_cmd = self._get_commanded_joint_config()
+        
+        # 1. 更新 IK 种子状态
+        solver.set_config(q_cmd)
+        
+        # 2. 强制重置目标点为当前指令位置
+        solver.reset_targets()
+
+    def _get_ordered_joint_config(self):
+        """获取 IK Solver 需要的当前关节配置（14维）。
+        
+        优先使用指令位置 (Open Loop)，因为目前 SDK 未订阅实时关节反馈。
+        """
+        return self._get_commanded_joint_config()
+
+    def solve_ik_abs(self, T_left, T_right):
+        """调用 IK Solver 解算关节角 (绝对模式)。"""
+        solver = self._get_ik_solver()
+        
+        # 同步当前状态，确保热启动和正则化正确
+        q_current = self._get_ordered_joint_config()
+        solver.set_config(q_current)
+        
+        return solver.solve_ik_abs(T_left, T_right)
+
+    def solve_ik_rel(self, delta_left, delta_right):
+        """调用 IK Solver 解算关节角 (增量模式)。"""
+        solver = self._get_ik_solver()
+        
+        # 同步当前状态
+        q_current = self._get_ordered_joint_config()
+        solver.set_config(q_current)
+        
+        return solver.solve_ik_rel(delta_left, delta_right)
+
+    def compute_fk(self):
+        """计算当前 FK。"""
+        solver = self._get_ik_solver()
+        q_current = self._get_ordered_joint_config()
+        return solver.compute_fk(q_current)
+
     # ==================== 上下文管理 ====================
     
     def __enter__(self) -> "Mantis":
