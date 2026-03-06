@@ -53,10 +53,16 @@ from .gripper import Gripper
 from .head import Head
 from .waist import Waist
 from .chassis import Chassis
+from .discovery import (
+    RobotDiscovery,
+    start_robot_discovery,
+    stop_robot_discovery,
+    list_discovered_robots,
+)
 from .constants import *
 
 #: SDK 版本号
-__version__ = "1.3.4"
+__version__ = "1.3.5"
 
 #: 作者
 __author__ = "BlueWorm-EAI-Tech"
@@ -71,6 +77,10 @@ __all__ = [
     "Head",
     "Waist",
     "Chassis",
+    "RobotDiscovery",
+    "start_robot_discovery",
+    "stop_robot_discovery",
+    "list_discovered_robots",
     "JOINT_NAMES",
     "LEFT_ARM_JOINTS",
     "RIGHT_ARM_JOINTS",

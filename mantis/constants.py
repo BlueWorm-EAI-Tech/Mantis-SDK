@@ -207,3 +207,7 @@ class Topics:
     
     #: 力反馈（Python 桥接节点发布，SDK 订阅）
     FORCE_FEEDBACK = "sdk/force_feedback"
+
+    #: 机器人身份发现（SN/IP，机器人端发布，SDK 订阅）
+    #: 注意：Zenoh key 不允许以 '/' 开头，因此使用 'sn'（对应 ROS 侧 '/sn'）。
+    ROBOT_IDENTITY = "sn"

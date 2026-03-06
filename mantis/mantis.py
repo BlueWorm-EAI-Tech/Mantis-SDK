@@ -24,7 +24,7 @@ Example:
             robot.left_arm.set_joints([0.0, 0.5, 0.0, 1.0, 0.0, 0.0, 0.0])
 """
 
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict, Any
 import time
 import json
 import threading
@@ -83,36 +83,40 @@ class Mantis:
     #: 默认 Zenoh 端口
     DEFAULT_PORT = 7447
     
-    def __init__(self, ip: Optional[str] = None, port: int = None):
+    def __init__(self, ip: Optional[str] = None, port: int = None, sn: Optional[str] = None):
         """初始化 Mantis 机器人。
         
         Args:
             ip: 机器人 IP 地址，例如 "192.168.1.100"。
-                如果为 None，则使用 Zenoh 自动发现（需在同一局域网）。
+                如果为 None，可在 connect() 时再指定。
             port: Zenoh 端口，默认 7447。
+            sn: 机器人 SN，例如 "BW_4TEOGD"。
+                如果为 None，可在 connect() 时再指定。
         
         Example:
             .. code-block:: python
             
-                # 指定 IP 连接
+                # 仅初始化，不立即建立连接
                 robot = Mantis(ip="192.168.1.100")
                 
-                # 自动发现（同一局域网）
+                # 也可只给 SN
+                robot = Mantis(sn="BW_4TEOGD")
+
+                # 自动发现（后续 connect 时解析）
                 robot = Mantis()
         """
-        if ip:
-            p = port or self.DEFAULT_PORT
-            self._router = f"tcp/{ip}:{p}"
-            self._target_ip = ip
-        else:
-            self._router = None
-            self._target_ip = None
+        self._target_ip = ip
+        self._target_sn = sn
+        self._port = port or self.DEFAULT_PORT
+        self._router = f"tcp/{self._target_ip}:{self._port}" if self._target_ip else None
         
         self._session: Optional[zenoh.Session] = None
         self._publishers = {}
         self._subscribers = {}
         self._connected = False
         self._robot_ip: Optional[str] = None
+        self._robot_sn: Optional[str] = None
+        self._status_topic = Topics.SYSTEM_STATUS
         
         # 创建子模块
         self._left_arm = Arm(self, "left")
@@ -223,19 +227,89 @@ class Mantis:
             dict: 包含 system_state, control_source, message, motion_names, motion_states 等字段
         """
         return self._system_status
+
+    @property
+    def robot_sn(self) -> Optional[str]:
+        """获取机器人的 SN。"""
+        return self._robot_sn
     
     # ==================== 连接管理 ====================
     
-    def connect(self, timeout: float = 5.0, verify: bool = True) -> bool:
+    @staticmethod
+    def _normalize_key(key: str) -> str:
+        """规范化 Zenoh key（去除首尾斜杠）。"""
+        normalized = (key or "").strip().strip("/")
+        if not normalized:
+            raise ValueError("Zenoh key 不能为空")
+        return normalized
+
+    @classmethod
+    def _topic_with_sn(cls, sn: str, base_topic: str) -> str:
+        """拼接 SN 前缀话题。"""
+        return f"{cls._normalize_key(sn)}/{cls._normalize_key(base_topic)}"
+
+    def _resolve_identity(
+        self,
+        timeout: float,
+        expect_ip: Optional[str] = None,
+        expect_sn: Optional[str] = None,
+    ) -> Optional[Dict[str, str]]:
+        """从全局 `sn` 话题解析目标机器人身份。"""
+        if not self._session:
+            return None
+
+        result: Dict[str, str] = {}
+        done = threading.Event()
+
+        def _on_identity(sample):
+            try:
+                data = json.loads(sample.payload.to_bytes().decode("utf-8"))
+            except Exception:
+                return
+
+            sn = data.get("sn")
+            ip = data.get("ip")
+            if not sn or not ip:
+                return
+
+            if expect_ip and ip != expect_ip:
+                return
+            if expect_sn and sn != expect_sn:
+                return
+
+            result["sn"] = sn
+            result["ip"] = ip
+            done.set()
+
+        identity_topic = self._normalize_key(Topics.ROBOT_IDENTITY)
+        sub = self._session.declare_subscriber(identity_topic, _on_identity)
+        try:
+            done.wait(timeout=max(timeout, 0.1))
+        finally:
+            sub.undeclare()
+
+        return result if result else None
+
+    def connect(
+        self,
+        timeout: float = 5.0,
+        verify: bool = True,
+        ip: Optional[str] = None,
+        sn: Optional[str] = None,
+    ) -> bool:
         """连接到机器人。
         
-        建立与机器人的 Zenoh 通信连接。实机模式下会验证机器人是否在线，
-        仿真模式下跳过验证直接连接。
+        建立与机器人的 Zenoh 通信连接。连接流程如下：
+        1) 通过全局 `sn` 话题解析目标机器人 (ip/sn)
+        2) 发布话题按 `SN` 前缀隔离（`<SN>/sdk/*`）
+        3) 通过 `<SN>/sdk/system_status` 做状态双重校验
         
         Args:
             timeout: 连接超时时间（秒），默认 5.0
             verify: 是否验证机器人在线，默认 True。
                 仿真模式下此参数被忽略。
+            ip: 连接时覆盖目标 IP。
+            sn: 连接时覆盖目标 SN。
             
         Returns:
             bool: 连接是否成功
@@ -246,17 +320,36 @@ class Mantis:
         Example:
             .. code-block:: python
             
-                robot = Mantis(ip="192.168.1.100")
-                if robot.connect():
+                robot = Mantis()
+                if robot.connect(ip="192.168.1.100"):
+                    print("连接成功")
+
+                if robot.connect(sn="BW_4TEOGD"):
                     print("连接成功")
                 else:
                     print("连接失败")
         """
         if self._connected:
-            self.home()
-            return True
+            same_ip = (not ip) or (ip == self._target_ip)
+            same_sn = (not sn) or (sn == self._target_sn)
+            if same_ip and same_sn:
+                self.home()
+                return True
+            self.disconnect()
         
-        target = self._router if self._router else "自动发现模式"
+        if ip:
+            self._target_ip = ip
+        if sn:
+            self._target_sn = sn
+
+        self._router = f"tcp/{self._target_ip}:{self._port}" if self._target_ip else None
+
+        target_desc = []
+        if self._target_ip:
+            target_desc.append(f"ip={self._target_ip}")
+        if self._target_sn:
+            target_desc.append(f"sn={self._target_sn}")
+        target = ", ".join(target_desc) if target_desc else "自动发现模式"
         print(f"⏳ 正在连接 Mantis 机器人 ({target})...")
         
         try:
@@ -265,65 +358,84 @@ class Mantis:
                 config.insert_json5("connect/endpoints", f'["{self._router}"]')
             
             self._session = zenoh.open(config)
-            
-            # 创建发布者（统一使用 JSON 格式，通过 Python 桥接节点转发到 ROS2）
-            self._publishers['joints'] = self._session.declare_publisher(Topics.SDK_JOINT_STATES)
-            self._publishers['chassis'] = self._session.declare_publisher(Topics.SDK_CHASSIS)
-            
-            # 验证机器人是否在线
+
+            # 使用全局 sn 话题解析目标机器人身份（IP/SN）
+            identity = self._resolve_identity(
+                timeout=timeout,
+                expect_ip=self._target_ip,
+                expect_sn=self._target_sn,
+            )
+            if not identity:
+                self._session.close()
+                self._session = None
+                print("❌ 连接失败: 未在 sn 话题找到目标机器人")
+                print("   请检查:")
+                print("   1) 机器人端 sn_publisher_node 是否已启动")
+                print("   2) SDK 与机器人是否在同一 Zenoh 网络")
+                if self._target_ip:
+                    print(f"   3) 目标 IP: {self._target_ip}")
+                if self._target_sn:
+                    print(f"   4) 目标 SN: {self._target_sn}")
+                return False
+
+            self._target_ip = identity["ip"]
+            self._target_sn = identity["sn"]
+            self._robot_ip = self._target_ip
+            self._robot_sn = self._target_sn
+
+            joint_topic = self._topic_with_sn(self._target_sn, Topics.SDK_JOINT_STATES)
+            chassis_topic = self._topic_with_sn(self._target_sn, Topics.SDK_CHASSIS)
+            self._status_topic = self._topic_with_sn(self._target_sn, Topics.SYSTEM_STATUS)
+
+            # 创建发布者（SDK -> Zenoh，按 SN 前缀隔离）
+            self._publishers['joints'] = self._session.declare_publisher(joint_topic)
+            self._publishers['chassis'] = self._session.declare_publisher(chassis_topic)
+
+            # 双重校验：收到匹配 SN 的状态机状态
             if verify:
-                import time
                 received = []
-                
+
                 def _check_callback(sample):
                     try:
-                        data = json.loads(sample.payload.to_bytes().decode('utf-8'))
-                        recv_ip = data.get('ip')
-                        
-                        if recv_ip:
-                            self._robot_ip = recv_ip
-                        
-                        # 验证 IP
-                        if self._target_ip:
-                            if recv_ip == self._target_ip:
-                                self._system_status = data  # 保存初始状态
-                                received.append(True)
-                        else:
-                            # 自动发现模式，只要收到合法数据即视为在线
-                            self._system_status = data  # 保存初始状态
-                            received.append(True)
-                            
+                        data = json.loads(sample.payload.to_bytes().decode("utf-8"))
                     except Exception:
-                        pass
-                
-                # 订阅反馈话题检测
-                sub = self._session.declare_subscriber(Topics.SYSTEM_STATUS, _check_callback)
-                
-                # 等待消息
+                        return
+
+                    recv_ip = data.get("ip")
+                    recv_sn = data.get("sn", self._target_sn)
+
+                    if recv_sn != self._target_sn:
+                        return
+                    if self._target_ip and recv_ip and recv_ip != self._target_ip:
+                        return
+
+                    if recv_ip:
+                        self._robot_ip = recv_ip
+                    self._system_status = data
+                    received.append(True)
+
+                sub = self._session.declare_subscriber(self._status_topic, _check_callback)
                 start = time.time()
                 while time.time() - start < timeout:
                     if received:
                         break
                     time.sleep(0.1)
-                
                 sub.undeclare()
-                
+
                 if not received:
                     self._session.close()
                     self._session = None
                     self._publishers.clear()
-                    target = self._router if self._router else "本机 (自动发现)"
-                    print(f"❌ 连接超时: 未检测到机器人 ({target})")
+                    print("❌ 连接超时: 状态机双重校验失败")
                     print("   请检查:")
-                    print("   1) 机器人端 sdk_bridge 节点是否已启动")
-                    print("   2) ROS2 节点是否在发布 /joint_states_fdb")
-                    print("   3) Zenoh 网络是否可达")
-                    if self._target_ip:
-                        print(f"   4) 机器人反馈 IP 是否为 {self._target_ip}")
+                    print(f"   1) 目标机器人 SN={self._target_sn} 是否在线")
+                    print(f"   2) 桥接节点是否发布状态话题: {self._status_topic}")
                     return False
             
             self._connected = True
-            print(f"✅ 已连接到 Mantis 机器人")
+            print(
+                f"✅ 已连接到 Mantis 机器人 (sn={self._target_sn}, ip={self._robot_ip})"
+            )
             
             # 自动订阅反馈和状态，用于更新内部状态 (robot_ip, system_status)
             self.subscribe_status(None)
@@ -620,7 +732,7 @@ class Mantis:
             self._subscribers['status'].undeclare()
             
         self._subscribers['status'] = self._session.declare_subscriber(
-            Topics.SYSTEM_STATUS,
+            self._status_topic,
             _on_status
         )
         if callback:
