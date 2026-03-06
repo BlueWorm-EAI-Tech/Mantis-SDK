@@ -1,7 +1,7 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.3.4-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.5-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
@@ -72,17 +72,48 @@ with Mantis(ip="192.168.1.100") as robot:
 ## 连接方式
 
 ```python
-# 方式1：指定 IP 连接（推荐）
-robot = Mantis(ip="192.168.1.100")
-
-# 方式2：自动发现（同一局域网）
+# 方式1：初始化后按 IP 连接（推荐）
 robot = Mantis()
+robot.connect(ip="192.168.1.100")
 
-# 方式3：指定 IP 和端口
+# 方式2：按 SN 连接
+robot = Mantis()
+robot.connect(sn="BW_4TEOGD")
+
+# 方式3：初始化时给默认目标
 robot = Mantis(ip="192.168.1.100", port=7447)
+robot.connect()
 
 # 连接时跳过验证（调试用）
-robot.connect(verify=False)
+robot.connect(sn="BW_4TEOGD", verify=False)
+```
+
+## 局域网机器人发现（/sn）
+
+支持按 `/sn` 话题进行增量发现：机器人上线会加入，掉线超过 TTL 会自动剔除。
+
+```python
+from mantis import RobotDiscovery
+import time
+
+# 无需实例化，直接类方法调用
+RobotDiscovery.start(ttl_sec=3.0)
+
+for _ in range(10):
+    print(RobotDiscovery.list_robots())  # [{'sn': 'BW_XXXXXXX', 'ip': '192.168.1.111'}, ...]
+    time.sleep(1.0)
+
+RobotDiscovery.stop()
+```
+
+也可直接用函数接口（无需类实例）：
+
+```python
+from mantis import start_robot_discovery, list_discovered_robots, stop_robot_discovery
+
+start_robot_discovery()
+print(list_discovered_robots())
+stop_robot_discovery()
 ```
 
 ## 架构说明
@@ -101,7 +132,7 @@ robot.connect(verify=False)
 
 **数据流**：
 
-- SDK 发布 JSON 格式数据到 Zenoh 话题 `sdk/joint_states` 和 `sdk/chassis`
+- SDK 发布 JSON 格式数据到带 SN 前缀的话题 `<SN>/sdk/joint_states` 和 `<SN>/sdk/chassis`
 - Bridge 节点订阅 Zenoh 话题，转换为 ROS2 消息发布
 - 无需 zenoh-bridge-ros2dds，通讯更稳定
 
