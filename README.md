@@ -1,13 +1,13 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.3.5-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.7-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
 基于 Zenoh 的 Mantis 机器人控制 SDK，**无需安装 ROS2**。
 
-> 2026-02-05 | [Release Notes](./RELEASE_NOTES.md)
+> 2026-05-11 | [Release Notes](./RELEASE_NOTES.md)
 ## 🚨 紧急版本兼容性说明 (CRITICAL COMPATIBILITY NOTICE)
 
 **SDK 版本与机器人端代码版本存在强绑定关系，请务必检查版本匹配！**
@@ -16,9 +16,10 @@
 | :--- | :--- | :--- |
 | **v1.3.2 以下** | **< 26.2.3.1** | ✅ **兼容 (Compatible)** |
 | **v1.3.2 ~ v1.3.4** | **26.2.3.1 ~ 26.3.3.1** | ✅ **兼容 (Compatible)** |
-| **v1.3.5 及以上** | **≥ 26.3.6.2** | ✅ **兼容 (Compatible)** |
+| **v1.3.5** | **26.3.6.2 ~ < 26.5.11.1** | ✅ **兼容 (Compatible)** |
+| **v1.3.6 及以上** | **≥ 26.5.11.1** | ✅ **兼容 (Compatible)** |
 
-> ⚠️ **警告**：版本区间必须严格匹配。
+> ⚠️ **警告**：当前版本 `v1.3.7` 仅支持机器人端 `26.5.11.1` 及以上版本，版本区间必须严格匹配。
 ## 特性
 
 - 🚀 **无 ROS2 依赖**: 客户端只需 Python + Zenoh

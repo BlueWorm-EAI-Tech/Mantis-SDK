@@ -162,25 +162,26 @@ SERIAL_TO_URDF_MAP = dict(zip(JOINT_NAMES, URDF_ARM_JOINT_NAMES))
 
 #: 方向修正映射：Serial 名称 → 方向系数
 #:
-#: SDK 端不做方向修正，方向修正在接收端（sdk_bridge）处理
-#: 这样 RViz 和实机可以分别应用不同的方向系数
+#: 该映射用于对齐 SDK 内部关节坐标系与当前运行时的 URDF/实机方向约定。
+#: mantis.py 在发布关节状态和构造 IK 关节配置时都会使用这里的符号，
+#: 因此该表需要与现行 bridge/runtime 的方向修正规则保持一致。
 JOINT_DIRECTION_MAP = {
     # 左臂
-    "left_shoulder_pitch_joint": 1,
+    "left_shoulder_pitch_joint": -1,
     "left_shoulder_yaw_joint": 1,
-    "left_shoulder_roll_joint": 1,
+    "left_shoulder_roll_joint": -1,
     "left_elbow_pitch_joint": 1,
     "left_wrist_roll_joint": 1,
-    "left_wrist_pitch_joint": 1,
+    "left_wrist_pitch_joint": -1,
     "left_wrist_yaw_joint": 1,
     # 右臂
-    "right_shoulder_pitch_joint": 1,
-    "right_shoulder_yaw_joint": 1,
+    "right_shoulder_pitch_joint": -1,
+    "right_shoulder_yaw_joint": -1,
     "right_shoulder_roll_joint": 1,
     "right_elbow_pitch_joint": 1,
-    "right_wrist_roll_joint": 1,
-    "right_wrist_pitch_joint": 1,
-    "right_wrist_yaw_joint": 1,
+    "right_wrist_roll_joint": -1,
+    "right_wrist_pitch_joint": -1,
+    "right_wrist_yaw_joint": -1,
 }
 
 # ==================== Zenoh 话题 ====================
