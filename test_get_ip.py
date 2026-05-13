@@ -3,8 +3,7 @@ import time
 
 def main():
     print("正在连接机器人...")
-    # 使用自动发现模式
-    with Mantis() as robot:
+    with Mantis(sn="BW_3N5CRT22") as robot:
         if robot.is_connected:
             print(f"连接成功！")
             print(f"机器人 IP: {robot.robot_ip}")

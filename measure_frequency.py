@@ -17,11 +17,11 @@ class FrequencyMeasurer:
     def measure(self, duration=5.0):
         print(f"开始测量状态更新频率 (持续 {duration} 秒)...")
         
-        robot = Mantis(ip="192.168.1.112")
+        robot = Mantis(sn="BW_3N5CRT22")
         # 手动连接以避免 home() 等操作干扰
-        if not robot.connect(verify=True):
-            print("连接失败")
-            return
+        ok = robot.connect(timeout=8, verify=True)
+        if not ok:
+            raise SystemExit("连接失败，停止测试")
 
         # 注册回调
         robot.subscribe_status(self.callback)

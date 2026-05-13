@@ -14,8 +14,10 @@ import time
 def main():
     print("=== Mantis 全关节方向测试 ===\n")
     
-    robot = Mantis(ip="192.168.1.111")
-    robot.connect(verify=True)
+    robot = Mantis(sn="BW_3N5CRT22")
+    ok = robot.connect(timeout=8, verify=True)
+    if not ok:
+        raise SystemExit("连接失败，停止测试")
     robot.home()
     
     # 大角度极限测试

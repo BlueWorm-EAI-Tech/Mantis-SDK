@@ -13,7 +13,7 @@ import time
 def main():
     print("=== Mantis 夹爪控制测试 ===\n")
     
-    with Mantis(sim=True) as robot:
+    with Mantis(sn="BW_3N5CRT22") as robot:
         print("开始演示夹爪动作...\n")
         
         # 1. 完全张开

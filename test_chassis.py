@@ -188,8 +188,10 @@ def main():
     print()
     
     choice = input("请选择 (1-7): ").strip()
-    robot = Mantis(ip="192.168.1.111")
-    robot.connect(verify=False)
+    robot = Mantis(sn="BW_3N5CRT22")
+    ok = robot.connect(timeout=8, verify=False)
+    if not ok:
+        raise SystemExit("连接失败，停止测试")
 
     print("\n机器人已连接，开始测试...\n")
     time.sleep(1)  # 等待连接稳定

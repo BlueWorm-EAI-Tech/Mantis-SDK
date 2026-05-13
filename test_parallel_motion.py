@@ -167,7 +167,7 @@ def main():
     print("  Mantis 阻塞/非阻塞运动模式测试")
     print("=" * 60)
     
-    with Mantis(sim=True) as robot:
+    with Mantis(sn="BW_3N5CRT22") as robot:
         print(f"\n已连接到机器人（仿真模式）")
         
         # 先回原位

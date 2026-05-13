@@ -16,8 +16,10 @@ def main():
     print("=== Mantis 腰部位移测试 ===\n")
     print("Waist_Joint: prismatic 关节, 范围 -0.62m 到 0.24m")
     print("负值 = 下降, 正值 = 上升\n")
-    robot = Mantis(ip="192.168.1.111")
-    robot.connect(verify=False)
+    robot = Mantis(sn="BW_3N5CRT22")
+    ok = robot.connect(timeout=8, verify=False)
+    if not ok:
+        raise SystemExit("连接失败，停止测试")
     print("开始演示腰部动作...\n")
     
     # 1. 回到零位

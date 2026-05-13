@@ -24,3 +24,6 @@ frames*
 dist
 scripts
 .githooks
+
+# Local Python virtual environment
+.venv/

@@ -26,9 +26,10 @@ from mantis import Mantis
 import time
 print("=== Mantis 全关节方向测试 ===\n")
 
-robot = Mantis(ip="192.168.1.151")
-if not robot.connect(verify=True):
-    sys.exit(1) 
+robot = Mantis(sn="BW_3N5CRT22")
+ok = robot.connect(timeout=8, verify=True)
+if not ok:
+    raise SystemExit("连接失败，停止测试")
 # for i in range(10)
 robot.head.look_down(angle=0.5, block=True)
 # 右手拿杯子
@@ -168,7 +169,6 @@ for i in range(200):
 
 
 robot.disconnect()
-
 
 
 

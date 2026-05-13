@@ -13,9 +13,11 @@ import math
 
 def main():
     print("=== Mantis 连接测试 ===\n")
-    robot = Mantis(ip="192.168.1.151")
+    robot = Mantis(sn="BW_3N5CRT22")
     # verify=False 跳过验证，因为本地测试没有 joint_states_fdb 话题
-    robot.connect(verify=False)
+    ok = robot.connect(timeout=8, verify=False)
+    if not ok:
+        raise SystemExit("连接失败，停止测试")
     while 1:
         print("1. 左臂抬起")
         robot.left_arm.set_shoulder_pitch(-0.5)
