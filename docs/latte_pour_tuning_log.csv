@@ -1,0 +1,3 @@
+timestamp,trial_name,mode,sn,wrist_roll_max,shoulder_roll_center,shoulder_roll_amp,elbow_pitch_center,elbow_pitch_amp,sway_count,step_sleep,status,error,duration_s,notes,git_branch,git_commit
+2026-05-14T12:57:30+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,interrupted,KeyboardInterrupt,4.258,,fix/test-scripts-use-sn,5a37722
+2026-05-14T14:01:15+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,40.688,,fix/test-scripts-use-sn,5a37722
