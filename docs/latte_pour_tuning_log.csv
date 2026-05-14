@@ -2,3 +2,8 @@ timestamp,trial_name,mode,sn,wrist_roll_max,shoulder_roll_center,shoulder_roll_a
 2026-05-14T12:57:30+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,interrupted,KeyboardInterrupt,4.258,,fix/test-scripts-use-sn,5a37722
 2026-05-14T14:01:15+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,40.688,,fix/test-scripts-use-sn,5a37722
 2026-05-14T15:38:11+08:00,left_empty_01,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,104.322,动作与rviz演示的严重不符，需数,feat/latte-pour-real-tune,c82acea
+2026-05-14T17:25:54+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,interrupted,KeyboardInterrupt,4.265,,feat/latte-pour-real-tune,1166ffb
+2026-05-14T17:26:40+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,35.172,,feat/latte-pour-real-tune,1166ffb
+2026-05-14T17:27:43+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,33.861,,feat/latte-pour-real-tune,1166ffb
+2026-05-14T17:28:19+08:00,manual_trial,with-right-cup,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,interrupted,KeyboardInterrupt,15.451,,feat/latte-pour-real-tune,1166ffb
+2026-05-14T17:32:46+08:00,manual_trial,with-right-cup,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,failed,RuntimeError: 连接失败，停止调试,17.044,,feat/latte-pour-real-tune,1166ffb
