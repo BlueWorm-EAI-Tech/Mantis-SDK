@@ -21,8 +21,23 @@
        python test_parallel_motion.py
 """
 
-from mantis import Mantis
+import argparse
 import time
+
+from mantis import Mantis
+
+
+DEFAULT_ROBOT_IP = "192.168.1.151"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Mantis 阻塞/非阻塞运动模式测试")
+    parser.add_argument(
+        "--ip",
+        default=DEFAULT_ROBOT_IP,
+        help="目标机器人 IP，默认 192.168.1.151",
+    )
+    return parser.parse_args()
 
 
 def test_sequential_motion(robot):
@@ -163,13 +178,20 @@ def test_all_parallel(robot):
 
 
 def main():
+    args = parse_args()
     print("=" * 60)
     print("  Mantis 阻塞/非阻塞运动模式测试")
     print("=" * 60)
-    
-    with Mantis(sn="BW_3N5CRT22") as robot:
+
+    robot = None
+    try:
+        robot = Mantis()
+        ok = robot.connect(ip=args.ip)
+        if not ok:
+            raise SystemExit("连接失败，停止测试")
+
         print(f"\n已连接到机器人（仿真模式）")
-        
+
         # 先回原位
         print("\n初始化：回到原位...")
         robot.home()
@@ -193,6 +215,12 @@ def main():
         print("\n" + "=" * 60)
         print("  所有测试完成！")
         print("=" * 60)
+    finally:
+        if robot is not None:
+            try:
+                robot.disconnect()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

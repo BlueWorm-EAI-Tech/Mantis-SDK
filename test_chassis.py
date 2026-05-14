@@ -19,8 +19,23 @@
 3. 启动 zenoh 桥接: ~/zenoh_ros2/zenoh-bridge-ros2dds -d 99
 """
 
-from mantis import Mantis
+import argparse
 import time
+
+from mantis import Mantis
+
+
+DEFAULT_ROBOT_IP = "192.168.1.151"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Mantis 底盘运动测试")
+    parser.add_argument(
+        "--ip",
+        default=DEFAULT_ROBOT_IP,
+        help="目标机器人 IP，默认 192.168.1.151",
+    )
+    return parser.parse_args()
 
 
 def test_basic_movement(robot):
@@ -173,6 +188,7 @@ def interactive_control(robot):
 
 
 def main():
+    args = parse_args()
     print("=" * 50)
     print("  Mantis 底盘运动测试（安全版 API）")
     print("=" * 50)
@@ -188,36 +204,46 @@ def main():
     print()
     
     choice = input("请选择 (1-7): ").strip()
-    robot = Mantis(sn="BW_3N5CRT22")
-    ok = robot.connect(timeout=8, verify=False)
-    if not ok:
-        raise SystemExit("连接失败，停止测试")
+    print(f"当前按 IP 连接: {args.ip}")
 
-    print("\n机器人已连接，开始测试...\n")
-    time.sleep(1)  # 等待连接稳定
-    
-    if choice == '1':
-        test_basic_movement(robot)
-    elif choice == '2':
-        test_custom_speed(robot)
-    elif choice == '3':
-        test_square_path(robot)
-    elif choice == '4':
-        test_combined_movement(robot)
-    elif choice == '5':
-        test_non_blocking(robot)
-    elif choice == '6':
-        interactive_control(robot)
-    elif choice == '7':
-        test_basic_movement(robot)
-        test_custom_speed(robot)
-        test_square_path(robot)
-        test_combined_movement(robot)
-    else:
-        print("无效选择，运行基本测试...")
-        test_basic_movement(robot)
-    
-    print("\n测试完成！")
+    robot = None
+    try:
+        robot = Mantis()
+        ok = robot.connect(ip=args.ip)
+        if not ok:
+            raise SystemExit("连接失败，停止测试")
+
+        print("\n机器人已连接，开始测试...\n")
+        time.sleep(1)  # 等待连接稳定
+
+        if choice == '1':
+            test_basic_movement(robot)
+        elif choice == '2':
+            test_custom_speed(robot)
+        elif choice == '3':
+            test_square_path(robot)
+        elif choice == '4':
+            test_combined_movement(robot)
+        elif choice == '5':
+            test_non_blocking(robot)
+        elif choice == '6':
+            interactive_control(robot)
+        elif choice == '7':
+            test_basic_movement(robot)
+            test_custom_speed(robot)
+            test_square_path(robot)
+            test_combined_movement(robot)
+        else:
+            print("无效选择，运行基本测试...")
+            test_basic_movement(robot)
+
+        print("\n测试完成！")
+    finally:
+        if robot is not None:
+            try:
+                robot.disconnect()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

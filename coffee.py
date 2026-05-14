@@ -25,9 +25,15 @@ import threading
 from mantis import Mantis
 import time
 print("=== Mantis 全关节方向测试 ===\n")
+DEFAULT_ROBOT_IP = "192.168.1.151"
 
-robot = Mantis(sn="BW_3N5CRT22")
-ok = robot.connect(timeout=8, verify=True)
+print("当前脚本会连接真实机器人。")
+print(f"当前连接 IP: {DEFAULT_ROBOT_IP}")
+print("请确认机器人周围安全。")
+print("当前仍是完整咖啡流程脚本。")
+
+robot = Mantis()
+ok = robot.connect(ip=DEFAULT_ROBOT_IP)
 if not ok:
     raise SystemExit("连接失败，停止测试")
 # for i in range(10)
@@ -169,6 +175,5 @@ for i in range(200):
 
 
 robot.disconnect()
-
 
 

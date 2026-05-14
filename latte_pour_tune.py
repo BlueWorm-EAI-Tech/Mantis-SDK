@@ -77,10 +77,6 @@ class UserAbort(Exception):
     """Raised when the operator cancels before or during the tune flow."""
 
 
-def cli_flag_provided(argv: list[str], flag: str) -> bool:
-    return any(token == flag or token.startswith(f"{flag}=") for token in argv)
-
-
 def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     if argv is None:
         argv = sys.argv[1:]
@@ -96,7 +92,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--sn",
         default=DEFAULT_SN,
-        help="目标机器人备用 SN；仅当显式传入 --sn 且未传 --ip 时按 SN 连接",
+        help="目标机器人备用 SN，仅用于打印和实验日志，不作为默认连接方式",
     )
     parser.add_argument(
         "--ip",
@@ -170,9 +166,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         action="store_true",
         help="跳过人工确认，仅保留打印提示",
     )
-    args = parser.parse_args(argv)
-    args.connection_method = "sn" if cli_flag_provided(argv, "--sn") and not cli_flag_provided(argv, "--ip") else "ip"
-    return args
+    return parser.parse_args(argv)
 
 
 def print_global_safety_banner() -> None:
@@ -319,12 +313,11 @@ def append_trial_log(
 
 
 def print_trial_config(args: argparse.Namespace) -> None:
-    connection_label = "SN" if args.connection_method == "sn" else "IP"
     print("[实验配置]")
     print(f"  trial_name: {args.trial_name}")
     print(f"  mode: {args.mode}")
     print("  default_connection_method: IP")
-    print(f"  current_connection_method: {connection_label}")
+    print("  current_connection_method: IP")
     print(f"  ip: {args.ip}")
     print(f"  sn: {args.sn} (备用值)")
     print(f"  wrist_roll_max: {args.wrist_roll_max}")
@@ -436,12 +429,8 @@ def main() -> None:
         confirm_or_exit("连接前确认：确认环境安全、夹持稳定，并准备好物理急停。", args.no_confirm)
 
         robot = Mantis()
-        if args.connection_method == "sn":
-            print(f"当前按 SN 连接（未传 --ip）: {args.sn}")
-            ok = robot.connect(sn=args.sn)
-        else:
-            print(f"当前按 IP 连接: {args.ip}")
-            ok = robot.connect(ip=args.ip)
+        print(f"当前按 IP 连接: {args.ip}")
+        ok = robot.connect(ip=args.ip)
         if not ok:
             raise RuntimeError("连接失败，停止调试")
 

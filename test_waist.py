@@ -9,63 +9,90 @@
 注意: Waist_Joint 是 prismatic 类型，范围 -0.62m 到 0.24m
 """
 
-from mantis import Mantis
+import argparse
 import time
 
+from mantis import Mantis
+
+
+DEFAULT_ROBOT_IP = "192.168.1.151"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Mantis 腰部位移测试")
+    parser.add_argument(
+        "--ip",
+        default=DEFAULT_ROBOT_IP,
+        help="目标机器人 IP，默认 192.168.1.151",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
     print("=== Mantis 腰部位移测试 ===\n")
     print("Waist_Joint: prismatic 关节, 范围 -0.62m 到 0.24m")
     print("负值 = 下降, 正值 = 上升\n")
-    robot = Mantis(sn="BW_3N5CRT22")
-    ok = robot.connect(timeout=8, verify=False)
-    if not ok:
-        raise SystemExit("连接失败，停止测试")
-    print("开始演示腰部动作...\n")
-    
-    # 1. 回到零位
-    print("1. 腰部零位 (0.0m)")
-    robot.waist.home()
-    time.sleep(1)
-    
-    # 2. 逐步上升
-    print("2. 逐步上升 (每次 5cm)")
-    for i in range(5):
-        robot.waist.up()  # 每次上升 5cm
-        print(f"   当前高度: {robot.waist.height:.2f}m")
-        time.sleep(0.5)
-    
-    # 3. 逐步下降
-    print("3. 逐步下降 (每次 10cm)")
-    for i in range(5):
-        robot.waist.down(0.1)  # 每次下降 10cm
-        print(f"   当前高度: {robot.waist.height:.2f}m")
-        time.sleep(0.5)
-    
-    # # 4. 渐变回零位
-    # print("4. 渐变回零位")
-    # for i in range(10):
-    #     pos = -0.62 + (0.62 * (i + 1) / 10)
-    #     robot.waist.set_height(pos)
-    #     print(f"   位置: {pos:.2f}m")
-    #     time.sleep(0.2)
-    
-    # # 5. 使用相对移动
-    # print("5. 相对移动测试")
-    # robot.waist.home()
-    # time.sleep(0.5)
-    # robot.waist.move(0.1)  # 上升 10cm
-    # print("   上升 10cm")
-    # time.sleep(0.5)
-    # robot.waist.move(-0.2)  # 下降 20cm
-    # print("   下降 20cm")
-    # time.sleep(0.5)
-    
-    # 6. 回零
-    print("6. 保持零位")
-    robot.waist.home()
-    time.sleep(1)
-    
-    print("\n演示完成！")
+    print(f"当前按 IP 连接: {args.ip}")
+
+    robot = None
+    try:
+        robot = Mantis()
+        ok = robot.connect(ip=args.ip)
+        if not ok:
+            raise SystemExit("连接失败，停止测试")
+        print("开始演示腰部动作...\n")
+
+        # 1. 回到零位
+        print("1. 腰部零位 (0.0m)")
+        robot.waist.home()
+        time.sleep(1)
+
+        # 2. 逐步上升
+        print("2. 逐步上升 (每次 5cm)")
+        for i in range(5):
+            robot.waist.up()  # 每次上升 5cm
+            print(f"   当前高度: {robot.waist.height:.2f}m")
+            time.sleep(0.5)
+
+        # 3. 逐步下降
+        print("3. 逐步下降 (每次 10cm)")
+        for i in range(5):
+            robot.waist.down(0.1)  # 每次下降 10cm
+            print(f"   当前高度: {robot.waist.height:.2f}m")
+            time.sleep(0.5)
+
+        # # 4. 渐变回零位
+        # print("4. 渐变回零位")
+        # for i in range(10):
+        #     pos = -0.62 + (0.62 * (i + 1) / 10)
+        #     robot.waist.set_height(pos)
+        #     print(f"   位置: {pos:.2f}m")
+        #     time.sleep(0.2)
+
+        # # 5. 使用相对移动
+        # print("5. 相对移动测试")
+        # robot.waist.home()
+        # time.sleep(0.5)
+        # robot.waist.move(0.1)  # 上升 10cm
+        # print("   上升 10cm")
+        # time.sleep(0.5)
+        # robot.waist.move(-0.2)  # 下降 20cm
+        # print("   下降 20cm")
+        # time.sleep(0.5)
+
+        # 6. 回零
+        print("6. 保持零位")
+        robot.waist.home()
+        time.sleep(1)
+
+        print("\n演示完成！")
+    finally:
+        if robot is not None:
+            try:
+                robot.disconnect()
+            except Exception:
+                pass
 
 
 if __name__ == "__main__":

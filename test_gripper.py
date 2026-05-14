@@ -7,15 +7,38 @@
 2. 启动 zenoh 桥接: ~/zenoh_ros2/zenoh-bridge-ros2dds -d 99
 """
 
-from mantis import Mantis
+import argparse
 import time
 
+from mantis import Mantis
+
+
+DEFAULT_ROBOT_IP = "192.168.1.151"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Mantis 夹爪控制测试")
+    parser.add_argument(
+        "--ip",
+        default=DEFAULT_ROBOT_IP,
+        help="目标机器人 IP，默认 192.168.1.151",
+    )
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
     print("=== Mantis 夹爪控制测试 ===\n")
-    
-    with Mantis(sn="BW_3N5CRT22") as robot:
+
+    robot = None
+    try:
+        robot = Mantis()
+        ok = robot.connect(ip=args.ip)
+        if not ok:
+            raise SystemExit("连接失败，停止测试")
+
         print("开始演示夹爪动作...\n")
-        
+
         # 1. 完全张开
         print("1. 完全张开")
         robot.left_gripper.open()
@@ -42,8 +65,14 @@ def main():
             robot.left_gripper.set_position(pos)
             robot.right_gripper.set_position(pos)
             time.sleep(0.2)
-            
+
         print("\n演示完成！")
+    finally:
+        if robot is not None:
+            try:
+                robot.disconnect()
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     main()
