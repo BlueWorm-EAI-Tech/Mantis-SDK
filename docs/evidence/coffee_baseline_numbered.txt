@@ -1,0 +1,174 @@
+     1	"""
+     2	实机连接测试
+     3	测试与真实机器人的通信（通过 Python 桥接节点）
+     4	
+     5	使用前请确保:
+     6	1. 机器人端启动 Python 桥接节点: ros2 run bw_sdk_bridge sdk_bridge
+     7	2. 机器人端 ROS2 节点已启动并订阅相应话题
+     8	"""
+     9	# 两点半开始
+    10	import time
+    11	    # robot.right_arm.set_shoulder_pitch(0.7, block=False) 大臂前后
+    12	    # robot.right_arm.set_shoulder_yaw(0.6, block=False) 大臂内外
+    13	    # robot.right_arm.set_shoulder_roll(-0.4) 大臂左右
+    14	    # robot.right_arm.set_wrist_roll(0.5) 小臂中轴旋转
+    15	    # robot.right_arm.set_wrist_yaw(0.5) 手腕左右
+    16	    # robot.right_arm.set_wrist_pitch(0.5) 手腕上下
+    17	    # robot.right_arm.set_elbow_pitch(-0.5) 手肘上下
+    18	    
+    19	import sys
+    20	import threading
+    21	from mantis import Mantis
+    22	import time
+    23	import sys
+    24	import threading
+    25	from mantis import Mantis
+    26	import time
+    27	print("=== Mantis 全关节方向测试 ===\n")
+    28	
+    29	robot = Mantis(sn="BW_3N5CRT22")
+    30	ok = robot.connect(timeout=8, verify=True)
+    31	if not ok:
+    32	    raise SystemExit("连接失败，停止测试")
+    33	# for i in range(10)
+    34	robot.head.look_down(angle=0.5, block=True)
+    35	# 右手拿杯子
+    36	for i in range(200):
+    37	    print(f"第{i}次测试")
+    38	    robot.right_gripper.close()
+    39	    robot.left_gripper.close()
+    40	
+    41	    robot.right_gripper.open()
+    42	    robot.right_arm.set_shoulder_pitch(0.7, block=False)
+    43	    robot.right_arm.set_shoulder_roll(-0.42, block=False)
+    44	    robot.right_arm.set_wrist_roll(0.1, block=True)
+    45	
+    46	    robot.right_arm.set_elbow_pitch(1.0, block=False)
+    47	    robot.right_arm.set_wrist_pitch(0.1)
+    48	    time.sleep(1)
+    49	    robot.right_gripper.set_position(0.6) # 默认 block=True
+    50	    time.sleep(1)
+    51	
+    52	    # 右手接咖啡
+    53	    robot.right_arm.set_elbow_pitch(0.6, block=False)
+    54	    robot.right_arm.set_shoulder_pitch(0.6, block=True)
+    55	
+    56	    robot.right_arm.set_shoulder_roll(0.3)
+    57	
+    58	    robot.right_arm.set_shoulder_pitch(0.7, block=False)
+    59	    robot.right_arm.set_shoulder_roll(0.65, block=False)
+    60	    robot.right_arm.set_wrist_roll(-0.3)
+    61	
+    62	
+    63	    robot.right_arm.set_shoulder_pitch(0.98, block=False)
+    64	    robot.right_arm.set_elbow_pitch(0.98, block=False)
+    65	    robot.right_arm.set_wrist_roll(-0.68, block=False)
+    66	    robot.right_arm.set_wrist_pitch(0)
+    67	
+    68	
+    69	    # 左手点击屏幕选择咖啡
+    70	    # 抬手
+    71	    robot.left_arm.set_shoulder_pitch(0.5, block=False)
+    72	    robot.left_arm.set_elbow_pitch(-0.1, block=True)
+    73	
+    74	    # 点击
+    75	    robot.left_arm.set_elbow_pitch(-0.03, block=True)
+    76	    robot.left_arm.set_elbow_pitch(-0.1, block=True)
+    77	    robot.left_arm.home()
+    78	    time.sleep(0.5)
+    79	
+    80	    # 接完咖啡右手后撤
+    81	    robot.right_arm.home()
+    82	    robot.right_arm.set_shoulder_roll(0.6, block=False)
+    83	    robot.right_arm.set_wrist_pitch(-0.3)
+    84	
+    85	    # # 左手拿牛奶
+    86	    robot.left_gripper.open()
+    87	
+    88	    robot.left_arm.set_shoulder_yaw(0.3, block=False)
+    89	    robot.left_arm.set_wrist_roll(-0.4, block=False)
+    90	    robot.left_arm.set_shoulder_roll(-0.76, block=True)
+    91	
+    92	    robot.left_arm.set_shoulder_pitch(0.8, block=False)
+    93	    robot.left_arm.set_elbow_pitch(0.8, block=False)
+    94	    robot.left_arm.set_wrist_roll(0.1, block=True)
+    95	
+    96	    robot.left_arm.set_elbow_pitch(1.35, block=False)
+    97	    robot.left_arm.set_shoulder_pitch(0.85, block=True)
+    98	
+    99	    time.sleep(1)
+   100	    robot.left_gripper.set_position(0.6) # 默认 block=True
+   101	    time.sleep(1)
+   102	
+   103	    # # 拿起牛奶
+   104	    robot.left_arm.set_elbow_pitch(0.9, block=True)
+   105	
+   106	    robot.left_arm.set_shoulder_pitch(0.2, block=False)
+   107	    robot.left_arm.set_elbow_pitch(0.4, block=True)
+   108	
+   109	    robot.left_arm.home(block=False)
+   110	    robot.left_arm.set_wrist_pitch(-0.45, block=True)
+   111	
+   112	    # 右手来接咖啡
+   113	    robot.right_arm.set_wrist_yaw(-0.7, block=False)
+   114	    robot.right_arm.set_wrist_pitch(-0.5, block=False) 
+   115	    robot.right_arm.set_wrist_roll(0.3, block=False)
+   116	    robot.right_arm.set_shoulder_roll(0.7, block=False)
+   117	    time.sleep(1)
+   118	
+   119	    # 左手倒牛奶
+   120	    robot.left_arm.set_shoulder_pitch(-0.6, block=False)
+   121	    robot.left_arm.set_elbow_pitch(-0.6, block=True)
+   122	
+   123	    robot.left_arm.set_shoulder_roll(0.65, block=False)
+   124	    robot.left_arm.set_wrist_roll(1.7, block=False)
+   125	    robot.left_arm.set_elbow_pitch(-0.5, block=True)
+   126	
+   127	    robot.left_arm.set_elbow_pitch(-0.6, block=False)
+   128	    robot.left_arm.set_wrist_roll(0.0)
+   129	
+   130	    robot.left_arm.set_shoulder_roll(0.0)
+   131	
+   132	    # 接完咖啡复位
+   133	    robot.right_arm.home()
+   134	    robot.right_arm.set_shoulder_pitch(0.7, block=False)
+   135	    robot.right_arm.set_shoulder_roll(-0.42, block=False)
+   136	    robot.right_arm.set_wrist_roll(0.1, block=True)
+   137	
+   138	    robot.right_arm.set_elbow_pitch(1.0, block=False)
+   139	    robot.right_arm.set_wrist_pitch(0.1)
+   140	    time.sleep(1)
+   141	    robot.right_gripper.open()
+   142	    time.sleep(1)
+   143	
+   144	    robot.right_arm.home()
+   145	    time.sleep(1) 
+   146	
+   147	    # # 左手复位
+   148	    robot.left_arm.home()
+   149	    robot.left_arm.set_shoulder_yaw(0.3, block=False)
+   150	    robot.left_arm.set_wrist_roll(-0.4, block=False)
+   151	    robot.left_arm.set_shoulder_roll(-0.76, block=True)
+   152	
+   153	    robot.left_arm.set_shoulder_pitch(0.8, block=False)
+   154	    robot.left_arm.set_elbow_pitch(0.8, block=False)
+   155	    robot.left_arm.set_wrist_roll(0.1, block=True)
+   156	
+   157	    robot.left_arm.set_elbow_pitch(1.35, block=False)
+   158	    robot.left_arm.set_shoulder_pitch(0.85, block=True)
+   159	
+   160	    time.sleep(1)
+   161	    robot.left_gripper.open()
+   162	    robot.left_arm.set_elbow_pitch(0.9, block=True)
+   163	
+   164	    robot.left_arm.set_shoulder_pitch(0.2, block=False)
+   165	    robot.left_arm.set_elbow_pitch(0.4, block=True)
+   166	
+   167	    robot.left_arm.home(block=False)
+   168	    time.sleep(1)
+   169	
+   170	
+   171	robot.disconnect()
+   172	
+   173	
+   174	
