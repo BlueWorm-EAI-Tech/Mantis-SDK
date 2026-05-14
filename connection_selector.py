@@ -9,18 +9,15 @@ from mantis import Mantis
 
 
 DEFAULT_REAL_IP = "192.168.1.151"
-DEFAULT_SIM_IP = "127.0.0.1"
 DEFAULT_SN = "BW_3N5CRT22"
 
 INTERACTIVE_PROFILE = "interactive"
 REAL_IP_PROFILE = "real-ip"
-SIM_IP_PROFILE = "sim-ip"
 REAL_SN_PROFILE = "real-sn"
 
 PROFILE_CHOICES = (
     INTERACTIVE_PROFILE,
     REAL_IP_PROFILE,
-    SIM_IP_PROFILE,
     REAL_SN_PROFILE,
 )
 
@@ -35,8 +32,8 @@ def add_connection_args(
         choices=PROFILE_CHOICES,
         default=default_profile,
         help=(
-            "连接模式：interactive 启动时选择；real-ip 连接真实机器人 IP；"
-            "sim-ip 连接仿真 Bridge IP；real-sn 按 SN 连接真实机器人"
+            "连接模式：interactive 启动时选择；real-ip 按 IP 连接指定 Mantis Bridge；"
+            "real-sn 按 SN 连接机器人"
         ),
     )
     parser.add_argument(
@@ -44,12 +41,7 @@ def add_connection_args(
         "--ip",
         dest="real_ip",
         default=DEFAULT_REAL_IP,
-        help=f"真实机器人 IP，默认 {DEFAULT_REAL_IP}；--ip 作为兼容别名保留",
-    )
-    parser.add_argument(
-        "--sim-ip",
-        default=DEFAULT_SIM_IP,
-        help=f"仿真 Bridge IP，默认 {DEFAULT_SIM_IP}",
+        help=f"按 IP 连接的 Mantis Bridge 地址，默认 {DEFAULT_REAL_IP}；--ip 作为兼容别名保留",
     )
     parser.add_argument(
         "--sn",
@@ -83,16 +75,13 @@ def select_connection_profile(args: argparse.Namespace, script_name: str = "") -
         print("=" * 72)
         print(f"当前脚本名: {script_label}")
         print("请选择连接模式：")
-        print(f"1) real-ip：真实机器人 IP，默认 {args.real_ip}")
-        print(f"2) sim-ip：仿真 Bridge IP，默认 {args.sim_ip}")
-        print(f"3) real-sn：真实机器人 SN，默认 {args.sn}")
+        print(f"1) real-ip：按 IP 连接，默认 {args.real_ip}")
+        print(f"2) real-sn：按 SN 连接，默认 {args.sn}")
         print("q) 退出")
-        user_input = input("请输入选择 [1/2/3/q]: ").strip().lower()
+        user_input = input("请输入选择 [1/2/q]: ").strip().lower()
         if user_input == "1":
             return REAL_IP_PROFILE
         if user_input == "2":
-            return SIM_IP_PROFILE
-        if user_input == "3":
             return REAL_SN_PROFILE
         if user_input == "q":
             raise SystemExit("用户取消连接")
@@ -124,8 +113,6 @@ def connect_robot_with_selector(
     robot = Mantis(**_build_mantis_kwargs(args))
     if profile == REAL_IP_PROFILE:
         ok = robot.connect(ip=args.real_ip)
-    elif profile == SIM_IP_PROFILE:
-        ok = robot.connect(ip=args.sim_ip, verify=False)
     elif profile == REAL_SN_PROFILE:
         ok = robot.connect(sn=args.sn)
     else:
@@ -152,10 +139,9 @@ def _print_interactive_preview(args: argparse.Namespace, script_name: str) -> No
     print("当前连接目标: 交互选择（尚未实际选择具体模式）")
     print("是否真实机器人: 待用户选择")
     print("检测到 --print-connection-config，跳过交互式输入，仅展示可选目标：")
-    print(f"- real-ip -> {args.real_ip}（真实机器人）")
-    print(f"- sim-ip -> {args.sim_ip}（仿真 Bridge）")
+    print(f"- real-ip -> {args.real_ip}（按 IP 连接指定 Mantis Bridge）")
     print(f"- real-sn -> {args.sn}（可能连接真实机器人）")
-    print("如需直接打印某一模式配置，可追加 --conn-profile real-ip/sim-ip/real-sn。")
+    print("如需直接打印某一模式配置，可追加 --conn-profile real-ip/real-sn。")
 
 
 def _print_connection_banner(
@@ -169,18 +155,11 @@ def _print_connection_banner(
     print(f"当前连接模式: {profile}")
 
     if profile == REAL_IP_PROFILE:
-        print(f"当前连接目标: 真实机器人 IP {args.real_ip}")
-        print("是否真实机器人: 是")
-        print("警告: 这会连接真实机器人。")
-        print("请清空机器人周围障碍物并确认周围安全。")
-        print("请准备物理急停。")
-        return
-
-    if profile == SIM_IP_PROFILE:
-        print(f"当前连接目标: 仿真 Bridge IP {args.sim_ip}")
-        print("是否真实机器人: 否（仿真 Bridge）")
-        print("提示: 连接前请先启动仿真 Bridge。")
-        print("提示: 当前不会按 SN 自动发现真实机器人。")
+        print(f"当前连接目标 IP: {args.real_ip}")
+        print("是否真实机器人: 取决于该 IP 指向的 Bridge")
+        print("说明: 该模式会按 IP 连接指定的 Mantis Bridge。")
+        print("请确认该 IP 是当前要连接的实机或仿真 Bridge。")
+        print("如果该 IP 指向真实机器人，请清空周围障碍物并准备物理急停。")
         return
 
     if profile == REAL_SN_PROFILE:

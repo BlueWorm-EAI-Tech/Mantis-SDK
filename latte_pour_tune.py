@@ -310,7 +310,6 @@ def print_trial_config(args: argparse.Namespace) -> None:
     print(f"  mode: {args.mode}")
     print(f"  conn_profile: {args.conn_profile}")
     print(f"  real_ip: {args.real_ip}")
-    print(f"  sim_ip: {args.sim_ip}")
     print(f"  sn: {args.sn}")
     print(f"  wrist_roll_max: {args.wrist_roll_max}")
     print(f"  shoulder_roll_center: {args.shoulder_roll_center}")
