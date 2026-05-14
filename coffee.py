@@ -27,15 +27,19 @@ import time
 print("=== Mantis 全关节方向测试 ===\n")
 DEFAULT_ROBOT_IP = "192.168.1.151"
 
+DEFAULT_ROBOT_VERSION = "3.0"
+
 print("当前脚本会连接真实机器人。")
 print(f"当前连接 IP: {DEFAULT_ROBOT_IP}")
+print(f"当前机器人版本: {DEFAULT_ROBOT_VERSION}")
 print("请确认机器人周围安全。")
 print("当前仍是完整咖啡流程脚本。")
 
-robot = Mantis()
+robot = Mantis(robot_version=DEFAULT_ROBOT_VERSION)
 ok = robot.connect(ip=DEFAULT_ROBOT_IP)
 if not ok:
     raise SystemExit("连接失败，停止测试")
+
 # for i in range(10)
 robot.head.look_down(angle=0.5, block=True)
 # 右手拿杯子
