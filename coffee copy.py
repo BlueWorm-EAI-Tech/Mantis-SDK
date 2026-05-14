@@ -26,12 +26,15 @@ from mantis import Mantis
 import time
 print("=== Mantis 全关节方向测试 ===\n")
 
-robot = Mantis(ip="192.168.1.111", robot_version="3.0")
-robot.connect()
-robot.left_arm.ik(0.0, 0.0, 0.0, 0, 0, 0, abs=True)
-
-
-# robot.disconnect()
-
-
-
+robot = Mantis(ip="192.168.1.151")
+if not robot.connect(verify=True):
+    sys.exit(1) 
+# for i in range(10)
+robot.home()
+# robot.right_arm.set_shoulder_pitch(-0.7, block=False)
+# robot.right_arm.set_shoulder_yaw(0.6, block=False) 
+# robot.right_arm.set_shoulder_roll(-0.4) 
+# robot.right_arm.set_wrist_roll(0.5) 
+# robot.right_arm.set_wrist_yaw(0.5) 
+# robot.right_arm.set_wrist_pitch(0.5) 
+robot.right_arm.set_elbow_pitch(-0.5) 

@@ -6,6 +6,12 @@
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+### [1.3.8] - 2026-05-14
+
+**修复**
+
+- 2.0关节映射
+
 ### [1.3.7] - 2026-05-11
 
 **修复**

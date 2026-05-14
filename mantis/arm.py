@@ -29,7 +29,7 @@ from typing import List, Tuple, TYPE_CHECKING
 from .constants import (
     LEFT_ARM_JOINTS, RIGHT_ARM_JOINTS, NUM_ARM_JOINTS,
     LEFT_ARM_LIMITS, RIGHT_ARM_LIMITS,
-    SERIAL_TO_URDF_MAP, JOINT_DIRECTION_MAP
+    SERIAL_TO_URDF_MAP
 )
 
 if TYPE_CHECKING:
@@ -83,13 +83,13 @@ class Arm:
     ======  ================  ==============  ==================
     索引    方法名            中文名          典型范围 (rad)
     ======  ================  ==============  ==================
-    0       shoulder_pitch    肩俯仰          -2.61 ~ 0.78
+    0       shoulder_pitch    肩俯仰          -1.13 ~ 1.75
     1       shoulder_yaw      肩偏航          -0.213 ~ 2.029
-    2       shoulder_roll     肩翻滚          -1.57 ~ 1.57
-    3       elbow_pitch       肘俯仰          -0.78 ~ 1.57
-    4       wrist_roll        腕翻滚          -1.57 ~ 1.57
-    5       wrist_pitch       腕俯仰          -0.52 ~ 0.52
-    6       wrist_yaw         腕偏航          -1.57 ~ 1.57
+    2       shoulder_roll     肩翻滚          -0.8 ~ 0.82
+    3       elbow_pitch       肘俯仰          -0.395 ~ 1.012
+    4       wrist_roll        腕翻滚          -1.7 ~ 1.7
+    5       wrist_pitch       腕俯仰          -0.562 ~ 0.562
+    6       wrist_yaw         腕偏航          -1.7 ~ 1.7
     ======  ================  ==============  ==================
     
     支持阻塞/非阻塞模式：
@@ -210,9 +210,9 @@ class Arm:
         self._target_positions = new_positions
         self._positions = new_positions
         
-        # 同步 IK Solver 目标点 (防止混合使用 IK 和手动控制时目标点漂移)
-        # 注意: 即使是 IK 调用的 set_joints，这里再次同步也是安全的 (重置为解算结果)
-        self._robot.sync_ik_with_commands()
+        # 仅在 IK 求解器已初始化后同步内部目标点，避免纯直控链路误触发 IK 初始化。
+        if self._robot.has_active_ik_solver:
+            self._robot.sync_ik_with_commands()
         
         self._robot._publish_joints()
         
@@ -238,8 +238,8 @@ class Arm:
         self._positions[index] = position
         self._target_positions[index] = position
 
-        # 同步 IK Solver 目标点 (防止混合使用 IK 和手动控制时目标点漂移)
-        self._robot.sync_ik_with_commands()
+        if self._robot.has_active_ik_solver:
+            self._robot.sync_ik_with_commands()
 
         self._robot._publish_joints()
         
@@ -285,6 +285,11 @@ class Arm:
         Raises:
             RuntimeError: If IK fails or solution is invalid
         """
+        if not self._robot.supports_ik:
+            raise NotImplementedError(
+                f"{self._robot.robot_version} 当前仅支持直接关节角控制，不支持 IK"
+            )
+
         if abs:
             # Construct Rotation Matrix (RPY -> Matrix)
             # R = Rz(yaw) * Ry(pitch) * Rx(roll)
@@ -354,11 +359,7 @@ class Arm:
             if urdf_name not in solution_dict:
                  raise RuntimeError(f"Joint {urdf_name} not in IK solution")
             
-            # Apply direction correction (Solver (URDF) -> SDK (Serial))
-            # q_serial = q_urdf * direction (since direction is +/- 1)
-            direction = JOINT_DIRECTION_MAP.get(name, 1.0)
-            val = solution_dict[urdf_name] * direction
-            target_positions.append(val)
+            target_positions.append(solution_dict[urdf_name])
             
         # Move
         self.set_joints(target_positions, block=block)

@@ -48,23 +48,23 @@ NUM_TOTAL_JOINTS = 14
 # 数据来源: mantis.urdf
 
 #: 左臂关节限位 (lower, upper)，单位：弧度
-#: 
+#:
 #: 索引对应关系：
-#:   0. shoulder_pitch: -2.61 ~ 0.78
+#:   0. shoulder_pitch: -1.13 ~ 1.75
 #:   1. shoulder_yaw:   -0.213 ~ 2.029
-#:   2. shoulder_roll:  -1.57 ~ 1.57
-#:   3. elbow_pitch:    -0.78 ~ 1.57
-#:   4. wrist_roll:     -1.57 ~ 1.57
-#:   5. wrist_pitch:    -0.52 ~ 0.52
-#:   6. wrist_yaw:      -1.57 ~ 1.57
+#:   2. shoulder_roll:  -0.8 ~ 0.82
+#:   3. elbow_pitch:    -0.395 ~ 1.012
+#:   4. wrist_roll:     -1.7 ~ 1.7
+#:   5. wrist_pitch:    -0.562 ~ 0.562
+#:   6. wrist_yaw:      -1.7 ~ 1.7
 LEFT_ARM_LIMITS = [
-    (-2.61, 1.5),   # shoulder_pitch: L_Shoulder_Pitch_Joint
+    (-1.13, 1.75),   # shoulder_pitch: L_Shoulder_Pitch_Joint
     (-0.213, 2.029), # shoulder_yaw:   L_Shoulder_Yaw_Joint
-    (-1.57, 1.57),   # shoulder_roll:  L_Shoulder_Roll_Joint
-    (-0.78, 1.57),   # elbow_pitch:    L_Elbow_Pitch_Joint
-    (-1.57, 1.57),   # wrist_roll:     L_Wrist_Roll_Joint
-    (-0.52, 0.52),   # wrist_pitch:    L_Wrist_Pitch_Joint
-    (-1.57, 1.57),   # wrist_yaw:      L_Wrist_Yaw_Joint
+    (-0.8, 0.82),    # shoulder_roll:  L_Shoulder_Roll_Joint
+    (-0.395, 1.012), # elbow_pitch:    L_Elbow_Pitch_Joint
+    (-1.7, 1.7),     # wrist_roll:     L_Wrist_Roll_Joint
+    (-0.562, 0.562), # wrist_pitch:    L_Wrist_Pitch_Joint
+    (-1.7, 1.7),     # wrist_yaw:      L_Wrist_Yaw_Joint
 ]
 
 #: 右臂关节限位 (lower, upper)，单位：弧度
@@ -72,13 +72,13 @@ LEFT_ARM_LIMITS = [
 #: Note:
 #:   右臂 shoulder_yaw 限位与左臂相同（URDF 中轴方向已处理）
 RIGHT_ARM_LIMITS = [
-    (-2.61, 1.5),   # shoulder_pitch: R_Shoulder_Pitch_Joint
+    (-1.13, 1.75),   # shoulder_pitch: R_Shoulder_Pitch_Joint
     (-0.213, 2.029), # shoulder_yaw:   R_Shoulder_Yaw_Joint
-    (-1.57, 1.57),   # shoulder_roll:  R_Shoulder_Roll_Joint
-    (-0.78, 1.57),   # elbow_pitch:    R_Elbow_Pitch_Joint
-    (-1.57, 1.57),   # wrist_roll:     R_Wrist_Roll_Joint
-    (-0.52, 0.52),   # wrist_pitch:    R_Wrist_Pitch_Joint
-    (-1.57, 1.57),   # wrist_yaw:      R_Wrist_Yaw_Joint
+    (-0.8, 0.82),    # shoulder_roll:  R_Shoulder_Roll_Joint
+    (-0.395, 1.012), # elbow_pitch:    R_Elbow_Pitch_Joint
+    (-1.7, 1.7),     # wrist_roll:     R_Wrist_Roll_Joint
+    (-0.562, 0.562), # wrist_pitch:    R_Wrist_Pitch_Joint
+    (-1.7, 1.7),     # wrist_yaw:      R_Wrist_Yaw_Joint
 ]
 
 #: 头部限位，单位：弧度
@@ -159,30 +159,6 @@ ALL_URDF_JOINTS = [
 
 #: Serial 名称 → URDF 名称映射
 SERIAL_TO_URDF_MAP = dict(zip(JOINT_NAMES, URDF_ARM_JOINT_NAMES))
-
-#: 方向修正映射：Serial 名称 → 方向系数
-#:
-#: 该映射用于对齐 SDK 内部关节坐标系与当前运行时的 URDF/实机方向约定。
-#: mantis.py 在发布关节状态和构造 IK 关节配置时都会使用这里的符号，
-#: 因此该表需要与现行 bridge/runtime 的方向修正规则保持一致。
-JOINT_DIRECTION_MAP = {
-    # 左臂
-    "left_shoulder_pitch_joint": -1,
-    "left_shoulder_yaw_joint": 1,
-    "left_shoulder_roll_joint": -1,
-    "left_elbow_pitch_joint": 1,
-    "left_wrist_roll_joint": 1,
-    "left_wrist_pitch_joint": -1,
-    "left_wrist_yaw_joint": 1,
-    # 右臂
-    "right_shoulder_pitch_joint": -1,
-    "right_shoulder_yaw_joint": -1,
-    "right_shoulder_roll_joint": 1,
-    "right_elbow_pitch_joint": 1,
-    "right_wrist_roll_joint": -1,
-    "right_wrist_pitch_joint": -1,
-    "right_wrist_yaw_joint": -1,
-}
 
 # ==================== Zenoh 话题 ====================
 

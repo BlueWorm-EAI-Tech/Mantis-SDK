@@ -62,7 +62,7 @@ from .discovery import (
 from .constants import *
 
 #: SDK 版本号
-__version__ = "1.3.7"
+__version__ = "1.3.8"
 
 #: 作者
 __author__ = "BlueWorm-EAI-Tech"

@@ -26,7 +26,7 @@ from mantis import Mantis
 import time
 print("=== Mantis 全关节方向测试 ===\n")
 
-robot = Mantis(ip="192.168.1.151")
+robot = Mantis(sn="BW_30ORGLJM",robot_version="3.0")
 if not robot.connect(verify=True):
     sys.exit(1) 
 # for i in range(10)
