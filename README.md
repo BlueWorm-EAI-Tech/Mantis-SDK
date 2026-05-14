@@ -1,7 +1,7 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.3.7-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.9-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
@@ -20,6 +20,17 @@
 | **v1.3.6 及以上** | **≥ 26.5.11.1** | ✅ **兼容 (Compatible)** |
 
 > ⚠️ **警告**：当前版本 `v1.3.7` 仅支持机器人端 `26.5.11.1` 及以上版本，版本区间必须严格匹配。
+
+## 3.0 兼容范围
+
+- `robot_version="3.0"` 支持双臂直接关节角控制
+- `robot_version="3.0"` 支持双臂 `Arm.ik(...)`，`abs=True/False` 行为与 `2.0` 一致
+- `3.0` 的 SDK IK 当前只覆盖双臂 14 轴，内部按胸部固定 `0` 位处理
+- `3.0` 当前不包含胸部与腰部 whole-body 控制语义切换
+- SDK / RViz / IK 统一使用 URDF 关节语义；客户端不再做双臂方向映射
+- 如需让实机关节方向与仿真保持一致，方向修正应放在最终下发到硬件的链路处理
+- 如果不传 `robot_version`，默认仍按 `2.0` 行为处理
+
 ## 特性
 
 - 🚀 **无 ROS2 依赖**: 客户端只需 Python + Zenoh
@@ -78,6 +89,10 @@ robot.connect(ip="192.168.1.100")
 
 # 方式2：按 SN 连接
 robot = Mantis()
+robot.connect(sn="BW_4TEOGD")
+
+# 方式2.1：3.0 机器人双臂控制（直控 / IK）
+robot = Mantis(robot_version="3.0")
 robot.connect(sn="BW_4TEOGD")
 
 # 方式3：初始化时给默认目标
@@ -190,13 +205,13 @@ RUN_MODE=sdk
 
 | 索引 | 关节   | 方法                                    | 限位 (rad)     |
 | ---- | ------ | --------------------------------------- | -------------- |
-| 0    | 肩俯仰 | `set_shoulder_pitch(angle, block=True)` | -2.61 ~ 0.78   |
+| 0    | 肩俯仰 | `set_shoulder_pitch(angle, block=True)` | -1.13 ~ 1.75   |
 | 1    | 肩偏航 | `set_shoulder_yaw(angle, block=True)`   | -0.213 ~ 2.029 |
-| 2    | 肩翻滚 | `set_shoulder_roll(angle, block=True)`  | -1.57 ~ 1.57   |
-| 3    | 肘俯仰 | `set_elbow_pitch(angle, block=True)`    | -0.78 ~ 1.57   |
-| 4    | 腕翻滚 | `set_wrist_roll(angle, block=True)`     | -1.57 ~ 1.57   |
-| 5    | 腕俯仰 | `set_wrist_pitch(angle, block=True)`    | -0.52 ~ 0.52   |
-| 6    | 腕偏航 | `set_wrist_yaw(angle, block=True)`      | -1.57 ~ 1.57   |
+| 2    | 肩翻滚 | `set_shoulder_roll(angle, block=True)`  | -0.8 ~ 0.82    |
+| 3    | 肘俯仰 | `set_elbow_pitch(angle, block=True)`    | -0.395 ~ 1.012 |
+| 4    | 腕翻滚 | `set_wrist_roll(angle, block=True)`     | -1.7 ~ 1.7     |
+| 5    | 腕俯仰 | `set_wrist_pitch(angle, block=True)`    | -0.562 ~ 0.562 |
+| 6    | 腕偏航 | `set_wrist_yaw(angle, block=True)`      | -1.7 ~ 1.7     |
 
 其他方法：
 
@@ -211,6 +226,7 @@ RUN_MODE=sdk
 - `ik(x, y, z, roll, pitch, yaw, block=True, abs=True)` - 末端位姿控制 (IK)。
   - `abs=True`: 绝对位姿 (位置: m, 姿态: rad)。会自动重置内部目标点。
   - `abs=False`: 相对增量 (位置: 全局 m, 姿态: 局部 rad)。基于内部维护的目标位姿进行累积，支持连续调用。
+  - `robot_version="3.0"`: 当前支持双臂 IK，但只解双臂 14 轴；胸部按固定零位处理，不包含胸/腰 whole-body 语义。
 
 ### Gripper (夹爪)
 

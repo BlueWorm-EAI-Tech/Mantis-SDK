@@ -13,10 +13,18 @@ def _load_constants_module():
     return module
 
 
-def test_sdk_constants_no_longer_export_joint_direction_maps():
+def test_sdk_arm_limits_match_formal_runtime_urdf_ranges():
     constants = _load_constants_module()
 
-    assert not hasattr(constants, "JOINT_DIRECTION_MAP")
-    assert not hasattr(constants, "JOINT_DIRECTION_MAP_2_0")
-    assert not hasattr(constants, "JOINT_DIRECTION_MAP_3_0")
-    assert not hasattr(constants, "JOINT_DIRECTION_MAPS")
+    expected_limits = [
+        (-1.13, 1.75),
+        (-0.213, 2.029),
+        (-0.8, 0.82),
+        (-0.395, 1.012),
+        (-1.7, 1.7),
+        (-0.562, 0.562),
+        (-1.7, 1.7),
+    ]
+
+    assert constants.LEFT_ARM_LIMITS == expected_limits
+    assert constants.RIGHT_ARM_LIMITS == expected_limits

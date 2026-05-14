@@ -41,7 +41,7 @@ from .waist import Waist
 from .chassis import Chassis
 from .constants import (
     Topics, JOINT_NAMES,
-    SERIAL_TO_URDF_MAP, JOINT_DIRECTION_MAP,
+    SERIAL_TO_URDF_MAP,
     ALL_URDF_JOINTS
 )
 
@@ -83,7 +83,13 @@ class Mantis:
     #: 默认 Zenoh 端口
     DEFAULT_PORT = 7447
     
-    def __init__(self, ip: Optional[str] = None, port: int = None, sn: Optional[str] = None):
+    def __init__(
+        self,
+        ip: Optional[str] = None,
+        port: int = None,
+        sn: Optional[str] = None,
+        robot_version: str = "2.0",
+    ):
         """初始化 Mantis 机器人。
         
         Args:
@@ -92,6 +98,9 @@ class Mantis:
             port: Zenoh 端口，默认 7447。
             sn: 机器人 SN，例如 "BW_4TEOGD"。
                 如果为 None，可在 connect() 时再指定。
+            robot_version: 目标机器人版本，当前支持 ``"2.0"`` 和 ``"3.0"``。
+                ``"3.0"`` 支持双臂直接关节角控制与双臂 IK。
+                当前仍不包含胸部/腰部 whole-body 语义，IK 默认按胸部固定零位处理。
         
         Example:
             .. code-block:: python
@@ -102,13 +111,23 @@ class Mantis:
                 # 也可只给 SN
                 robot = Mantis(sn="BW_4TEOGD")
 
+                # 3.0 机器人双臂控制（直控 / IK）
+                robot = Mantis(sn="BW_4TEOGD", robot_version="3.0")
+
                 # 自动发现（后续 connect 时解析）
                 robot = Mantis()
         """
+        normalized_robot_version = str(robot_version).strip()
+        if normalized_robot_version not in ("2.0", "3.0"):
+            raise ValueError(
+                f"robot_version 必须是 '2.0' 或 '3.0'，当前收到: {robot_version!r}"
+            )
+
         self._target_ip = ip
         self._target_sn = sn
         self._port = port or self.DEFAULT_PORT
         self._router = f"tcp/{self._target_ip}:{self._port}" if self._target_ip else None
+        self._robot_version = normalized_robot_version
         
         self._session: Optional[zenoh.Session] = None
         self._publishers = {}
@@ -209,6 +228,11 @@ class Mantis:
             bool: 连接状态
         """
         return self._connected
+
+    @property
+    def robot_version(self) -> str:
+        """目标机器人版本。"""
+        return self._robot_version
     
     @property
     def robot_ip(self) -> Optional[str]:
@@ -247,6 +271,22 @@ class Mantis:
     def _topic_with_sn(cls, sn: str, base_topic: str) -> str:
         """拼接 SN 前缀话题。"""
         return f"{cls._normalize_key(sn)}/{cls._normalize_key(base_topic)}"
+
+    @property
+    def supports_ik(self) -> bool:
+        """当前机器人版本是否支持 SDK 内置 IK。"""
+        return self._robot_version in ("2.0", "3.0")
+
+    @property
+    def has_active_ik_solver(self) -> bool:
+        """IK 求解器是否已初始化。"""
+        return getattr(self, "_ik_solver_instance", None) is not None
+
+    def _ensure_ik_supported(self) -> None:
+        """在使用 IK 相关能力前校验当前版本是否支持。"""
+        if self.supports_ik:
+            return
+        raise NotImplementedError(f"{self._robot_version} 当前 SDK 不支持 IK")
 
     def _resolve_identity(
         self,
@@ -528,10 +568,9 @@ class Mantis:
         # 1. 双臂
         for i, serial_name in enumerate(JOINT_NAMES):
             urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
-            direction = float(JOINT_DIRECTION_MAP.get(serial_name, 1.0))
             names.append(urdf_name)
-            # 强制转换为 float 确保 ROS2 兼容性
-            values.append(float(arm_positions[i]) * direction)
+            # SDK 内部统一使用 URDF 关节语义；实机方向修正留到最终硬件链路处理。
+            values.append(float(arm_positions[i]))
             
         # 2. 夹爪
         left_grip = float(self._left_gripper._position) * 0.04
@@ -741,6 +780,7 @@ class Mantis:
     # ==================== IK Solver 接口 ====================
 
     def _get_ik_solver(self):
+        self._ensure_ik_supported()
         if not hasattr(self, '_ik_solver_instance') or self._ik_solver_instance is None:
              from .ik_solver import MantisArmIK
              self._ik_solver_instance = MantisArmIK()
@@ -759,15 +799,12 @@ class Mantis:
         # 左臂
         for i, serial_name in enumerate(self._left_arm.joint_names):
             urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
-            direction = JOINT_DIRECTION_MAP.get(serial_name, 1.0)
-            # URDF angle = Serial angle / direction (direction is +/- 1)
-            commanded_map[urdf_name] = self._left_arm._positions[i] / direction
+            commanded_map[urdf_name] = self._left_arm._positions[i]
             
         # 右臂
         for i, serial_name in enumerate(self._right_arm.joint_names):
             urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
-            direction = JOINT_DIRECTION_MAP.get(serial_name, 1.0)
-            commanded_map[urdf_name] = self._right_arm._positions[i] / direction
+            commanded_map[urdf_name] = self._right_arm._positions[i]
             
         config = []
         for name in names:
@@ -780,6 +817,7 @@ class Mantis:
         当手动控制关节 (如 home, set_joints) 时应调用此方法，
         以防止 IK 增量控制基于过期的目标点。
         """
+        self._ensure_ik_supported()
         solver = self._get_ik_solver()
         q_cmd = self._get_commanded_joint_config()
         
@@ -798,6 +836,7 @@ class Mantis:
 
     def solve_ik_abs(self, T_left, T_right):
         """调用 IK Solver 解算关节角 (绝对模式)。"""
+        self._ensure_ik_supported()
         solver = self._get_ik_solver()
         
         # 同步当前状态，确保热启动和正则化正确
@@ -808,6 +847,7 @@ class Mantis:
 
     def solve_ik_rel(self, delta_left, delta_right):
         """调用 IK Solver 解算关节角 (增量模式)。"""
+        self._ensure_ik_supported()
         solver = self._get_ik_solver()
         
         # 同步当前状态
@@ -818,6 +858,7 @@ class Mantis:
 
     def compute_fk(self):
         """计算当前 FK。"""
+        self._ensure_ik_supported()
         solver = self._get_ik_solver()
         q_current = self._get_ordered_joint_config()
         return solver.compute_fk(q_current)
