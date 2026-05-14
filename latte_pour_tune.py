@@ -3,6 +3,7 @@ import csv
 from datetime import datetime
 from pathlib import Path
 import subprocess
+import sys
 import time
 from typing import Optional
 
@@ -10,6 +11,7 @@ from mantis import Mantis
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+DEFAULT_IP = "192.168.1.151"
 DEFAULT_SN = "BW_3N5CRT22"
 DEFAULT_LOG_FILE = "docs/latte_pour_tuning_log.csv"
 CSV_FIELDNAMES = [
@@ -75,7 +77,13 @@ class UserAbort(Exception):
     """Raised when the operator cancels before or during the tune flow."""
 
 
-def parse_args() -> argparse.Namespace:
+def cli_flag_provided(argv: list[str], flag: str) -> bool:
+    return any(token == flag or token.startswith(f"{flag}=") for token in argv)
+
+
+def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
+    if argv is None:
+        argv = sys.argv[1:]
     parser = argparse.ArgumentParser(
         description="Mantis 倒奶/拉花段分模式调试工具（仅关节空间 demo，不运行完整 coffee 流程）"
     )
@@ -88,7 +96,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sn",
         default=DEFAULT_SN,
-        help="目标机器人 SN，默认沿用 coffee.py 当前配置",
+        help="目标机器人备用 SN；仅当显式传入 --sn 且未传 --ip 时按 SN 连接",
+    )
+    parser.add_argument(
+        "--ip",
+        default=DEFAULT_IP,
+        help="目标机器人 IP，默认 192.168.1.151；当前实机调试默认按 IP 连接",
     )
     parser.add_argument(
         "--wrist-roll-max",
@@ -157,7 +170,9 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="跳过人工确认，仅保留打印提示",
     )
-    return parser.parse_args()
+    args = parser.parse_args(argv)
+    args.connection_method = "sn" if cli_flag_provided(argv, "--sn") and not cli_flag_provided(argv, "--ip") else "ip"
+    return args
 
 
 def print_global_safety_banner() -> None:
@@ -304,10 +319,14 @@ def append_trial_log(
 
 
 def print_trial_config(args: argparse.Namespace) -> None:
+    connection_label = "SN" if args.connection_method == "sn" else "IP"
     print("[实验配置]")
     print(f"  trial_name: {args.trial_name}")
     print(f"  mode: {args.mode}")
-    print(f"  sn: {args.sn}")
+    print("  default_connection_method: IP")
+    print(f"  current_connection_method: {connection_label}")
+    print(f"  ip: {args.ip}")
+    print(f"  sn: {args.sn} (备用值)")
     print(f"  wrist_roll_max: {args.wrist_roll_max}")
     print(f"  shoulder_roll_center: {args.shoulder_roll_center}")
     print(f"  shoulder_roll_amp: {args.shoulder_roll_amp}")
@@ -416,8 +435,13 @@ def main() -> None:
 
         confirm_or_exit("连接前确认：确认环境安全、夹持稳定，并准备好物理急停。", args.no_confirm)
 
-        robot = Mantis(sn=args.sn)
-        ok = robot.connect(verify=True)
+        robot = Mantis()
+        if args.connection_method == "sn":
+            print(f"当前按 SN 连接（未传 --ip）: {args.sn}")
+            ok = robot.connect(sn=args.sn)
+        else:
+            print(f"当前按 IP 连接: {args.ip}")
+            ok = robot.connect(ip=args.ip)
         if not ok:
             raise RuntimeError("连接失败，停止调试")
 
