@@ -1,33 +1,24 @@
 import argparse
 import time
 
-from mantis import Mantis
-
-
-DEFAULT_ROBOT_IP = "192.168.1.151"
+from connection_selector import add_connection_args, connect_robot_with_selector
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="连接机器人并读取 IP")
-    parser.add_argument(
-        "--ip",
-        default=DEFAULT_ROBOT_IP,
-        help="目标机器人 IP，默认 192.168.1.151",
-    )
+    add_connection_args(parser, default_profile="interactive")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     print("正在连接机器人...")
-    print(f"当前按 IP 连接: {args.ip}")
 
     robot = None
     try:
-        robot = Mantis()
-        ok = robot.connect(ip=args.ip)
-        if not ok:
-            raise SystemExit("连接失败，停止测试")
+        robot = connect_robot_with_selector(args, script_name=__file__)
+        if robot is None:
+            return
 
         if robot.is_connected:
             print(f"连接成功！")

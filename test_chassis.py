@@ -22,19 +22,12 @@
 import argparse
 import time
 
-from mantis import Mantis
-
-
-DEFAULT_ROBOT_IP = "192.168.1.151"
+from connection_selector import add_connection_args, connect_robot_with_selector
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Mantis 底盘运动测试")
-    parser.add_argument(
-        "--ip",
-        default=DEFAULT_ROBOT_IP,
-        help="目标机器人 IP，默认 192.168.1.151",
-    )
+    add_connection_args(parser, default_profile="interactive")
     return parser.parse_args()
 
 
@@ -202,19 +195,16 @@ def main():
     print("  6. 交互式控制")
     print("  7. 运行所有测试")
     print()
-    
-    choice = input("请选择 (1-7): ").strip()
-    print(f"当前按 IP 连接: {args.ip}")
 
     robot = None
     try:
-        robot = Mantis()
-        ok = robot.connect(ip=args.ip)
-        if not ok:
-            raise SystemExit("连接失败，停止测试")
+        robot = connect_robot_with_selector(args, script_name=__file__)
+        if robot is None:
+            return
 
         print("\n机器人已连接，开始测试...\n")
         time.sleep(1)  # 等待连接稳定
+        choice = input("请选择 (1-7): ").strip()
 
         if choice == '1':
             test_basic_movement(robot)

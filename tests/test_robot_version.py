@@ -173,6 +173,24 @@ def test_arm_ik_relative_control_is_available_for_robot_version_3_0():
     assert robot.right_arm.positions == _expected_arm_positions(robot, robot.right_arm.joint_names)
 
 
+def test_arm_ik_does_not_reset_incremental_targets_after_solving():
+    robot = _make_robot_with_fake_solver(robot_version="3.0")
+
+    robot.left_arm.ik(0.01, 0.0, 0.0, 0.0, 0.0, 0.0, block=False, abs=False)
+
+    solver = robot._ik_solver_instance
+    assert solver.reset_target_calls == 0
+
+
+def test_manual_joint_control_still_resets_incremental_targets_when_solver_is_active():
+    robot = _make_robot_with_fake_solver(robot_version="3.0")
+
+    robot.left_arm.set_joint(0, 0.2, block=False)
+
+    solver = robot._ik_solver_instance
+    assert solver.reset_target_calls == 1
+
+
 def test_direct_arm_joint_control_stays_available_for_robot_version_3_0():
     robot = Mantis(robot_version="3.0")
     robot._connected = True

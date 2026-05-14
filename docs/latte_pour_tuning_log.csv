@@ -7,3 +7,8 @@ timestamp,trial_name,mode,sn,wrist_roll_max,shoulder_roll_center,shoulder_roll_a
 2026-05-14T17:27:43+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,33.861,,feat/latte-pour-real-tune,1166ffb
 2026-05-14T17:28:19+08:00,manual_trial,with-right-cup,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,interrupted,KeyboardInterrupt,15.451,,feat/latte-pour-real-tune,1166ffb
 2026-05-14T17:32:46+08:00,manual_trial,with-right-cup,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,failed,RuntimeError: 连接失败，停止调试,17.044,,feat/latte-pour-real-tune,1166ffb
+2026-05-14T17:57:09+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,37.014,,feat/latte-pour-real-tune,e44135b
+2026-05-14T18:24:45+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,66.452,,feat/latte-pour-real-tune,e44135b
+2026-05-14T18:27:51+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,interrupted,KeyboardInterrupt,58.575,,feat/latte-pour-real-tune,e44135b
+2026-05-14T18:27:56+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,failed,,3.600,,feat/latte-pour-real-tune,e44135b
+2026-05-14T18:28:01+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,failed,,2.638,,feat/latte-pour-real-tune,e44135b

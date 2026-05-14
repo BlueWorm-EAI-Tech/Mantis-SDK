@@ -160,6 +160,11 @@ ALL_URDF_JOINTS = [
 #: Serial 名称 → URDF 名称映射
 SERIAL_TO_URDF_MAP = dict(zip(JOINT_NAMES, URDF_ARM_JOINT_NAMES))
 
+#: SDK IK 模型路径（相对 ``mantis/model/urdf`` 目录）。
+#:
+#: 当前直接对齐 VR 使用的 ``bw_core/assets/mantis_2_0_ik/mantis_2_0_ik.urdf``。
+IK_URDF_FILENAME = "../../../../bw_teleoperate_ws/src/bw_core/assets/mantis_2_0_ik/mantis_2_0_ik.urdf"
+
 # ==================== Zenoh 话题 ====================
 
 class Topics:

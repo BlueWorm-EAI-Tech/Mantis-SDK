@@ -10,33 +10,24 @@ RViz 预览测试
 import argparse
 import time
 
-from mantis import Mantis
-
-
-DEFAULT_ROBOT_IP = "192.168.1.151"
+from connection_selector import add_connection_args, connect_robot_with_selector
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Mantis RViz 预览测试")
-    parser.add_argument(
-        "--ip",
-        default=DEFAULT_ROBOT_IP,
-        help="目标机器人 IP，默认 192.168.1.151",
-    )
+    add_connection_args(parser, default_profile="interactive")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     print("=== Mantis 连接测试 ===\n")
-    print(f"当前按 IP 连接: {args.ip}")
 
     robot = None
     try:
-        robot = Mantis()
-        ok = robot.connect(ip=args.ip)
-        if not ok:
-            raise SystemExit("连接失败，停止测试")
+        robot = connect_robot_with_selector(args, script_name=__file__)
+        if robot is None:
+            return
         while 1:
             print("1. 左臂抬起")
             robot.left_arm.set_shoulder_pitch(-0.5)

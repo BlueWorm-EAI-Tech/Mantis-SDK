@@ -7,6 +7,7 @@ import sys
 import time
 from typing import Optional
 
+from connection_selector import add_connection_args, connect_robot_with_selector
 from mantis import Mantis
 
 
@@ -89,16 +90,7 @@ def parse_args(argv: Optional[list[str]] = None) -> argparse.Namespace:
         choices=("left-only", "with-right-cup"),
         help="调试模式：left-only 只调左手；with-right-cup 加入右手接奶位姿联调",
     )
-    parser.add_argument(
-        "--sn",
-        default=DEFAULT_SN,
-        help="目标机器人备用 SN，仅用于打印和实验日志，不作为默认连接方式",
-    )
-    parser.add_argument(
-        "--ip",
-        default=DEFAULT_IP,
-        help="目标机器人 IP，默认 192.168.1.151；当前实机调试默认按 IP 连接",
-    )
+    add_connection_args(parser, default_profile="interactive")
     parser.add_argument(
         "--wrist-roll-max",
         type=float,
@@ -316,10 +308,10 @@ def print_trial_config(args: argparse.Namespace) -> None:
     print("[实验配置]")
     print(f"  trial_name: {args.trial_name}")
     print(f"  mode: {args.mode}")
-    print("  default_connection_method: IP")
-    print("  current_connection_method: IP")
-    print(f"  ip: {args.ip}")
-    print(f"  sn: {args.sn} (备用值)")
+    print(f"  conn_profile: {args.conn_profile}")
+    print(f"  real_ip: {args.real_ip}")
+    print(f"  sim_ip: {args.sim_ip}")
+    print(f"  sn: {args.sn}")
     print(f"  wrist_roll_max: {args.wrist_roll_max}")
     print(f"  shoulder_roll_center: {args.shoulder_roll_center}")
     print(f"  shoulder_roll_amp: {args.shoulder_roll_amp}")
@@ -414,6 +406,7 @@ def recover_left_arm_after_pour(robot: Mantis) -> None:
 def main() -> None:
     args = parse_args()
     robot: Optional[Mantis] = None
+    should_log_trial = not args.print_connection_config
     git_branch, git_commit = get_git_context()
     start_time = time.monotonic()
     status = "failed"
@@ -425,14 +418,10 @@ def main() -> None:
         print_global_safety_banner()
         print_mode_safety(args.mode)
         print_trial_config(args)
-
-        confirm_or_exit("连接前确认：确认环境安全、夹持稳定，并准备好物理急停。", args.no_confirm)
-
-        robot = Mantis()
-        print(f"当前按 IP 连接: {args.ip}")
-        ok = robot.connect(ip=args.ip)
-        if not ok:
-            raise RuntimeError("连接失败，停止调试")
+        robot = connect_robot_with_selector(args, script_name=__file__)
+        if robot is None:
+            status = "config-only"
+            return
 
         if args.mode == "with-right-cup":
             move_right_arm_to_receive_milk_pose(robot)
@@ -467,19 +456,20 @@ def main() -> None:
             except Exception as exc:
                 print(f"断开连接时忽略异常: {exc}")
         duration_s = time.monotonic() - start_time
-        try:
-            append_trial_log(
-                args=args,
-                status=status,
-                error=error_message,
-                duration_s=duration_s,
-                notes=combined_notes,
-                git_branch=git_branch,
-                git_commit=git_commit,
-            )
-            print(f"实验记录已追加到: {resolve_log_path(args.log_file)}")
-        except Exception as exc:
-            print(f"写入实验日志失败: {exc}")
+        if should_log_trial:
+            try:
+                append_trial_log(
+                    args=args,
+                    status=status,
+                    error=error_message,
+                    duration_s=duration_s,
+                    notes=combined_notes,
+                    git_branch=git_branch,
+                    git_commit=git_commit,
+                )
+                print(f"实验记录已追加到: {resolve_log_path(args.log_file)}")
+            except Exception as exc:
+                print(f"写入实验日志失败: {exc}")
 
 
 if __name__ == "__main__":

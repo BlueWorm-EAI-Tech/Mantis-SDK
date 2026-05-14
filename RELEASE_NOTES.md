@@ -1,10 +1,27 @@
 # Mantis SDK Release Notes
 
-📅 最新版本: V1.3.7 (2026-05-11)
+📅 最新版本: V1.3.9 (2026-05-14)
 
 ## Changelog
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+### [1.3.9] - 2026-05-14
+
+**修复**
+
+- 修复 `ik(abs=False)` 在连续调用时内部增量目标被重置的问题，恢复相对 IK 与绝对 IK 的预期语义差异。
+- 保留手动 `set_joint` / `set_joints` 对 IK 目标点的同步重置逻辑，避免手动调姿后相对 IK 基于过期目标继续累积。
+
+**对齐**
+
+- SDK 双臂 IK 模型切换为与 VR 共用的 `mantis_2_0_ik.urdf`，统一 2.0 / 3.0 的 IK 解算模型语义。
+- IK 模型缺失时改为显式报错，不再静默回退到旧版本地模型。
+
+**测试**
+
+- 新增 `tests/test_ik_model_alignment.py`，锁定 SDK 与 VR 使用同一份 IK 模型。
+- 补充 IK 相对模式目标保持与手动关节控制重置逻辑的回归测试。
 
 ### [1.3.8] - 2026-05-14
 

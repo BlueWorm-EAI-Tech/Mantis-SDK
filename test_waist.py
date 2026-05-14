@@ -12,19 +12,12 @@
 import argparse
 import time
 
-from mantis import Mantis
-
-
-DEFAULT_ROBOT_IP = "192.168.1.151"
+from connection_selector import add_connection_args, connect_robot_with_selector
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Mantis 腰部位移测试")
-    parser.add_argument(
-        "--ip",
-        default=DEFAULT_ROBOT_IP,
-        help="目标机器人 IP，默认 192.168.1.151",
-    )
+    add_connection_args(parser, default_profile="interactive")
     return parser.parse_args()
 
 
@@ -33,14 +26,12 @@ def main():
     print("=== Mantis 腰部位移测试 ===\n")
     print("Waist_Joint: prismatic 关节, 范围 -0.62m 到 0.24m")
     print("负值 = 下降, 正值 = 上升\n")
-    print(f"当前按 IP 连接: {args.ip}")
 
     robot = None
     try:
-        robot = Mantis()
-        ok = robot.connect(ip=args.ip)
-        if not ok:
-            raise SystemExit("连接失败，停止测试")
+        robot = connect_robot_with_selector(args, script_name=__file__)
+        if robot is None:
+            return
         print("开始演示腰部动作...\n")
 
         # 1. 回到零位
