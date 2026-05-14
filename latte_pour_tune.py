@@ -21,15 +21,14 @@ LEFT_START_WRIST_ROLL = 1.10
 LEFT_POUR_SHOULDER_PITCH = -0.60
 LEFT_POUR_WRIST_ROLL_PREP = 1.35
 LEFT_POUR_WRIST_ROLL_MAX = 1.55
-LEFT_SWING_POINTS = (
-    (0.55, -0.55),
-    (0.75, -0.45),
-    (0.56, -0.54),
-    (0.74, -0.46),
-    (0.57, -0.53),
-    (0.73, -0.47),
-)
-LEFT_SWING_DELAY = 0.25
+# 当前拉花摆动仍然是关节空间 demo。
+# LEFT_SWING_CYCLES 表示完整左右摆动次数；6 个 cycle 对应 12 个半程目标点。
+# 如果 RViz/实机上摆动仍不明显，优先增大 LEFT_SWING_DELAY 或扩大 shoulder_roll 左右差值。
+# 如果实机上有碰撞风险，优先减小 shoulder_roll 幅度。
+LEFT_SWING_CYCLES = 6
+LEFT_SWING_LEFT = (0.55, -0.55)
+LEFT_SWING_RIGHT = (0.70, -0.45)
+LEFT_SWING_DELAY = 0.45
 
 # 右手静态接奶测试位姿。该值复用 coffee.py 中“右手后撤后等待左手倒奶”
 # 的局部动作（约第 80-83、112-116 行），仅用于双臂相对位置联调，
@@ -160,9 +159,15 @@ def latte_art_pour_demo(robot: Mantis) -> None:
     robot.left_arm.set_wrist_roll(LEFT_POUR_WRIST_ROLL_MAX, block=True)
     time.sleep(0.3)
 
-    for shoulder_roll, elbow_pitch in LEFT_SWING_POINTS:
-        robot.left_arm.set_shoulder_roll(shoulder_roll, block=False)
-        robot.left_arm.set_elbow_pitch(elbow_pitch, block=False)
+    for cycle_idx in range(LEFT_SWING_CYCLES):
+        print(f"拉花摆动 {cycle_idx + 1}/{LEFT_SWING_CYCLES}: left")
+        robot.left_arm.set_shoulder_roll(LEFT_SWING_LEFT[0], block=False)
+        robot.left_arm.set_elbow_pitch(LEFT_SWING_LEFT[1], block=True)
+        time.sleep(LEFT_SWING_DELAY)
+
+        print(f"拉花摆动 {cycle_idx + 1}/{LEFT_SWING_CYCLES}: right")
+        robot.left_arm.set_shoulder_roll(LEFT_SWING_RIGHT[0], block=False)
+        robot.left_arm.set_elbow_pitch(LEFT_SWING_RIGHT[1], block=True)
         time.sleep(LEFT_SWING_DELAY)
 
     # 逐步停止倒奶，避免直接从最大倒奶角回摆。
