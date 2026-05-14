@@ -62,13 +62,13 @@ from .discovery import (
 from .constants import *
 
 #: SDK 版本号
-__version__ = "1.3.8"
+__version__ = "1.3.9"
 
 #: 作者
 __author__ = "BlueWorm-EAI-Tech"
 
 #: 版本发布日期
-__release_date__ = "2026-05-11"
+__release_date__ = "2026-05-14"
 
 __all__ = [
     "Mantis",

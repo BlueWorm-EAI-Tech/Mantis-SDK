@@ -18,9 +18,8 @@ import casadi
 import numpy as np
 import pinocchio as pin
 from pinocchio import casadi as cpin
-from ament_index_python.packages import get_package_share_directory
 
-from .constants import LEFT_ARM_URDF_JOINTS, RIGHT_ARM_URDF_JOINTS
+from .constants import IK_URDF_FILENAME, LEFT_ARM_URDF_JOINTS, RIGHT_ARM_URDF_JOINTS
 
 @dataclass
 class _ReducedRobot:
@@ -44,14 +43,16 @@ class MantisArmIK:
         """
         np.set_printoptions(precision=5, suppress=True, linewidth=200)
 
-        # 获取 URDF 文件路径
+        # 获取 IK URDF 文件路径。优先对齐 VR 当前使用的专用 IK 模型。
         current_dir = os.path.dirname(os.path.abspath(__file__))
         pkg_dir = os.path.join(current_dir, 'model')
-        urdf_path = os.path.join(pkg_dir, 'urdf', 'mantis.urdf')
+        urdf_dir = os.path.join(pkg_dir, 'urdf')
+        urdf_path = os.path.normpath(os.path.join(urdf_dir, IK_URDF_FILENAME))
+        if not os.path.exists(urdf_path):
+            raise FileNotFoundError(f"SDK IK URDF 不存在: {urdf_path}")
 
-        # 使用 Pinocchio 加载机器人模型
-        robot = pin.RobotWrapper.BuildFromURDF(urdf_path, [pkg_dir, os.path.dirname(urdf_path)])
-        full_model = robot.model
+        # 仅加载运动学模型，避免 IK 专用 URDF 中的 mesh/package 路径参与解析。
+        full_model = pin.buildModelFromUrdf(urdf_path)
 
         # 构建简化模型: 锁定非手臂关节
         # 白名单包含左右臂的所有关节名称
@@ -66,11 +67,12 @@ class MantisArmIK:
         joints_to_lock = sorted(set(joints_to_lock))
 
         # 构建 Reduced Robot (仅保留手臂关节可动)
-        reduced_robot = robot.buildReducedRobot(
+        reduced_model = pin.buildReducedModel(
+            full_model,
             list_of_joints_to_lock=joints_to_lock,
             reference_configuration=pin.neutral(full_model),
         )
-        self._robot = _ReducedRobot(model=reduced_robot.model, data=reduced_robot.data)
+        self._robot = _ReducedRobot(model=reduced_model, data=reduced_model.createData())
 
         # 确定末端执行器 (End-Effector) 的 Frame 名称
         # 使用之前代码中的腕部偏航关节作为 EE

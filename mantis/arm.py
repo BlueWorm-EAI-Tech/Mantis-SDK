@@ -179,7 +179,14 @@ class Arm:
         lower, upper = self._limits[index]
         return max(lower, min(upper, value))
     
-    def set_joints(self, positions: List[float], clamp: bool = True, block: bool = True):
+    def set_joints(
+        self,
+        positions: List[float],
+        clamp: bool = True,
+        block: bool = True,
+        *,
+        _sync_ik_targets: bool = True,
+    ):
         """设置所有关节角度。
         
         Args:
@@ -211,7 +218,7 @@ class Arm:
         self._positions = new_positions
         
         # 仅在 IK 求解器已初始化后同步内部目标点，避免纯直控链路误触发 IK 初始化。
-        if self._robot.has_active_ik_solver:
+        if _sync_ik_targets and self._robot.has_active_ik_solver:
             self._robot.sync_ik_with_commands()
         
         self._robot._publish_joints()
@@ -219,7 +226,15 @@ class Arm:
         # 执行运动
         self._execute_motion(block)
     
-    def set_joint(self, index: int, position: float, clamp: bool = True, block: bool = True):
+    def set_joint(
+        self,
+        index: int,
+        position: float,
+        clamp: bool = True,
+        block: bool = True,
+        *,
+        _sync_ik_targets: bool = True,
+    ):
         """设置单个关节角度。
         
         Args:
@@ -238,7 +253,7 @@ class Arm:
         self._positions[index] = position
         self._target_positions[index] = position
 
-        if self._robot.has_active_ik_solver:
+        if _sync_ik_targets and self._robot.has_active_ik_solver:
             self._robot.sync_ik_with_commands()
 
         self._robot._publish_joints()
@@ -362,7 +377,8 @@ class Arm:
             target_positions.append(solution_dict[urdf_name])
             
         # Move
-        self.set_joints(target_positions, block=block)
+        # IK 路径需要保留 solver 内部维护的目标位姿，不能在这里再次 reset_targets()。
+        self.set_joints(target_positions, block=block, _sync_ik_targets=False)
 
     
     def __repr__(self) -> str:
