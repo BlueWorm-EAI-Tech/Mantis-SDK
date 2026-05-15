@@ -1,0 +1,2 @@
+timestamp,mode,conn_profile,real_ip,sn,right_gripper_pos,left_gripper_pos,hold_seconds,status,error,duration_s,notes,git_branch,git_commit
+2026-05-15T10:02:42+08:00,right-cup,real-ip,192.168.1.151,BW_3N5CRT22,0.6,0.6,5.0,interrupted,KeyboardInterrupt,87.178,,feat/latte-pour-real-tune,8b0597a
