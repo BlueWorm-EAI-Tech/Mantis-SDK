@@ -1,0 +1,86 @@
+# Mantis SDK 双臂关节方向映射配置
+#
+# 说明：
+# - baseline_pose 是测试基准姿态，不一定适合所有现场环境，必要时请根据场地和机器人摆位人工调整。
+# - 实机测试前必须确保两臂周围无障碍物，桌面、杯子、奶壶、咖啡机等全部移开。
+# - 不要夹持杯子、奶壶或任何工具做方向映射，保持末端空载。
+# - 推荐顺序：先测腕部，再测肘部，最后测肩部。
+# - 肩部关节会带动整条手臂，风险更高，务必先做 dry-run，再做单关节小幅测试。
+
+robot:
+  sn: ""
+  ip: "192.168.1.151"
+  port: 7447
+  connect_timeout: 5.0
+  robot_version: ""
+
+test:
+  default_speed: 0.20
+  settle_time_sec: 1.0
+  confirm_before_each_motion: true
+  return_to_baseline_after_each_motion: true
+
+arms:
+  left:
+    baseline_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    joints:
+      shoulder_pitch:
+        index: 0
+        sdk_method: set_shoulder_pitch
+        delta_rad: 0.15
+      shoulder_yaw:
+        index: 1
+        sdk_method: set_shoulder_yaw
+        delta_rad: 0.12
+      shoulder_roll:
+        index: 2
+        sdk_method: set_shoulder_roll
+        delta_rad: 0.15
+      elbow_pitch:
+        index: 3
+        sdk_method: set_elbow_pitch
+        delta_rad: 0.15
+      wrist_roll:
+        index: 4
+        sdk_method: set_wrist_roll
+        delta_rad: 0.25
+      wrist_pitch:
+        index: 5
+        sdk_method: set_wrist_pitch
+        delta_rad: 0.15
+      wrist_yaw:
+        index: 6
+        sdk_method: set_wrist_yaw
+        delta_rad: 0.25
+
+  right:
+    baseline_pose: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    joints:
+      shoulder_pitch:
+        index: 0
+        sdk_method: set_shoulder_pitch
+        delta_rad: 0.15
+      shoulder_yaw:
+        index: 1
+        sdk_method: set_shoulder_yaw
+        delta_rad: 0.12
+      shoulder_roll:
+        index: 2
+        sdk_method: set_shoulder_roll
+        delta_rad: 0.15
+      elbow_pitch:
+        index: 3
+        sdk_method: set_elbow_pitch
+        delta_rad: 0.15
+      wrist_roll:
+        index: 4
+        sdk_method: set_wrist_roll
+        delta_rad: 0.25
+      wrist_pitch:
+        index: 5
+        sdk_method: set_wrist_pitch
+        delta_rad: 0.15
+      wrist_yaw:
+        index: 6
+        sdk_method: set_wrist_yaw
+        delta_rad: 0.25
