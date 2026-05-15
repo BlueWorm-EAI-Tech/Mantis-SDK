@@ -1,2 +1,9 @@
-timestamp,mode,conn_profile,real_ip,sn,right_gripper_pos,left_gripper_pos,hold_seconds,status,error,duration_s,notes,git_branch,git_commit
-2026-05-15T10:02:42+08:00,right-cup,real-ip,192.168.1.151,BW_3N5CRT22,0.6,0.6,5.0,interrupted,KeyboardInterrupt,87.178,,feat/latte-pour-real-tune,8b0597a
+timestamp,mode,conn_profile,real_ip,sn,right_gripper_pos,left_gripper_pos,right_final_gripper_pos,left_final_gripper_pos,hold_seconds,status,error,duration_s,notes,git_branch,git_commit
+2026-05-15T10:02:42+08:00,right-cup,real-ip,192.168.1.151,BW_3N5CRT22,0.6,0.6,,,5.0,interrupted,KeyboardInterrupt,87.178,,feat/latte-pour-real-tune,8b0597a
+2026-05-15T10:36:26+08:00,right-cup,interactive,192.168.1.151,BW_3N5CRT22,0.8,0.75,,,3.0,interrupted,KeyboardInterrupt,4.119,,feat/latte-pour-real-tune,8296f9f
+2026-05-15T10:37:53+08:00,right-cup,real-sn,192.168.1.151,BW_3N5CRT22,0.8,0.75,0.80,,3.0,success,,56.065,,feat/latte-pour-real-tune,8296f9f
+2026-05-15T10:40:19+08:00,left-pitcher,real-sn,192.168.1.151,BW_3N5CRT22,0.8,0.75,,0.90,3.0,success,,25.056,,feat/latte-pour-real-tune,8296f9f
+2026-05-15T11:06:30+08:00,right-cup,real-ip,192.168.1.151,BW_3N5CRT22,0.8,0.75,0.65,,1.0,success,,137.335,,feat/latte-pour-real-tune,8296f9f
+2026-05-15T11:07:05+08:00,right-cup,real-ip,192.168.1.151,BW_3N5CRT22,0.8,0.75,,,1.0,skipped,用户取消执行,3.739,,feat/latte-pour-real-tune,8296f9f
+2026-05-15T11:08:02+08:00,right-cup,real-ip,192.168.1.151,BW_3N5CRT22,0.75,0.75,0.80,,1.0,success,,35.465,,feat/latte-pour-real-tune,8296f9f
+2026-05-15T11:09:32+08:00,left-pitcher,real-ip,192.168.1.151,BW_3N5CRT22,0.8,0.65,,,1.0,interrupted,KeyboardInterrupt,52.983,,feat/latte-pour-real-tune,8296f9f
