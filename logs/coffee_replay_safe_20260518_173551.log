@@ -1,0 +1,22 @@
+2026-05-18 17:35:51,396 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 17:35:51,397 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 17:35:51,397 | INFO | log_file=logs/coffee_replay_safe_20260518_173551.log
+2026-05-18 17:35:51,397 | INFO | dry_run=False
+2026-05-18 17:35:51,397 | INFO | execute=True
+2026-05-18 17:35:51,397 | INFO | selected_stage=prepare_head
+2026-05-18 17:35:51,397 | INFO | resolved_stages=prepare_head
+2026-05-18 17:35:51,397 | INFO | latte_profile=conservative
+2026-05-18 17:35:51,397 | INFO | latte_motion=wrist_roll_max=1.25, shoulder_roll_center=0.50, shoulder_roll_amp=0.03, elbow_pitch_center=-0.42, elbow_pitch_amp=0.02, sway_count=2, step_sleep=0.60
+2026-05-18 17:35:51,397 | INFO | latte_recover=left_pour_shoulder_pitch=-0.35, left_pour_wrist_roll_prep=1.05, left_recover_shoulder_pitch=-0.20, left_recover_shoulder_roll=0.10, left_recover_elbow_pitch=-0.25
+2026-05-18 17:35:51,397 | WARNING | 当前为 execute：将尝试连接机器人并执行实机动作。
+2026-05-18 17:35:55,611 | INFO | 即将执行阶段：prepare_head
+2026-05-18 17:35:55,611 | INFO | 该阶段涉及部件：head
+2026-05-18 17:35:55,611 | INFO | 风险提示：头部下视，需确认前方无遮挡并避免误判为整机静止。
+2026-05-18 17:35:57,870 | INFO | 阶段开始：prepare_head
+2026-05-18 17:35:57,870 | INFO | [prepare_head] Action 001 | 头部下视到咖啡流程观察位 | robot.head.look_down(0.5, block=True)
+2026-05-18 17:35:57,912 | INFO | [prepare_head] Action 002 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 17:35:58,927 | INFO | [prepare_head] Action 003 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 17:35:59,427 | INFO | 阶段结束：prepare_head
+2026-05-18 17:35:59,427 | INFO | 全部请求阶段执行完成。
+2026-05-18 17:35:59,428 | INFO | finally: 已尝试调用 robot.stop()
+2026-05-18 17:35:59,469 | INFO | finally: 已尝试调用 robot.disconnect()

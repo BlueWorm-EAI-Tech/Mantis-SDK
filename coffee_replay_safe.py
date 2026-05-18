@@ -22,6 +22,56 @@ from connection_selector import add_connection_args, connect_robot_with_selector
 
 DEFAULT_ROBOT_VERSION = "3.0"
 DEFAULT_STAGE_PAUSE_SECONDS = 0.5
+CONSERVATIVE_LATTE_REACH_PROFILE = "conservative"
+CURRENT_LATTE_REACH_PROFILE = "current"
+CUSTOM_LATTE_REACH_PROFILE = "custom"
+LATTE_REACH_PROFILE_CHOICES = (
+    CONSERVATIVE_LATTE_REACH_PROFILE,
+    CURRENT_LATTE_REACH_PROFILE,
+    CUSTOM_LATTE_REACH_PROFILE,
+)
+CURRENT_LATTE_WRIST_ROLL_PREP_DELTA = 0.20
+LATTE_CONFIG_FIELDS = (
+    "wrist_roll_max",
+    "shoulder_roll_center",
+    "shoulder_roll_amp",
+    "elbow_pitch_center",
+    "elbow_pitch_amp",
+    "sway_count",
+    "step_sleep",
+    "left_pour_shoulder_pitch",
+    "left_pour_wrist_roll_prep",
+    "left_recover_shoulder_pitch",
+    "left_recover_shoulder_roll",
+    "left_recover_elbow_pitch",
+)
+CONSERVATIVE_LATTE_PROFILE_DEFAULTS = {
+    "wrist_roll_max": 1.25,
+    "shoulder_roll_center": 0.50,
+    "shoulder_roll_amp": 0.03,
+    "elbow_pitch_center": -0.42,
+    "elbow_pitch_amp": 0.02,
+    "sway_count": 2,
+    "step_sleep": 0.60,
+    "left_pour_shoulder_pitch": -0.35,
+    "left_pour_wrist_roll_prep": 1.05,
+    "left_recover_shoulder_pitch": -0.20,
+    "left_recover_shoulder_roll": 0.10,
+    "left_recover_elbow_pitch": -0.25,
+}
+CURRENT_LATTE_PROFILE_DEFAULTS = {
+    "wrist_roll_max": 1.55,
+    "shoulder_roll_center": 0.625,
+    "shoulder_roll_amp": 0.075,
+    "elbow_pitch_center": -0.50,
+    "elbow_pitch_amp": 0.05,
+    "sway_count": 6,
+    "step_sleep": 0.45,
+    "left_pour_shoulder_pitch": -0.60,
+    "left_recover_shoulder_pitch": -0.30,
+    "left_recover_shoulder_roll": 0.15,
+    "left_recover_elbow_pitch": -0.35,
+}
 
 STAGE_ORDER = [
     "prepare_head",
@@ -64,10 +114,28 @@ class DryRunRobot:
 
 
 @dataclass
+class LattePourConfig:
+    reach_profile: str = CONSERVATIVE_LATTE_REACH_PROFILE
+    wrist_roll_max: float = 1.25
+    shoulder_roll_center: float = 0.50
+    shoulder_roll_amp: float = 0.03
+    elbow_pitch_center: float = -0.42
+    elbow_pitch_amp: float = 0.02
+    sway_count: int = 2
+    step_sleep: float = 0.60
+    left_pour_shoulder_pitch: float = -0.35
+    left_pour_wrist_roll_prep: float = 1.05
+    left_recover_shoulder_pitch: float = -0.20
+    left_recover_shoulder_roll: float = 0.10
+    left_recover_elbow_pitch: float = -0.25
+
+
+@dataclass
 class ReplayContext:
     dry_run: bool
     yes: bool
     logger: logging.Logger
+    latte_config: LattePourConfig
     sleep_fn: Callable[[float], None] = time.sleep
     action_counter: int = 0
     current_stage: str = ""
@@ -104,7 +172,189 @@ def parse_args() -> argparse.Namespace:
         "--log-file",
         help="日志文件路径；不指定时自动写入 logs/coffee_replay_safe_YYYYmmdd_HHMMSS.log",
     )
+    parser.add_argument(
+        "--latte-reach-profile",
+        choices=LATTE_REACH_PROFILE_CHOICES,
+        default=CONSERVATIVE_LATTE_REACH_PROFILE,
+        help="拉花/倒奶动作包络档位，默认 conservative",
+    )
+    parser.add_argument(
+        "--latte-wrist-roll-max",
+        type=float,
+        default=None,
+        help="左手倒奶阶段最大 wrist_roll；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-shoulder-roll-center",
+        type=float,
+        default=None,
+        help="左手拉花摆动中心 shoulder_roll；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-shoulder-roll-amp",
+        type=float,
+        default=None,
+        help="左手拉花摆动 shoulder_roll 幅度；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-elbow-pitch-center",
+        type=float,
+        default=None,
+        help="左手拉花摆动中心 elbow_pitch；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-elbow-pitch-amp",
+        type=float,
+        default=None,
+        help="左手拉花摆动 elbow_pitch 幅度；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-sway-count",
+        type=int,
+        default=None,
+        help="左手左右摆动次数；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-step-sleep",
+        type=float,
+        default=None,
+        help="左右摆动之间的停顿时间；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-left-pour-shoulder-pitch",
+        type=float,
+        default=None,
+        help="左手倒奶预备 shoulder_pitch；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-left-pour-wrist-roll-prep",
+        type=float,
+        default=None,
+        help="左手进入倒奶角前的 wrist_roll 预备值；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-left-recover-shoulder-pitch",
+        type=float,
+        default=None,
+        help="左手收束阶段 shoulder_pitch；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-left-recover-shoulder-roll",
+        type=float,
+        default=None,
+        help="左手收束阶段 shoulder_roll；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-left-recover-elbow-pitch",
+        type=float,
+        default=None,
+        help="左手收束阶段 elbow_pitch；默认由 --latte-reach-profile 决定",
+    )
+    parser.add_argument(
+        "--latte-allow-risky-pose",
+        action="store_true",
+        help="允许超过建议边界的拉花/倒奶关节参数；默认不允许",
+    )
     return parser.parse_args()
+
+
+def build_latte_pour_config(args: argparse.Namespace) -> LattePourConfig:
+    if args.latte_reach_profile == CONSERVATIVE_LATTE_REACH_PROFILE:
+        config_values = dict(CONSERVATIVE_LATTE_PROFILE_DEFAULTS)
+    elif args.latte_reach_profile == CURRENT_LATTE_REACH_PROFILE:
+        config_values = dict(CURRENT_LATTE_PROFILE_DEFAULTS)
+    elif args.latte_reach_profile == CUSTOM_LATTE_REACH_PROFILE:
+        config_values = {}
+    else:
+        raise SystemExit(f"不支持的 latte reach profile: {args.latte_reach_profile}")
+
+    override_map = {
+        "wrist_roll_max": args.latte_wrist_roll_max,
+        "shoulder_roll_center": args.latte_shoulder_roll_center,
+        "shoulder_roll_amp": args.latte_shoulder_roll_amp,
+        "elbow_pitch_center": args.latte_elbow_pitch_center,
+        "elbow_pitch_amp": args.latte_elbow_pitch_amp,
+        "sway_count": args.latte_sway_count,
+        "step_sleep": args.latte_step_sleep,
+        "left_pour_shoulder_pitch": args.latte_left_pour_shoulder_pitch,
+        "left_pour_wrist_roll_prep": args.latte_left_pour_wrist_roll_prep,
+        "left_recover_shoulder_pitch": args.latte_left_recover_shoulder_pitch,
+        "left_recover_shoulder_roll": args.latte_left_recover_shoulder_roll,
+        "left_recover_elbow_pitch": args.latte_left_recover_elbow_pitch,
+    }
+    for field_name, value in override_map.items():
+        if value is not None:
+            config_values[field_name] = value
+
+    if (
+        args.latte_reach_profile == CURRENT_LATTE_REACH_PROFILE
+        and "left_pour_wrist_roll_prep" not in config_values
+    ):
+        config_values["left_pour_wrist_roll_prep"] = max(
+            0.0,
+            float(config_values["wrist_roll_max"]) - CURRENT_LATTE_WRIST_ROLL_PREP_DELTA,
+        )
+
+    missing_fields = [field_name for field_name in LATTE_CONFIG_FIELDS if field_name not in config_values]
+    if missing_fields:
+        missing_flags = ", ".join(f"--latte-{field_name.replace('_', '-')}" for field_name in missing_fields)
+        raise SystemExit(
+            "以下拉花参数尚未提供，custom profile 需要显式传入："
+            f"{missing_flags}"
+        )
+
+    config = LattePourConfig(
+        reach_profile=args.latte_reach_profile,
+        wrist_roll_max=float(config_values["wrist_roll_max"]),
+        shoulder_roll_center=float(config_values["shoulder_roll_center"]),
+        shoulder_roll_amp=float(config_values["shoulder_roll_amp"]),
+        elbow_pitch_center=float(config_values["elbow_pitch_center"]),
+        elbow_pitch_amp=float(config_values["elbow_pitch_amp"]),
+        sway_count=int(config_values["sway_count"]),
+        step_sleep=float(config_values["step_sleep"]),
+        left_pour_shoulder_pitch=float(config_values["left_pour_shoulder_pitch"]),
+        left_pour_wrist_roll_prep=float(config_values["left_pour_wrist_roll_prep"]),
+        left_recover_shoulder_pitch=float(config_values["left_recover_shoulder_pitch"]),
+        left_recover_shoulder_roll=float(config_values["left_recover_shoulder_roll"]),
+        left_recover_elbow_pitch=float(config_values["left_recover_elbow_pitch"]),
+    )
+    validate_latte_pour_config(config, allow_risky_pose=args.latte_allow_risky_pose)
+    return config
+
+
+def validate_latte_pour_config(
+    config: LattePourConfig,
+    allow_risky_pose: bool = False,
+) -> None:
+    def reject_risky_value(option_name: str, value: float, recommendation: str) -> None:
+        if not allow_risky_pose:
+            raise SystemExit(
+                f"{option_name}={value} 超出建议边界（{recommendation}）。"
+                "如确需继续，请显式传入 --latte-allow-risky-pose。"
+            )
+
+    if config.sway_count < 1:
+        raise SystemExit("--latte-sway-count 必须大于等于 1")
+    if config.step_sleep < 0.15:
+        raise SystemExit("--latte-step-sleep 不能小于 0.15")
+    if config.shoulder_roll_amp < 0.0:
+        raise SystemExit("--latte-shoulder-roll-amp 不能为负数")
+    if config.elbow_pitch_amp < 0.0:
+        raise SystemExit("--latte-elbow-pitch-amp 不能为负数")
+    if config.left_pour_wrist_roll_prep < 0.0:
+        raise SystemExit("--latte-left-pour-wrist-roll-prep 不能为负数")
+    if config.left_pour_wrist_roll_prep > config.wrist_roll_max:
+        raise SystemExit("--latte-left-pour-wrist-roll-prep 不能大于 --latte-wrist-roll-max")
+    if config.wrist_roll_max > 1.55:
+        reject_risky_value("--latte-wrist-roll-max", config.wrist_roll_max, "建议不超过 1.55")
+    if config.shoulder_roll_amp > 0.08:
+        reject_risky_value("--latte-shoulder-roll-amp", config.shoulder_roll_amp, "建议不超过 0.08")
+    if config.elbow_pitch_amp > 0.06:
+        reject_risky_value("--latte-elbow-pitch-amp", config.elbow_pitch_amp, "建议不超过 0.06")
+    if config.sway_count > 8:
+        reject_risky_value("--latte-sway-count", float(config.sway_count), "建议不超过 8")
+    if config.left_pour_shoulder_pitch < -0.60:
+        raise SystemExit("--latte-left-pour-shoulder-pitch 不能小于 -0.60")
 
 
 def build_logger(log_file: Path) -> logging.Logger:
@@ -588,71 +838,168 @@ def left_hand_move_to_pour_pose(robot, ctx: ReplayContext) -> None:
 
 
 def left_hand_pour_milk(robot, ctx: ReplayContext) -> None:
-    # TODO: 后续可替换为拉花轨迹执行器。
+    config = ctx.latte_config
+    swing_left = (
+        round(config.shoulder_roll_center - config.shoulder_roll_amp, 4),
+        round(config.elbow_pitch_center - config.elbow_pitch_amp, 4),
+    )
+    swing_right = (
+        round(config.shoulder_roll_center + config.shoulder_roll_amp, 4),
+        round(config.elbow_pitch_center + config.elbow_pitch_amp, 4),
+    )
+
+    ctx.logger.info(
+        "[%s] latte profile=%s | wrist_roll_max=%.2f | shoulder_roll_center=%.2f | "
+        "shoulder_roll_amp=%.2f | elbow_pitch_center=%.2f | elbow_pitch_amp=%.2f | "
+        "sway_count=%d | step_sleep=%.2f",
+        ctx.current_stage,
+        config.reach_profile,
+        config.wrist_roll_max,
+        config.shoulder_roll_center,
+        config.shoulder_roll_amp,
+        config.elbow_pitch_center,
+        config.elbow_pitch_amp,
+        config.sway_count,
+        config.step_sleep,
+    )
+
     call(
         ctx,
-        "左肩俯仰切入倒奶动作",
+        "左肩俯仰切入保守倒奶预备姿态",
         robot.left_arm.set_shoulder_pitch,
-        -0.6,
+        config.left_pour_shoulder_pitch,
         block=False,
         sdk_call="robot.left_arm.set_shoulder_pitch",
     )
     call(
         ctx,
-        "左肘俯仰切入倒奶动作",
+        "左肘俯仰对齐保守摆动中心",
         robot.left_arm.set_elbow_pitch,
-        -0.6,
-        block=True,
+        config.elbow_pitch_center,
+        block=False,
         sdk_call="robot.left_arm.set_elbow_pitch",
     )
     call(
         ctx,
-        "左肩翻滚增大壶身倾斜",
+        "左肩翻滚对齐保守摆动中心",
         robot.left_arm.set_shoulder_roll,
-        0.65,
+        config.shoulder_roll_center,
         block=False,
         sdk_call="robot.left_arm.set_shoulder_roll",
     )
     call(
         ctx,
-        "左腕翻滚执行大角度倒奶",
+        "左腕翻滚进入保守倒奶预备角",
         robot.left_arm.set_wrist_roll,
-        1.7,
-        block=False,
+        config.left_pour_wrist_roll_prep,
+        block=True,
         sdk_call="robot.left_arm.set_wrist_roll",
     )
+    sleep_step(ctx, 0.3, reason="保守倒奶预备后短暂停顿")
     call(
         ctx,
-        "左肘俯仰微调倒奶轨迹",
-        robot.left_arm.set_elbow_pitch,
-        -0.5,
+        "左腕翻滚增大到保守倒奶角",
+        robot.left_arm.set_wrist_roll,
+        config.wrist_roll_max,
         block=True,
-        sdk_call="robot.left_arm.set_elbow_pitch",
+        sdk_call="robot.left_arm.set_wrist_roll",
+    )
+    sleep_step(ctx, 0.3, reason="进入保守倒奶角后短暂停顿")
+
+    for cycle_idx in range(config.sway_count):
+        call(
+            ctx,
+            f"左手保守拉花第 {cycle_idx + 1}/{config.sway_count} 次左摆 shoulder_roll",
+            robot.left_arm.set_shoulder_roll,
+            swing_left[0],
+            block=False,
+            sdk_call="robot.left_arm.set_shoulder_roll",
+        )
+        call(
+            ctx,
+            f"左手保守拉花第 {cycle_idx + 1}/{config.sway_count} 次左摆 elbow_pitch",
+            robot.left_arm.set_elbow_pitch,
+            swing_left[1],
+            block=True,
+            sdk_call="robot.left_arm.set_elbow_pitch",
+        )
+        sleep_step(
+            ctx,
+            config.step_sleep,
+            reason=f"左手保守拉花第 {cycle_idx + 1}/{config.sway_count} 次左摆停顿",
+        )
+        call(
+            ctx,
+            f"左手保守拉花第 {cycle_idx + 1}/{config.sway_count} 次右摆 shoulder_roll",
+            robot.left_arm.set_shoulder_roll,
+            swing_right[0],
+            block=False,
+            sdk_call="robot.left_arm.set_shoulder_roll",
+        )
+        call(
+            ctx,
+            f"左手保守拉花第 {cycle_idx + 1}/{config.sway_count} 次右摆 elbow_pitch",
+            robot.left_arm.set_elbow_pitch,
+            swing_right[1],
+            block=True,
+            sdk_call="robot.left_arm.set_elbow_pitch",
+        )
+        sleep_step(
+            ctx,
+            config.step_sleep,
+            reason=f"左手保守拉花第 {cycle_idx + 1}/{config.sway_count} 次右摆停顿",
+        )
+
+    call(
+        ctx,
+        "左肩翻滚进入局部收束位",
+        robot.left_arm.set_shoulder_roll,
+        config.left_recover_shoulder_roll,
+        block=False,
+        sdk_call="robot.left_arm.set_shoulder_roll",
     )
     call(
         ctx,
-        "左肘俯仰回到原始收束角度",
+        "左肘俯仰进入局部收束位",
         robot.left_arm.set_elbow_pitch,
-        -0.6,
+        config.left_recover_elbow_pitch,
         block=False,
         sdk_call="robot.left_arm.set_elbow_pitch",
     )
+    call(
+        ctx,
+        "左腕翻滚回到倒奶预备角以减小回摆",
+        robot.left_arm.set_wrist_roll,
+        config.left_pour_wrist_roll_prep,
+        block=True,
+        sdk_call="robot.left_arm.set_wrist_roll",
+    )
+    sleep_step(ctx, 0.3, reason="局部收束后短暂停顿")
     call(
         ctx,
         "左腕翻滚回到中间角度",
         robot.left_arm.set_wrist_roll,
         0.0,
-        block=True,
+        block=False,
         sdk_call="robot.left_arm.set_wrist_roll",
     )
     call(
         ctx,
-        "左肩翻滚回到中间角度",
+        "左肩翻滚保持在收束角度",
         robot.left_arm.set_shoulder_roll,
-        0.0,
+        config.left_recover_shoulder_roll,
         block=True,
         sdk_call="robot.left_arm.set_shoulder_roll",
     )
+    call(
+        ctx,
+        "左肩俯仰回到倒奶后收束角度",
+        robot.left_arm.set_shoulder_pitch,
+        config.left_recover_shoulder_pitch,
+        block=True,
+        sdk_call="robot.left_arm.set_shoulder_pitch",
+    )
+    sleep_step(ctx, 0.3, reason="保守倒奶动作完成后观察停稳")
 
 
 def return_home(robot, ctx: ReplayContext) -> None:
@@ -844,7 +1191,7 @@ def get_stage_definitions():
         "left_hand_pour_milk": {
             "func": left_hand_pour_milk,
             "components": "left_arm / left_gripper / right_arm / right_gripper",
-            "risk": "左手执行大角度倒奶动作，是当前流程中风险最高的阶段之一。",
+            "risk": "左手执行保守拉花/倒奶动作，风险主要来自 wrist_roll 倒奶角、shoulder_roll 摆动以及双臂间距。",
         },
         "return_home": {
             "func": return_home,
@@ -892,11 +1239,13 @@ def main() -> int:
     dry_run = not execute
     log_path = build_log_path(args.log_file)
     logger = build_logger(log_path)
+    latte_config = build_latte_pour_config(args)
 
     ctx = ReplayContext(
         dry_run=dry_run,
         yes=args.yes,
         logger=logger,
+        latte_config=latte_config,
         stage_notes={},
     )
 
@@ -910,6 +1259,29 @@ def main() -> int:
     logger.info("execute=%s", execute)
     logger.info("selected_stage=%s", args.stage)
     logger.info("resolved_stages=%s", ", ".join(selected_stages))
+    logger.info("latte_profile=%s", latte_config.reach_profile)
+    logger.info(
+        "latte_motion=wrist_roll_max=%.2f, shoulder_roll_center=%.2f, shoulder_roll_amp=%.2f, "
+        "elbow_pitch_center=%.2f, elbow_pitch_amp=%.2f, sway_count=%d, step_sleep=%.2f",
+        latte_config.wrist_roll_max,
+        latte_config.shoulder_roll_center,
+        latte_config.shoulder_roll_amp,
+        latte_config.elbow_pitch_center,
+        latte_config.elbow_pitch_amp,
+        latte_config.sway_count,
+        latte_config.step_sleep,
+    )
+    logger.info(
+        "latte_recover=left_pour_shoulder_pitch=%.2f, left_pour_wrist_roll_prep=%.2f, "
+        "left_recover_shoulder_pitch=%.2f, left_recover_shoulder_roll=%.2f, left_recover_elbow_pitch=%.2f",
+        latte_config.left_pour_shoulder_pitch,
+        latte_config.left_pour_wrist_roll_prep,
+        latte_config.left_recover_shoulder_pitch,
+        latte_config.left_recover_shoulder_roll,
+        latte_config.left_recover_elbow_pitch,
+    )
+    if args.latte_allow_risky_pose:
+        logger.warning("已启用 --latte-allow-risky-pose，请确认现场急停与双臂安全间隙。")
 
     if dry_run:
         logger.info("当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。")

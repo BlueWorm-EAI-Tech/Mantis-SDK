@@ -1,0 +1,38 @@
+2026-05-18 17:36:08,179 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 17:36:08,179 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 17:36:08,179 | INFO | log_file=logs/coffee_replay_safe_20260518_173608.log
+2026-05-18 17:36:08,179 | INFO | dry_run=False
+2026-05-18 17:36:08,179 | INFO | execute=True
+2026-05-18 17:36:08,179 | INFO | selected_stage=right_hand_grasp_cup
+2026-05-18 17:36:08,179 | INFO | resolved_stages=right_hand_grasp_cup
+2026-05-18 17:36:08,179 | INFO | latte_profile=conservative
+2026-05-18 17:36:08,179 | INFO | latte_motion=wrist_roll_max=1.25, shoulder_roll_center=0.50, shoulder_roll_amp=0.03, elbow_pitch_center=-0.42, elbow_pitch_amp=0.02, sway_count=2, step_sleep=0.60
+2026-05-18 17:36:08,179 | INFO | latte_recover=left_pour_shoulder_pitch=-0.35, left_pour_wrist_roll_prep=1.05, left_recover_shoulder_pitch=-0.20, left_recover_shoulder_roll=0.10, left_recover_elbow_pitch=-0.25
+2026-05-18 17:36:08,179 | WARNING | 当前为 execute：将尝试连接机器人并执行实机动作。
+2026-05-18 17:36:10,630 | INFO | 即将执行阶段：right_hand_grasp_cup
+2026-05-18 17:36:10,630 | INFO | 该阶段涉及部件：right_arm / right_gripper / left_gripper
+2026-05-18 17:36:10,630 | INFO | 风险提示：右手接近杯子抓取，需确认杯位、桌边和夹爪周围无人手靠近。
+2026-05-18 17:36:12,466 | INFO | 阶段开始：right_hand_grasp_cup
+2026-05-18 17:36:12,467 | INFO | [right_hand_grasp_cup] Action 001 | 右夹爪初始化为闭合 | robot.right_gripper.close()
+2026-05-18 17:36:13,482 | INFO | [right_hand_grasp_cup] Action 002 | 左夹爪初始化为闭合 | robot.left_gripper.close()
+2026-05-18 17:36:14,497 | INFO | [right_hand_grasp_cup] Action 003 | 右夹爪打开准备抓杯 | robot.right_gripper.open()
+2026-05-18 17:36:14,601 | INFO | [right_hand_grasp_cup] Action 004 | 右肩俯仰到抓杯预备位 | robot.right_arm.set_shoulder_pitch(0.7, block=False)
+2026-05-18 17:36:14,602 | INFO | [right_hand_grasp_cup] Action 004 使用 block=False
+2026-05-18 17:36:14,602 | INFO | [right_hand_grasp_cup] Action 005 | 右肩翻滚到抓杯预备位 | robot.right_arm.set_shoulder_roll(-0.42, block=False)
+2026-05-18 17:36:14,602 | INFO | [right_hand_grasp_cup] Action 005 使用 block=False
+2026-05-18 17:36:14,602 | INFO | [right_hand_grasp_cup] Action 006 | 右腕翻滚对齐杯把方向 | robot.right_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 17:36:15,617 | INFO | [right_hand_grasp_cup] Action 007 | 右肘下探接近杯子 | robot.right_arm.set_elbow_pitch(1.0, block=False)
+2026-05-18 17:36:15,617 | INFO | [right_hand_grasp_cup] Action 007 使用 block=False
+2026-05-18 17:36:15,617 | INFO | [right_hand_grasp_cup] Action 008 | 右腕俯仰微调抓取姿态 | robot.right_arm.set_wrist_pitch(0.1, block=True)
+2026-05-18 17:36:16,632 | INFO | [right_hand_grasp_cup] Action 009 | sleep(1.00) | 保留原始抓杯前等待
+2026-05-18 17:36:17,635 | INFO | [right_hand_grasp_cup] Action 010 | 右夹爪收至抓杯位置 | robot.right_gripper.set_position(0.6)
+2026-05-18 17:36:17,686 | INFO | [right_hand_grasp_cup] Action 011 | sleep(1.00) | 保留原始抓杯后等待
+2026-05-18 17:36:18,687 | INFO | [right_hand_grasp_cup] Action 012 | 右肘抬起准备离开杯架 | robot.right_arm.set_elbow_pitch(0.6, block=False)
+2026-05-18 17:36:18,687 | INFO | [right_hand_grasp_cup] Action 012 使用 block=False
+2026-05-18 17:36:18,688 | INFO | [right_hand_grasp_cup] Action 013 | 右肩俯仰抬杯离桌 | robot.right_arm.set_shoulder_pitch(0.6, block=True)
+2026-05-18 17:36:19,703 | INFO | [right_hand_grasp_cup] Action 014 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 17:36:20,857 | INFO | [right_hand_grasp_cup] Action 015 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 17:36:21,357 | INFO | 阶段结束：right_hand_grasp_cup
+2026-05-18 17:36:21,357 | INFO | 全部请求阶段执行完成。
+2026-05-18 17:36:21,358 | INFO | finally: 已尝试调用 robot.stop()
+2026-05-18 17:36:21,366 | INFO | finally: 已尝试调用 robot.disconnect()

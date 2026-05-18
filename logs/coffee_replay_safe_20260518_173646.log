@@ -1,0 +1,38 @@
+2026-05-18 17:36:46,021 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 17:36:46,021 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 17:36:46,021 | INFO | log_file=logs/coffee_replay_safe_20260518_173646.log
+2026-05-18 17:36:46,021 | INFO | dry_run=False
+2026-05-18 17:36:46,021 | INFO | execute=True
+2026-05-18 17:36:46,021 | INFO | selected_stage=left_hand_grasp_milk_pitcher
+2026-05-18 17:36:46,021 | INFO | resolved_stages=left_hand_grasp_milk_pitcher
+2026-05-18 17:36:46,021 | INFO | latte_profile=conservative
+2026-05-18 17:36:46,021 | INFO | latte_motion=wrist_roll_max=1.25, shoulder_roll_center=0.50, shoulder_roll_amp=0.03, elbow_pitch_center=-0.42, elbow_pitch_amp=0.02, sway_count=2, step_sleep=0.60
+2026-05-18 17:36:46,021 | INFO | latte_recover=left_pour_shoulder_pitch=-0.35, left_pour_wrist_roll_prep=1.05, left_recover_shoulder_pitch=-0.20, left_recover_shoulder_roll=0.10, left_recover_elbow_pitch=-0.25
+2026-05-18 17:36:46,021 | WARNING | 当前为 execute：将尝试连接机器人并执行实机动作。
+2026-05-18 17:36:48,652 | INFO | 即将执行阶段：left_hand_grasp_milk_pitcher
+2026-05-18 17:36:48,652 | INFO | 该阶段涉及部件：left_arm / left_gripper
+2026-05-18 17:36:48,652 | INFO | 风险提示：左手接近奶壶抓取，需确认奶壶位置稳定且周围无遮挡。
+2026-05-18 17:36:50,381 | INFO | 阶段开始：left_hand_grasp_milk_pitcher
+2026-05-18 17:36:50,381 | INFO | [left_hand_grasp_milk_pitcher] Action 001 | 左夹爪打开准备抓奶壶 | robot.left_gripper.open()
+2026-05-18 17:36:51,396 | INFO | [left_hand_grasp_milk_pitcher] Action 002 | 左肩偏航朝向奶壶 | robot.left_arm.set_shoulder_yaw(0.3, block=False)
+2026-05-18 17:36:51,396 | INFO | [left_hand_grasp_milk_pitcher] Action 002 使用 block=False
+2026-05-18 17:36:51,396 | INFO | [left_hand_grasp_milk_pitcher] Action 003 | 左腕翻滚对齐奶壶把手 | robot.left_arm.set_wrist_roll(-0.4, block=False)
+2026-05-18 17:36:51,396 | INFO | [left_hand_grasp_milk_pitcher] Action 003 使用 block=False
+2026-05-18 17:36:51,396 | INFO | [left_hand_grasp_milk_pitcher] Action 004 | 左肩翻滚进入抓壶预备位 | robot.left_arm.set_shoulder_roll(-0.76, block=True)
+2026-05-18 17:36:52,411 | INFO | [left_hand_grasp_milk_pitcher] Action 005 | 左肩俯仰抬起到抓壶路径 | robot.left_arm.set_shoulder_pitch(0.8, block=False)
+2026-05-18 17:36:52,411 | INFO | [left_hand_grasp_milk_pitcher] Action 005 使用 block=False
+2026-05-18 17:36:52,411 | INFO | [left_hand_grasp_milk_pitcher] Action 006 | 左肘俯仰接近奶壶 | robot.left_arm.set_elbow_pitch(0.8, block=False)
+2026-05-18 17:36:52,411 | INFO | [left_hand_grasp_milk_pitcher] Action 006 使用 block=False
+2026-05-18 17:36:52,411 | INFO | [left_hand_grasp_milk_pitcher] Action 007 | 左腕翻滚微调抓壶姿态 | robot.left_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 17:36:53,426 | INFO | [left_hand_grasp_milk_pitcher] Action 008 | 左肘下探进入抓壶深度 | robot.left_arm.set_elbow_pitch(1.35, block=False)
+2026-05-18 17:36:53,426 | INFO | [left_hand_grasp_milk_pitcher] Action 008 使用 block=False
+2026-05-18 17:36:53,427 | INFO | [left_hand_grasp_milk_pitcher] Action 009 | 左肩俯仰微调抓壶对位 | robot.left_arm.set_shoulder_pitch(0.85, block=True)
+2026-05-18 17:36:54,441 | INFO | [left_hand_grasp_milk_pitcher] Action 010 | sleep(1.00) | 保留原始抓壶前等待
+2026-05-18 17:36:55,442 | INFO | [left_hand_grasp_milk_pitcher] Action 011 | 左夹爪收至抓壶位置 | robot.left_gripper.set_position(0.6)
+2026-05-18 17:36:56,457 | INFO | [left_hand_grasp_milk_pitcher] Action 012 | sleep(1.00) | 保留原始抓壶后等待
+2026-05-18 17:36:57,458 | INFO | [left_hand_grasp_milk_pitcher] Action 013 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 17:36:58,473 | INFO | [left_hand_grasp_milk_pitcher] Action 014 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 17:36:58,974 | INFO | 阶段结束：left_hand_grasp_milk_pitcher
+2026-05-18 17:36:58,974 | INFO | 全部请求阶段执行完成。
+2026-05-18 17:36:58,974 | INFO | finally: 已尝试调用 robot.stop()
+2026-05-18 17:36:59,223 | INFO | finally: 已尝试调用 robot.disconnect()

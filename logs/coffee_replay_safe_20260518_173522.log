@@ -1,0 +1,58 @@
+2026-05-18 17:35:22,291 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 17:35:22,291 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 17:35:22,291 | INFO | log_file=logs/coffee_replay_safe_20260518_173522.log
+2026-05-18 17:35:22,291 | INFO | dry_run=True
+2026-05-18 17:35:22,291 | INFO | execute=False
+2026-05-18 17:35:22,291 | INFO | selected_stage=left_hand_pour_milk
+2026-05-18 17:35:22,291 | INFO | resolved_stages=left_hand_pour_milk
+2026-05-18 17:35:22,291 | INFO | latte_profile=conservative
+2026-05-18 17:35:22,291 | INFO | latte_motion=wrist_roll_max=1.25, shoulder_roll_center=0.50, shoulder_roll_amp=0.03, elbow_pitch_center=-0.42, elbow_pitch_amp=0.02, sway_count=2, step_sleep=0.60
+2026-05-18 17:35:22,291 | INFO | latte_recover=left_pour_shoulder_pitch=-0.35, left_pour_wrist_roll_prep=1.05, left_recover_shoulder_pitch=-0.20, left_recover_shoulder_roll=0.10, left_recover_elbow_pitch=-0.25
+2026-05-18 17:35:22,291 | INFO | 当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。
+2026-05-18 17:35:22,291 | INFO | 即将执行阶段：left_hand_pour_milk
+2026-05-18 17:35:22,291 | INFO | 该阶段涉及部件：left_arm / left_gripper / right_arm / right_gripper
+2026-05-18 17:35:22,291 | INFO | 风险提示：左手执行保守拉花/倒奶动作，风险主要来自 wrist_roll 倒奶角、shoulder_roll 摆动以及双臂间距。
+2026-05-18 17:35:22,291 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 17:35:22,291 | INFO | 阶段开始：left_hand_pour_milk
+2026-05-18 17:35:22,291 | INFO | [left_hand_pour_milk] latte profile=conservative | wrist_roll_max=1.25 | shoulder_roll_center=0.50 | shoulder_roll_amp=0.03 | elbow_pitch_center=-0.42 | elbow_pitch_amp=0.02 | sway_count=2 | step_sleep=0.60
+2026-05-18 17:35:22,291 | INFO | [left_hand_pour_milk] DRY-RUN Action 001 | 左肩俯仰切入保守倒奶预备姿态 | robot.left_arm.set_shoulder_pitch(-0.35, block=False)
+2026-05-18 17:35:22,291 | INFO | [left_hand_pour_milk] Action 001 使用 block=False
+2026-05-18 17:35:22,291 | INFO | [left_hand_pour_milk] DRY-RUN Action 002 | 左肘俯仰对齐保守摆动中心 | robot.left_arm.set_elbow_pitch(-0.42, block=False)
+2026-05-18 17:35:22,291 | INFO | [left_hand_pour_milk] Action 002 使用 block=False
+2026-05-18 17:35:22,291 | INFO | [left_hand_pour_milk] DRY-RUN Action 003 | 左肩翻滚对齐保守摆动中心 | robot.left_arm.set_shoulder_roll(0.5, block=False)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] Action 003 使用 block=False
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 004 | 左腕翻滚进入保守倒奶预备角 | robot.left_arm.set_wrist_roll(1.05, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 005 | sleep(0.30) | 保守倒奶预备后短暂停顿
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 006 | 左腕翻滚增大到保守倒奶角 | robot.left_arm.set_wrist_roll(1.25, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 007 | sleep(0.30) | 进入保守倒奶角后短暂停顿
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 008 | 左手保守拉花第 1/2 次左摆 shoulder_roll | robot.left_arm.set_shoulder_roll(0.47, block=False)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] Action 008 使用 block=False
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 009 | 左手保守拉花第 1/2 次左摆 elbow_pitch | robot.left_arm.set_elbow_pitch(-0.44, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 010 | sleep(0.60) | 左手保守拉花第 1/2 次左摆停顿
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 011 | 左手保守拉花第 1/2 次右摆 shoulder_roll | robot.left_arm.set_shoulder_roll(0.53, block=False)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] Action 011 使用 block=False
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 012 | 左手保守拉花第 1/2 次右摆 elbow_pitch | robot.left_arm.set_elbow_pitch(-0.4, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 013 | sleep(0.60) | 左手保守拉花第 1/2 次右摆停顿
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 014 | 左手保守拉花第 2/2 次左摆 shoulder_roll | robot.left_arm.set_shoulder_roll(0.47, block=False)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] Action 014 使用 block=False
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 015 | 左手保守拉花第 2/2 次左摆 elbow_pitch | robot.left_arm.set_elbow_pitch(-0.44, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 016 | sleep(0.60) | 左手保守拉花第 2/2 次左摆停顿
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 017 | 左手保守拉花第 2/2 次右摆 shoulder_roll | robot.left_arm.set_shoulder_roll(0.53, block=False)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] Action 017 使用 block=False
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 018 | 左手保守拉花第 2/2 次右摆 elbow_pitch | robot.left_arm.set_elbow_pitch(-0.4, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 019 | sleep(0.60) | 左手保守拉花第 2/2 次右摆停顿
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 020 | 左肩翻滚进入局部收束位 | robot.left_arm.set_shoulder_roll(0.1, block=False)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] Action 020 使用 block=False
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 021 | 左肘俯仰进入局部收束位 | robot.left_arm.set_elbow_pitch(-0.25, block=False)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] Action 021 使用 block=False
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 022 | 左腕翻滚回到倒奶预备角以减小回摆 | robot.left_arm.set_wrist_roll(1.05, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 023 | sleep(0.30) | 局部收束后短暂停顿
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 024 | 左腕翻滚回到中间角度 | robot.left_arm.set_wrist_roll(0.0, block=False)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] Action 024 使用 block=False
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 025 | 左肩翻滚保持在收束角度 | robot.left_arm.set_shoulder_roll(0.1, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 026 | 左肩俯仰回到倒奶后收束角度 | robot.left_arm.set_shoulder_pitch(-0.2, block=True)
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 027 | sleep(0.30) | 保守倒奶动作完成后观察停稳
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 028 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 17:35:22,292 | INFO | [left_hand_pour_milk] DRY-RUN Action 029 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 17:35:22,293 | INFO | 阶段结束：left_hand_pour_milk
+2026-05-18 17:35:22,293 | INFO | 全部请求阶段执行完成。
