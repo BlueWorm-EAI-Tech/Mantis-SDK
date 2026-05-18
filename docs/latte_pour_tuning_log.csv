@@ -14,3 +14,9 @@ timestamp,trial_name,mode,sn,wrist_roll_max,shoulder_roll_center,shoulder_roll_a
 2026-05-14T18:28:01+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,failed,,2.638,,feat/latte-pour-real-tune,e44135b
 2026-05-14T20:25:38+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,success,,40.291,,feat/latte-pour-real-tune,8cb4082
 2026-05-14T20:25:53+08:00,manual_trial,left-only,BW_3N5CRT22,1.55,0.625,0.075,-0.5,0.05,6,0.45,interrupted,KeyboardInterrupt,11.447,,feat/latte-pour-real-tune,8cb4082
+2026-05-18T13:54:42+08:00,left_empty_conservative_01,left-only,conservative,BW_3N5CRT22,1.25,0.5,0.03,-0.42,0.02,2,0.6,-0.3,-0.35,0.5,-0.2,-0.4,success,,66.128,目前阶段没发现问题,feat/latte-pour-real-tune,fbbf464
+2026-05-18T13:55:23+08:00,left_empty_shorter_01,left-only,custom,BW_3N5CRT22,1.1,0.35,0.02,-0.3,0.01,1,0.8,-0.2,-0.25,0.45,-0.2,-0.3,success,,20.116,,feat/latte-pour-real-tune,fbbf464
+2026-05-18T13:56:22+08:00,left_water_conservative_01,left-only,conservative,BW_3N5CRT22,1.25,0.5,0.03,-0.42,0.02,2,0.6,-0.3,-0.35,0.5,-0.2,-0.4,success,,51.136,一步增加夹爪开合控制,feat/latte-pour-real-tune,fbbf464
+2026-05-18T13:57:05+08:00,cup_empty_conservative_01,with-right-cup,conservative,BW_3N5CRT22,1.25,0.5,0.03,-0.42,0.02,2,0.6,-0.3,-0.35,0.5,-0.2,-0.4,skipped,,29.467,,feat/latte-pour-real-tune,fbbf464
+2026-05-18T14:44:12+08:00,cup_empty_more_separate_01,with-right-cup,conservative,BW_3N5CRT22,1.25,0.32,0.01,-0.35,0.01,1,0.8,-0.3,-0.35,0.35,-0.2,-0.2,success,,71.508,撞了,feat/latte-pour-real-tune,fbbf464
+2026-05-18T14:48:19+08:00,cup_empty_more_separate_01,with-right-cup,conservative,BW_3N5CRT22,1.25,0.32,0.01,-0.35,0.01,4,0.8,-0.3,-0.35,0.35,-0.2,-0.2,success,,220.758,双臂的相对位置不合适，右臂比左臂还要高，左臂小臂向内的倾斜角太大了 ；拉完花应该先让手腕回到正常位置，再让手小臂回到正常位置,feat/latte-pour-real-tune,fbbf464
