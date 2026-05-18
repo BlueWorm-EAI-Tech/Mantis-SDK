@@ -1,0 +1,3 @@
+timestamp,component,side,joint,joint_index,sdk_method,baseline_value_rad,delta_rad,target_value_rad,target_value_deg,direction_type,observation,note,executed,status,error_message
+2026-05-18T10:15:29,left_arm,left,shoulder_yaw,1,set_shoulder_yaw,0.000000,0.120000,0.120000,6.88,positive_delta,向身体外侧,左大臂远离身体，向外打开,true,ok,
+2026-05-18T10:15:56,left_arm,left,shoulder_yaw,1,set_shoulder_yaw,0.000000,0.120000,-0.120000,-6.88,negative_delta,向身体内侧,左边大臂向内偏转，靠近身体,true,ok,

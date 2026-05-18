@@ -7,3 +7,5 @@ timestamp,mode,conn_profile,real_ip,sn,right_gripper_pos,left_gripper_pos,right_
 2026-05-15T11:07:05+08:00,right-cup,real-ip,192.168.1.151,BW_3N5CRT22,0.8,0.75,,,1.0,skipped,用户取消执行,3.739,,feat/latte-pour-real-tune,8296f9f
 2026-05-15T11:08:02+08:00,right-cup,real-ip,192.168.1.151,BW_3N5CRT22,0.75,0.75,0.80,,1.0,success,,35.465,,feat/latte-pour-real-tune,8296f9f
 2026-05-15T11:09:32+08:00,left-pitcher,real-ip,192.168.1.151,BW_3N5CRT22,0.8,0.65,,,1.0,interrupted,KeyboardInterrupt,52.983,,feat/latte-pour-real-tune,8296f9f
+2026-05-15T18:13:38+08:00,left-pitcher,real-ip,192.168.1.151,BW_3N5CRT22,0.8,0.65,,,1.0,interrupted,KeyboardInterrupt,7.469,,feat/latte-pour-real-tune,312bfed
+2026-05-15T18:14:17+08:00,left-pitcher,real-sn,192.168.1.151,BW_3N5CRT22,0.8,0.75,,0.90,3.0,success,,26.884,,feat/latte-pour-real-tune,312bfed

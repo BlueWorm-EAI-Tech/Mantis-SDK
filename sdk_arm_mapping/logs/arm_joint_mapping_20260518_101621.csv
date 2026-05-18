@@ -1,0 +1,2 @@
+timestamp,component,side,joint,joint_index,sdk_method,baseline_value_rad,delta_rad,target_value_rad,target_value_deg,direction_type,observation,note,executed,status,error_message
+2026-05-18T10:17:31,right_arm,right,wrist_roll,4,set_wrist_roll,0.000000,0.250000,0.250000,14.32,positive_delta,向身体内侧,右手小臂向内偏转,true,ok,
