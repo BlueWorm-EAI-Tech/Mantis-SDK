@@ -1,0 +1,30 @@
+2026-05-18 15:20:32,362 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:20:32,362 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:20:32,362 | INFO | log_file=logs/coffee_replay_safe_20260518_152032.log
+2026-05-18 15:20:32,362 | INFO | dry_run=False
+2026-05-18 15:20:32,362 | INFO | execute=True
+2026-05-18 15:20:32,362 | INFO | selected_stage=left_hand_pour_milk
+2026-05-18 15:20:32,362 | INFO | resolved_stages=left_hand_pour_milk
+2026-05-18 15:20:32,362 | WARNING | 当前为 execute：将尝试连接机器人并执行实机动作。
+2026-05-18 15:20:34,618 | INFO | 即将执行阶段：left_hand_pour_milk
+2026-05-18 15:20:34,618 | INFO | 该阶段涉及部件：left_arm / left_gripper / right_arm / right_gripper
+2026-05-18 15:20:34,618 | INFO | 风险提示：左手执行大角度倒奶动作，是当前流程中风险最高的阶段之一。
+2026-05-18 15:20:35,554 | INFO | 阶段开始：left_hand_pour_milk
+2026-05-18 15:20:35,554 | INFO | [left_hand_pour_milk] Action 001 | 左肩俯仰切入倒奶动作 | robot.left_arm.set_shoulder_pitch(-0.6, block=False)
+2026-05-18 15:20:35,554 | INFO | [left_hand_pour_milk] Action 001 使用 block=False
+2026-05-18 15:20:35,554 | INFO | [left_hand_pour_milk] Action 002 | 左肘俯仰切入倒奶动作 | robot.left_arm.set_elbow_pitch(-0.6, block=True)
+2026-05-18 15:20:36,569 | INFO | [left_hand_pour_milk] Action 003 | 左肩翻滚增大壶身倾斜 | robot.left_arm.set_shoulder_roll(0.65, block=False)
+2026-05-18 15:20:36,569 | INFO | [left_hand_pour_milk] Action 003 使用 block=False
+2026-05-18 15:20:36,569 | INFO | [left_hand_pour_milk] Action 004 | 左腕翻滚执行大角度倒奶 | robot.left_arm.set_wrist_roll(1.7, block=False)
+2026-05-18 15:20:36,569 | INFO | [left_hand_pour_milk] Action 004 使用 block=False
+2026-05-18 15:20:36,569 | INFO | [left_hand_pour_milk] Action 005 | 左肘俯仰微调倒奶轨迹 | robot.left_arm.set_elbow_pitch(-0.5, block=True)
+2026-05-18 15:20:37,584 | INFO | [left_hand_pour_milk] Action 006 | 左肘俯仰回到原始收束角度 | robot.left_arm.set_elbow_pitch(-0.6, block=False)
+2026-05-18 15:20:37,584 | INFO | [left_hand_pour_milk] Action 006 使用 block=False
+2026-05-18 15:20:37,584 | INFO | [left_hand_pour_milk] Action 007 | 左腕翻滚回到中间角度 | robot.left_arm.set_wrist_roll(0.0, block=True)
+2026-05-18 15:20:38,600 | INFO | [left_hand_pour_milk] Action 008 | 左肩翻滚回到中间角度 | robot.left_arm.set_shoulder_roll(0.0, block=True)
+2026-05-18 15:20:39,615 | INFO | [left_hand_pour_milk] Action 009 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:20:42,434 | INFO | [left_hand_pour_milk] Action 010 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:20:42,935 | INFO | 阶段结束：left_hand_pour_milk
+2026-05-18 15:20:42,935 | INFO | 全部请求阶段执行完成。
+2026-05-18 15:20:42,944 | INFO | finally: 已尝试调用 robot.stop()
+2026-05-18 15:20:42,953 | INFO | finally: 已尝试调用 robot.disconnect()

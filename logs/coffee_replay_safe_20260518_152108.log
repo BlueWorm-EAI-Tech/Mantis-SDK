@@ -1,0 +1,55 @@
+2026-05-18 15:21:08,854 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:21:08,854 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:21:08,854 | INFO | log_file=logs/coffee_replay_safe_20260518_152108.log
+2026-05-18 15:21:08,854 | INFO | dry_run=False
+2026-05-18 15:21:08,855 | INFO | execute=True
+2026-05-18 15:21:08,855 | INFO | selected_stage=return_home
+2026-05-18 15:21:08,855 | INFO | resolved_stages=return_home
+2026-05-18 15:21:08,855 | WARNING | 当前为 execute：将尝试连接机器人并执行实机动作。
+2026-05-18 15:21:11,619 | INFO | 即将执行阶段：return_home
+2026-05-18 15:21:11,619 | INFO | 该阶段涉及部件：left_arm / right_arm / left_gripper / right_gripper
+2026-05-18 15:21:11,619 | INFO | 风险提示：回放杯与回放奶壶都在本阶段执行，需确认路径、桌面和末端物体状态。
+2026-05-18 15:21:12,450 | INFO | 阶段开始：return_home
+2026-05-18 15:21:12,450 | INFO | [return_home] Action 001 | 右臂先回 home 准备放杯 | robot.right_arm.home()
+2026-05-18 15:21:13,465 | INFO | [return_home] Action 002 | 右肩俯仰回到放杯预备位 | robot.right_arm.set_shoulder_pitch(0.7, block=False)
+2026-05-18 15:21:13,465 | INFO | [return_home] Action 002 使用 block=False
+2026-05-18 15:21:13,465 | INFO | [return_home] Action 003 | 右肩翻滚回到放杯预备位 | robot.right_arm.set_shoulder_roll(-0.42, block=False)
+2026-05-18 15:21:13,465 | INFO | [return_home] Action 003 使用 block=False
+2026-05-18 15:21:13,465 | INFO | [return_home] Action 004 | 右腕翻滚回到放杯预备位 | robot.right_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 15:21:14,480 | INFO | [return_home] Action 005 | 右肘下探回放杯深度 | robot.right_arm.set_elbow_pitch(1.0, block=False)
+2026-05-18 15:21:14,480 | INFO | [return_home] Action 005 使用 block=False
+2026-05-18 15:21:14,480 | INFO | [return_home] Action 006 | 右腕俯仰回到放杯姿态 | robot.right_arm.set_wrist_pitch(0.1, block=True)
+2026-05-18 15:21:15,495 | INFO | [return_home] Action 007 | sleep(1.00) | 保留原始放杯前等待
+2026-05-18 15:21:16,496 | INFO | [return_home] Action 008 | 右夹爪打开放杯 | robot.right_gripper.open()
+2026-05-18 15:21:16,523 | INFO | [return_home] Action 009 | sleep(1.00) | 保留原始放杯后等待
+2026-05-18 15:21:17,523 | INFO | [return_home] Action 010 | 右臂回 home | robot.right_arm.home()
+2026-05-18 15:21:18,539 | INFO | [return_home] Action 011 | sleep(1.00) | 保留原始右臂回 home 后等待
+2026-05-18 15:21:19,539 | INFO | [return_home] Action 012 | 左臂先回 home 准备放奶壶 | robot.left_arm.home()
+2026-05-18 15:21:20,554 | INFO | [return_home] Action 013 | 左肩偏航回到放壶预备位 | robot.left_arm.set_shoulder_yaw(0.3, block=False)
+2026-05-18 15:21:20,554 | INFO | [return_home] Action 013 使用 block=False
+2026-05-18 15:21:20,554 | INFO | [return_home] Action 014 | 左腕翻滚回到放壶预备位 | robot.left_arm.set_wrist_roll(-0.4, block=False)
+2026-05-18 15:21:20,555 | INFO | [return_home] Action 014 使用 block=False
+2026-05-18 15:21:20,555 | INFO | [return_home] Action 015 | 左肩翻滚回到放壶预备位 | robot.left_arm.set_shoulder_roll(-0.76, block=True)
+2026-05-18 15:21:21,570 | INFO | [return_home] Action 016 | 左肩俯仰回到放壶路径 | robot.left_arm.set_shoulder_pitch(0.8, block=False)
+2026-05-18 15:21:21,570 | INFO | [return_home] Action 016 使用 block=False
+2026-05-18 15:21:21,570 | INFO | [return_home] Action 017 | 左肘俯仰回到放壶路径 | robot.left_arm.set_elbow_pitch(0.8, block=False)
+2026-05-18 15:21:21,570 | INFO | [return_home] Action 017 使用 block=False
+2026-05-18 15:21:21,570 | INFO | [return_home] Action 018 | 左腕翻滚微调放壶姿态 | robot.left_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 15:21:22,585 | INFO | [return_home] Action 019 | 左肘下探回放壶深度 | robot.left_arm.set_elbow_pitch(1.35, block=False)
+2026-05-18 15:21:22,585 | INFO | [return_home] Action 019 使用 block=False
+2026-05-18 15:21:22,594 | INFO | [return_home] Action 020 | 左肩俯仰微调放壶对位 | robot.left_arm.set_shoulder_pitch(0.85, block=True)
+2026-05-18 15:21:23,609 | INFO | [return_home] Action 021 | sleep(1.00) | 保留原始放壶前等待
+2026-05-18 15:21:24,610 | INFO | [return_home] Action 022 | 左夹爪打开放奶壶 | robot.left_gripper.open()
+2026-05-18 15:21:25,625 | INFO | [return_home] Action 023 | 左肘抬起离开放壶位 | robot.left_arm.set_elbow_pitch(0.9, block=True)
+2026-05-18 15:21:26,640 | INFO | [return_home] Action 024 | 左肩俯仰回到放壶后过渡位 | robot.left_arm.set_shoulder_pitch(0.2, block=False)
+2026-05-18 15:21:26,640 | INFO | [return_home] Action 024 使用 block=False
+2026-05-18 15:21:26,640 | INFO | [return_home] Action 025 | 左肘俯仰回到放壶后过渡位 | robot.left_arm.set_elbow_pitch(0.4, block=True)
+2026-05-18 15:21:27,655 | INFO | [return_home] Action 026 | 左臂最终回 home | robot.left_arm.home(block=False)
+2026-05-18 15:21:27,655 | INFO | [return_home] Action 026 使用 block=False
+2026-05-18 15:21:27,655 | INFO | [return_home] Action 027 | sleep(1.00) | 保留原始流程结束等待
+2026-05-18 15:21:28,656 | INFO | [return_home] Action 028 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:21:30,190 | INFO | [return_home] Action 029 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:21:30,691 | INFO | 阶段结束：return_home
+2026-05-18 15:21:30,691 | INFO | 全部请求阶段执行完成。
+2026-05-18 15:21:30,691 | INFO | finally: 已尝试调用 robot.stop()
+2026-05-18 15:21:30,700 | INFO | finally: 已尝试调用 robot.disconnect()

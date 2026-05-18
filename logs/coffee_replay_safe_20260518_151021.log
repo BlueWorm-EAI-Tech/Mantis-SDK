@@ -1,0 +1,18 @@
+2026-05-18 15:10:21,048 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:10:21,048 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:10:21,048 | INFO | log_file=logs/coffee_replay_safe_20260518_151021.log
+2026-05-18 15:10:21,048 | INFO | dry_run=True
+2026-05-18 15:10:21,048 | INFO | execute=False
+2026-05-18 15:10:21,049 | INFO | selected_stage=prepare_head
+2026-05-18 15:10:21,049 | INFO | resolved_stages=prepare_head
+2026-05-18 15:10:21,049 | INFO | 当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。
+2026-05-18 15:10:21,049 | INFO | 即将执行阶段：prepare_head
+2026-05-18 15:10:21,050 | INFO | 该阶段涉及部件：head
+2026-05-18 15:10:21,050 | INFO | 风险提示：头部下视，需确认前方无遮挡并避免误判为整机静止。
+2026-05-18 15:10:21,050 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:21,050 | INFO | 阶段开始：prepare_head
+2026-05-18 15:10:21,050 | INFO | [prepare_head] DRY-RUN Action 001 | 头部下视到咖啡流程观察位 | robot.head.look_down(0.5, block=True)
+2026-05-18 15:10:21,051 | INFO | [prepare_head] DRY-RUN Action 002 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:21,051 | INFO | [prepare_head] DRY-RUN Action 003 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:21,051 | INFO | 阶段结束：prepare_head
+2026-05-18 15:10:21,052 | INFO | 全部请求阶段执行完成。

@@ -1,0 +1,9 @@
+2026-05-18 15:15:55,245 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:15:55,245 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:15:55,245 | INFO | log_file=logs/coffee_replay_safe_20260518_151555.log
+2026-05-18 15:15:55,245 | INFO | dry_run=False
+2026-05-18 15:15:55,245 | INFO | execute=True
+2026-05-18 15:15:55,245 | INFO | selected_stage=prepare_head
+2026-05-18 15:15:55,245 | INFO | resolved_stages=prepare_head
+2026-05-18 15:15:55,245 | WARNING | 当前为 execute：将尝试连接机器人并执行实机动作。
+2026-05-18 15:16:01,860 | WARNING | 收到 KeyboardInterrupt，中止执行。

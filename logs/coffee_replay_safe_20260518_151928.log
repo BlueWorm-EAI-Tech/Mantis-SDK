@@ -1,0 +1,25 @@
+2026-05-18 15:19:28,467 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:19:28,467 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:19:28,467 | INFO | log_file=logs/coffee_replay_safe_20260518_151928.log
+2026-05-18 15:19:28,467 | INFO | dry_run=False
+2026-05-18 15:19:28,467 | INFO | execute=True
+2026-05-18 15:19:28,467 | INFO | selected_stage=left_hand_press_button
+2026-05-18 15:19:28,467 | INFO | resolved_stages=left_hand_press_button
+2026-05-18 15:19:28,468 | WARNING | 当前为 execute：将尝试连接机器人并执行实机动作。
+2026-05-18 15:19:31,628 | INFO | 即将执行阶段：left_hand_press_button
+2026-05-18 15:19:31,628 | INFO | 该阶段涉及部件：left_arm
+2026-05-18 15:19:31,628 | INFO | 风险提示：左手接近按键区域，需确认咖啡机面板和周围障碍物安全。
+2026-05-18 15:19:33,370 | INFO | 阶段开始：left_hand_press_button
+2026-05-18 15:19:33,370 | INFO | [left_hand_press_button] Action 001 | 左肩俯仰抬起接近咖啡机按键 | robot.left_arm.set_shoulder_pitch(0.5, block=False)
+2026-05-18 15:19:33,370 | INFO | [left_hand_press_button] Action 001 使用 block=False
+2026-05-18 15:19:33,370 | INFO | [left_hand_press_button] Action 002 | 左肘前探准备按键 | robot.left_arm.set_elbow_pitch(-0.1, block=True)
+2026-05-18 15:19:34,385 | INFO | [left_hand_press_button] Action 003 | 左肘轻推执行按键 | robot.left_arm.set_elbow_pitch(-0.03, block=True)
+2026-05-18 15:19:35,400 | INFO | [left_hand_press_button] Action 004 | 左肘回撤离开按键 | robot.left_arm.set_elbow_pitch(-0.1, block=True)
+2026-05-18 15:19:36,415 | INFO | [left_hand_press_button] Action 005 | 左臂返回 home | robot.left_arm.home()
+2026-05-18 15:19:37,430 | INFO | [left_hand_press_button] Action 006 | sleep(0.50) | 保留原始按键后等待
+2026-05-18 15:19:37,930 | INFO | [left_hand_press_button] Action 007 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:19:38,659 | INFO | [left_hand_press_button] Action 008 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:19:39,159 | INFO | 阶段结束：left_hand_press_button
+2026-05-18 15:19:39,159 | INFO | 全部请求阶段执行完成。
+2026-05-18 15:19:39,160 | INFO | finally: 已尝试调用 robot.stop()
+2026-05-18 15:19:39,176 | INFO | finally: 已尝试调用 robot.disconnect()

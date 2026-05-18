@@ -1,0 +1,286 @@
+2026-05-18 15:10:07,418 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:10:07,419 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:10:07,419 | INFO | log_file=logs/coffee_replay_safe_20260518_151007.log
+2026-05-18 15:10:07,419 | INFO | dry_run=True
+2026-05-18 15:10:07,419 | INFO | execute=False
+2026-05-18 15:10:07,419 | INFO | selected_stage=all
+2026-05-18 15:10:07,419 | INFO | resolved_stages=prepare_head, right_hand_grasp_cup, right_hand_move_to_coffee_machine, left_hand_press_button, right_hand_retreat_after_coffee, left_hand_grasp_milk_pitcher, left_hand_move_to_pour_pose, left_hand_pour_milk, return_home
+2026-05-18 15:10:07,419 | INFO | 当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。
+2026-05-18 15:10:07,419 | INFO | 即将执行阶段：prepare_head
+2026-05-18 15:10:07,419 | INFO | 该阶段涉及部件：head
+2026-05-18 15:10:07,419 | INFO | 风险提示：头部下视，需确认前方无遮挡并避免误判为整机静止。
+2026-05-18 15:10:07,419 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,419 | INFO | 阶段开始：prepare_head
+2026-05-18 15:10:07,419 | INFO | [prepare_head] DRY-RUN Action 001 | 头部下视到咖啡流程观察位 | robot.head.look_down(0.5, block=True)
+2026-05-18 15:10:07,419 | INFO | [prepare_head] DRY-RUN Action 002 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,419 | INFO | [prepare_head] DRY-RUN Action 003 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,419 | INFO | 阶段结束：prepare_head
+2026-05-18 15:10:07,419 | INFO | 即将执行阶段：right_hand_grasp_cup
+2026-05-18 15:10:07,419 | INFO | 该阶段涉及部件：right_arm / right_gripper / left_gripper
+2026-05-18 15:10:07,419 | INFO | 风险提示：右手接近杯子抓取，需确认杯位、桌边和夹爪周围无人手靠近。
+2026-05-18 15:10:07,419 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,419 | INFO | 阶段开始：right_hand_grasp_cup
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 004 | 右夹爪初始化为闭合 | robot.right_gripper.close()
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 005 | 左夹爪初始化为闭合 | robot.left_gripper.close()
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 006 | 右夹爪打开准备抓杯 | robot.right_gripper.open()
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 007 | 右肩俯仰到抓杯预备位 | robot.right_arm.set_shoulder_pitch(0.7, block=False)
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] Action 007 使用 block=False
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 008 | 右肩翻滚到抓杯预备位 | robot.right_arm.set_shoulder_roll(-0.42, block=False)
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] Action 008 使用 block=False
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 009 | 右腕翻滚对齐杯把方向 | robot.right_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 010 | 右肘下探接近杯子 | robot.right_arm.set_elbow_pitch(1.0, block=False)
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] Action 010 使用 block=False
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 011 | 右腕俯仰微调抓取姿态 | robot.right_arm.set_wrist_pitch(0.1, block=True)
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 012 | sleep(1.00) | 保留原始抓杯前等待
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 013 | 右夹爪收至抓杯位置 | robot.right_gripper.set_position(0.6)
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 014 | sleep(1.00) | 保留原始抓杯后等待
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] DRY-RUN Action 015 | 右肘抬起准备离开杯架 | robot.right_arm.set_elbow_pitch(0.6, block=False)
+2026-05-18 15:10:07,420 | INFO | [right_hand_grasp_cup] Action 015 使用 block=False
+2026-05-18 15:10:07,421 | INFO | [right_hand_grasp_cup] DRY-RUN Action 016 | 右肩俯仰抬杯离桌 | robot.right_arm.set_shoulder_pitch(0.6, block=True)
+2026-05-18 15:10:07,421 | INFO | [right_hand_grasp_cup] DRY-RUN Action 017 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,421 | INFO | [right_hand_grasp_cup] DRY-RUN Action 018 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,421 | INFO | 阶段结束：right_hand_grasp_cup
+2026-05-18 15:10:07,421 | INFO | 即将执行阶段：right_hand_move_to_coffee_machine
+2026-05-18 15:10:07,421 | INFO | 该阶段涉及部件：right_arm / right_gripper
+2026-05-18 15:10:07,421 | INFO | 风险提示：右手横向送杯到咖啡机，注意肩部扫掠范围和咖啡机前方碰撞风险。
+2026-05-18 15:10:07,421 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,421 | INFO | 阶段开始：right_hand_move_to_coffee_machine
+2026-05-18 15:10:07,421 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 019 | 右肩翻滚离开抓杯位 | robot.right_arm.set_shoulder_roll(0.3)
+2026-05-18 15:10:07,421 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 020 | 右肩俯仰朝向咖啡机 | robot.right_arm.set_shoulder_pitch(0.7, block=False)
+2026-05-18 15:10:07,421 | INFO | [right_hand_move_to_coffee_machine] Action 020 使用 block=False
+2026-05-18 15:10:07,421 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 021 | 右肩翻滚横向送杯到咖啡机 | robot.right_arm.set_shoulder_roll(0.65, block=False)
+2026-05-18 15:10:07,421 | INFO | [right_hand_move_to_coffee_machine] Action 021 使用 block=False
+2026-05-18 15:10:07,421 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 022 | 右腕翻滚调整接咖啡角度 | robot.right_arm.set_wrist_roll(-0.3)
+2026-05-18 15:10:07,421 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 023 | 右肩俯仰继续送杯到咖啡出口 | robot.right_arm.set_shoulder_pitch(0.98, block=False)
+2026-05-18 15:10:07,421 | INFO | [right_hand_move_to_coffee_machine] Action 023 使用 block=False
+2026-05-18 15:10:07,422 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 024 | 右肘俯仰配合送杯到最终接咖啡位 | robot.right_arm.set_elbow_pitch(0.98, block=False)
+2026-05-18 15:10:07,422 | INFO | [right_hand_move_to_coffee_machine] Action 024 使用 block=False
+2026-05-18 15:10:07,422 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 025 | 右腕翻滚微调接咖啡姿态 | robot.right_arm.set_wrist_roll(-0.68, block=False)
+2026-05-18 15:10:07,422 | INFO | [right_hand_move_to_coffee_machine] Action 025 使用 block=False
+2026-05-18 15:10:07,422 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 026 | 右腕俯仰归零以对齐杯口 | robot.right_arm.set_wrist_pitch(0.0, block=True)
+2026-05-18 15:10:07,422 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 027 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,422 | INFO | [right_hand_move_to_coffee_machine] DRY-RUN Action 028 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,422 | INFO | 阶段结束：right_hand_move_to_coffee_machine
+2026-05-18 15:10:07,422 | INFO | 即将执行阶段：left_hand_press_button
+2026-05-18 15:10:07,422 | INFO | 该阶段涉及部件：left_arm
+2026-05-18 15:10:07,422 | INFO | 风险提示：左手接近按键区域，需确认咖啡机面板和周围障碍物安全。
+2026-05-18 15:10:07,422 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,422 | INFO | 阶段开始：left_hand_press_button
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] DRY-RUN Action 029 | 左肩俯仰抬起接近咖啡机按键 | robot.left_arm.set_shoulder_pitch(0.5, block=False)
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] Action 029 使用 block=False
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] DRY-RUN Action 030 | 左肘前探准备按键 | robot.left_arm.set_elbow_pitch(-0.1, block=True)
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] DRY-RUN Action 031 | 左肘轻推执行按键 | robot.left_arm.set_elbow_pitch(-0.03, block=True)
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] DRY-RUN Action 032 | 左肘回撤离开按键 | robot.left_arm.set_elbow_pitch(-0.1, block=True)
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] DRY-RUN Action 033 | 左臂返回 home | robot.left_arm.home()
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] DRY-RUN Action 034 | sleep(0.50) | 保留原始按键后等待
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] DRY-RUN Action 035 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,423 | INFO | [left_hand_press_button] DRY-RUN Action 036 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,423 | INFO | 阶段结束：left_hand_press_button
+2026-05-18 15:10:07,423 | INFO | 即将执行阶段：right_hand_retreat_after_coffee
+2026-05-18 15:10:07,423 | INFO | 该阶段涉及部件：right_arm / right_gripper
+2026-05-18 15:10:07,423 | INFO | 风险提示：右手带杯回撤，注意杯体晃动和肩腕回撤路径。
+2026-05-18 15:10:07,423 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,424 | INFO | 阶段开始：right_hand_retreat_after_coffee
+2026-05-18 15:10:07,424 | INFO | [right_hand_retreat_after_coffee] DRY-RUN Action 037 | 右臂从咖啡机位置回撤到 home | robot.right_arm.home()
+2026-05-18 15:10:07,424 | INFO | [right_hand_retreat_after_coffee] DRY-RUN Action 038 | 右肩翻滚切到后续接奶中间姿态 | robot.right_arm.set_shoulder_roll(0.6, block=False)
+2026-05-18 15:10:07,424 | INFO | [right_hand_retreat_after_coffee] Action 038 使用 block=False
+2026-05-18 15:10:07,424 | INFO | [right_hand_retreat_after_coffee] DRY-RUN Action 039 | 右腕俯仰切到后续接奶中间姿态 | robot.right_arm.set_wrist_pitch(-0.3, block=True)
+2026-05-18 15:10:07,424 | INFO | [right_hand_retreat_after_coffee] DRY-RUN Action 040 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,424 | INFO | [right_hand_retreat_after_coffee] DRY-RUN Action 041 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,425 | INFO | 阶段结束：right_hand_retreat_after_coffee
+2026-05-18 15:10:07,425 | INFO | 即将执行阶段：left_hand_grasp_milk_pitcher
+2026-05-18 15:10:07,425 | INFO | 该阶段涉及部件：left_arm / left_gripper
+2026-05-18 15:10:07,425 | INFO | 风险提示：左手接近奶壶抓取，需确认奶壶位置稳定且周围无遮挡。
+2026-05-18 15:10:07,425 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,426 | INFO | 阶段开始：left_hand_grasp_milk_pitcher
+2026-05-18 15:10:07,426 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 042 | 左夹爪打开准备抓奶壶 | robot.left_gripper.open()
+2026-05-18 15:10:07,426 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 043 | 左肩偏航朝向奶壶 | robot.left_arm.set_shoulder_yaw(0.3, block=False)
+2026-05-18 15:10:07,426 | INFO | [left_hand_grasp_milk_pitcher] Action 043 使用 block=False
+2026-05-18 15:10:07,426 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 044 | 左腕翻滚对齐奶壶把手 | robot.left_arm.set_wrist_roll(-0.4, block=False)
+2026-05-18 15:10:07,426 | INFO | [left_hand_grasp_milk_pitcher] Action 044 使用 block=False
+2026-05-18 15:10:07,427 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 045 | 左肩翻滚进入抓壶预备位 | robot.left_arm.set_shoulder_roll(-0.76, block=True)
+2026-05-18 15:10:07,427 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 046 | 左肩俯仰抬起到抓壶路径 | robot.left_arm.set_shoulder_pitch(0.8, block=False)
+2026-05-18 15:10:07,427 | INFO | [left_hand_grasp_milk_pitcher] Action 046 使用 block=False
+2026-05-18 15:10:07,427 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 047 | 左肘俯仰接近奶壶 | robot.left_arm.set_elbow_pitch(0.8, block=False)
+2026-05-18 15:10:07,427 | INFO | [left_hand_grasp_milk_pitcher] Action 047 使用 block=False
+2026-05-18 15:10:07,428 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 048 | 左腕翻滚微调抓壶姿态 | robot.left_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 15:10:07,428 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 049 | 左肘下探进入抓壶深度 | robot.left_arm.set_elbow_pitch(1.35, block=False)
+2026-05-18 15:10:07,428 | INFO | [left_hand_grasp_milk_pitcher] Action 049 使用 block=False
+2026-05-18 15:10:07,428 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 050 | 左肩俯仰微调抓壶对位 | robot.left_arm.set_shoulder_pitch(0.85, block=True)
+2026-05-18 15:10:07,428 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 051 | sleep(1.00) | 保留原始抓壶前等待
+2026-05-18 15:10:07,429 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 052 | 左夹爪收至抓壶位置 | robot.left_gripper.set_position(0.6)
+2026-05-18 15:10:07,429 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 053 | sleep(1.00) | 保留原始抓壶后等待
+2026-05-18 15:10:07,429 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 054 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,429 | INFO | [left_hand_grasp_milk_pitcher] DRY-RUN Action 055 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,429 | INFO | 阶段结束：left_hand_grasp_milk_pitcher
+2026-05-18 15:10:07,429 | INFO | 即将执行阶段：left_hand_move_to_pour_pose
+2026-05-18 15:10:07,430 | INFO | 该阶段涉及部件：left_arm / right_arm / left_gripper / right_gripper
+2026-05-18 15:10:07,430 | INFO | 风险提示：双臂进入倒奶预备姿态，需重点关注双臂互相干涉和杯壶间距。
+2026-05-18 15:10:07,430 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,430 | INFO | 阶段开始：left_hand_move_to_pour_pose
+2026-05-18 15:10:07,430 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 056 | 左肘抬起带离奶壶取放位 | robot.left_arm.set_elbow_pitch(0.9, block=True)
+2026-05-18 15:10:07,431 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 057 | 左肩俯仰过渡到倒奶预备姿态 | robot.left_arm.set_shoulder_pitch(0.2, block=False)
+2026-05-18 15:10:07,431 | INFO | [left_hand_move_to_pour_pose] Action 057 使用 block=False
+2026-05-18 15:10:07,431 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 058 | 左肘俯仰过渡到倒奶预备姿态 | robot.left_arm.set_elbow_pitch(0.4, block=True)
+2026-05-18 15:10:07,431 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 059 | 左臂按原流程回到中间过渡姿态 | robot.left_arm.home(block=False)
+2026-05-18 15:10:07,431 | INFO | [left_hand_move_to_pour_pose] Action 059 使用 block=False
+2026-05-18 15:10:07,431 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 060 | 左腕俯仰切到倒奶预备角度 | robot.left_arm.set_wrist_pitch(-0.45, block=True)
+2026-05-18 15:10:07,432 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 061 | 右腕偏航对准接奶方向 | robot.right_arm.set_wrist_yaw(-0.7, block=False)
+2026-05-18 15:10:07,432 | INFO | [left_hand_move_to_pour_pose] Action 061 使用 block=False
+2026-05-18 15:10:07,432 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 062 | 右腕俯仰切到接奶角度 | robot.right_arm.set_wrist_pitch(-0.5, block=False)
+2026-05-18 15:10:07,432 | INFO | [left_hand_move_to_pour_pose] Action 062 使用 block=False
+2026-05-18 15:10:07,432 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 063 | 右腕翻滚调整杯口姿态 | robot.right_arm.set_wrist_roll(0.3, block=False)
+2026-05-18 15:10:07,433 | INFO | [left_hand_move_to_pour_pose] Action 063 使用 block=False
+2026-05-18 15:10:07,433 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 064 | 右肩翻滚切到接奶位 | robot.right_arm.set_shoulder_roll(0.7, block=False)
+2026-05-18 15:10:07,433 | INFO | [left_hand_move_to_pour_pose] Action 064 使用 block=False
+2026-05-18 15:10:07,433 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 065 | sleep(1.00) | 保留原始倒奶前等待
+2026-05-18 15:10:07,433 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 066 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,434 | INFO | [left_hand_move_to_pour_pose] DRY-RUN Action 067 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,434 | INFO | 阶段结束：left_hand_move_to_pour_pose
+2026-05-18 15:10:07,434 | INFO | 即将执行阶段：left_hand_pour_milk
+2026-05-18 15:10:07,434 | INFO | 该阶段涉及部件：left_arm / left_gripper / right_arm / right_gripper
+2026-05-18 15:10:07,434 | INFO | 风险提示：左手执行大角度倒奶动作，是当前流程中风险最高的阶段之一。
+2026-05-18 15:10:07,434 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,435 | INFO | 阶段开始：left_hand_pour_milk
+2026-05-18 15:10:07,435 | INFO | [left_hand_pour_milk] DRY-RUN Action 068 | 左肩俯仰切入倒奶动作 | robot.left_arm.set_shoulder_pitch(-0.6, block=False)
+2026-05-18 15:10:07,435 | INFO | [left_hand_pour_milk] Action 068 使用 block=False
+2026-05-18 15:10:07,435 | INFO | [left_hand_pour_milk] DRY-RUN Action 069 | 左肘俯仰切入倒奶动作 | robot.left_arm.set_elbow_pitch(-0.6, block=True)
+2026-05-18 15:10:07,435 | INFO | [left_hand_pour_milk] DRY-RUN Action 070 | 左肩翻滚增大壶身倾斜 | robot.left_arm.set_shoulder_roll(0.65, block=False)
+2026-05-18 15:10:07,435 | INFO | [left_hand_pour_milk] Action 070 使用 block=False
+2026-05-18 15:10:07,436 | INFO | [left_hand_pour_milk] DRY-RUN Action 071 | 左腕翻滚执行大角度倒奶 | robot.left_arm.set_wrist_roll(1.7, block=False)
+2026-05-18 15:10:07,436 | INFO | [left_hand_pour_milk] Action 071 使用 block=False
+2026-05-18 15:10:07,436 | INFO | [left_hand_pour_milk] DRY-RUN Action 072 | 左肘俯仰微调倒奶轨迹 | robot.left_arm.set_elbow_pitch(-0.5, block=True)
+2026-05-18 15:10:07,436 | INFO | [left_hand_pour_milk] DRY-RUN Action 073 | 左肘俯仰回到原始收束角度 | robot.left_arm.set_elbow_pitch(-0.6, block=False)
+2026-05-18 15:10:07,436 | INFO | [left_hand_pour_milk] Action 073 使用 block=False
+2026-05-18 15:10:07,436 | INFO | [left_hand_pour_milk] DRY-RUN Action 074 | 左腕翻滚回到中间角度 | robot.left_arm.set_wrist_roll(0.0, block=True)
+2026-05-18 15:10:07,437 | INFO | [left_hand_pour_milk] DRY-RUN Action 075 | 左肩翻滚回到中间角度 | robot.left_arm.set_shoulder_roll(0.0, block=True)
+2026-05-18 15:10:07,437 | INFO | [left_hand_pour_milk] DRY-RUN Action 076 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,437 | INFO | [left_hand_pour_milk] DRY-RUN Action 077 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,437 | INFO | 阶段结束：left_hand_pour_milk
+2026-05-18 15:10:07,437 | INFO | 即将执行阶段：return_home
+2026-05-18 15:10:07,438 | INFO | 该阶段涉及部件：left_arm / right_arm / left_gripper / right_gripper
+2026-05-18 15:10:07,438 | INFO | 风险提示：回放杯与回放奶壶都在本阶段执行，需确认路径、桌面和末端物体状态。
+2026-05-18 15:10:07,438 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,438 | INFO | 阶段开始：return_home
+2026-05-18 15:10:07,438 | INFO | [return_home] DRY-RUN Action 078 | 右臂先回 home 准备放杯 | robot.right_arm.home()
+2026-05-18 15:10:07,438 | INFO | [return_home] DRY-RUN Action 079 | 右肩俯仰回到放杯预备位 | robot.right_arm.set_shoulder_pitch(0.7, block=False)
+2026-05-18 15:10:07,439 | INFO | [return_home] Action 079 使用 block=False
+2026-05-18 15:10:07,439 | INFO | [return_home] DRY-RUN Action 080 | 右肩翻滚回到放杯预备位 | robot.right_arm.set_shoulder_roll(-0.42, block=False)
+2026-05-18 15:10:07,439 | INFO | [return_home] Action 080 使用 block=False
+2026-05-18 15:10:07,439 | INFO | [return_home] DRY-RUN Action 081 | 右腕翻滚回到放杯预备位 | robot.right_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 15:10:07,439 | INFO | [return_home] DRY-RUN Action 082 | 右肘下探回放杯深度 | robot.right_arm.set_elbow_pitch(1.0, block=False)
+2026-05-18 15:10:07,439 | INFO | [return_home] Action 082 使用 block=False
+2026-05-18 15:10:07,440 | INFO | [return_home] DRY-RUN Action 083 | 右腕俯仰回到放杯姿态 | robot.right_arm.set_wrist_pitch(0.1, block=True)
+2026-05-18 15:10:07,440 | INFO | [return_home] DRY-RUN Action 084 | sleep(1.00) | 保留原始放杯前等待
+2026-05-18 15:10:07,440 | INFO | [return_home] DRY-RUN Action 085 | 右夹爪打开放杯 | robot.right_gripper.open()
+2026-05-18 15:10:07,440 | INFO | [return_home] DRY-RUN Action 086 | sleep(1.00) | 保留原始放杯后等待
+2026-05-18 15:10:07,440 | INFO | [return_home] DRY-RUN Action 087 | 右臂回 home | robot.right_arm.home()
+2026-05-18 15:10:07,441 | INFO | [return_home] DRY-RUN Action 088 | sleep(1.00) | 保留原始右臂回 home 后等待
+2026-05-18 15:10:07,441 | INFO | [return_home] DRY-RUN Action 089 | 左臂先回 home 准备放奶壶 | robot.left_arm.home()
+2026-05-18 15:10:07,441 | INFO | [return_home] DRY-RUN Action 090 | 左肩偏航回到放壶预备位 | robot.left_arm.set_shoulder_yaw(0.3, block=False)
+2026-05-18 15:10:07,441 | INFO | [return_home] Action 090 使用 block=False
+2026-05-18 15:10:07,441 | INFO | [return_home] DRY-RUN Action 091 | 左腕翻滚回到放壶预备位 | robot.left_arm.set_wrist_roll(-0.4, block=False)
+2026-05-18 15:10:07,441 | INFO | [return_home] Action 091 使用 block=False
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 092 | 左肩翻滚回到放壶预备位 | robot.left_arm.set_shoulder_roll(-0.76, block=True)
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 093 | 左肩俯仰回到放壶路径 | robot.left_arm.set_shoulder_pitch(0.8, block=False)
+2026-05-18 15:10:07,442 | INFO | [return_home] Action 093 使用 block=False
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 094 | 左肘俯仰回到放壶路径 | robot.left_arm.set_elbow_pitch(0.8, block=False)
+2026-05-18 15:10:07,442 | INFO | [return_home] Action 094 使用 block=False
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 095 | 左腕翻滚微调放壶姿态 | robot.left_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 096 | 左肘下探回放壶深度 | robot.left_arm.set_elbow_pitch(1.35, block=False)
+2026-05-18 15:10:07,442 | INFO | [return_home] Action 096 使用 block=False
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 097 | 左肩俯仰微调放壶对位 | robot.left_arm.set_shoulder_pitch(0.85, block=True)
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 098 | sleep(1.00) | 保留原始放壶前等待
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 099 | 左夹爪打开放奶壶 | robot.left_gripper.open()
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 100 | 左肘抬起离开放壶位 | robot.left_arm.set_elbow_pitch(0.9, block=True)
+2026-05-18 15:10:07,442 | INFO | [return_home] DRY-RUN Action 101 | 左肩俯仰回到放壶后过渡位 | robot.left_arm.set_shoulder_pitch(0.2, block=False)
+2026-05-18 15:10:07,443 | INFO | [return_home] Action 101 使用 block=False
+2026-05-18 15:10:07,443 | INFO | [return_home] DRY-RUN Action 102 | 左肘俯仰回到放壶后过渡位 | robot.left_arm.set_elbow_pitch(0.4, block=True)
+2026-05-18 15:10:07,443 | INFO | [return_home] DRY-RUN Action 103 | 左臂最终回 home | robot.left_arm.home(block=False)
+2026-05-18 15:10:07,443 | INFO | [return_home] Action 103 使用 block=False
+2026-05-18 15:10:07,443 | INFO | [return_home] DRY-RUN Action 104 | sleep(1.00) | 保留原始流程结束等待
+2026-05-18 15:10:07,443 | INFO | [return_home] DRY-RUN Action 105 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,443 | INFO | [return_home] DRY-RUN Action 106 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,443 | INFO | 阶段结束：return_home
+2026-05-18 15:10:07,443 | INFO | 全部请求阶段执行完成。
+2026-05-18 15:10:07,479 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:10:07,479 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:10:07,479 | INFO | log_file=logs/coffee_replay_safe_20260518_151007.log
+2026-05-18 15:10:07,479 | INFO | dry_run=True
+2026-05-18 15:10:07,479 | INFO | execute=False
+2026-05-18 15:10:07,479 | INFO | selected_stage=right_hand_grasp_cup
+2026-05-18 15:10:07,479 | INFO | resolved_stages=right_hand_grasp_cup
+2026-05-18 15:10:07,479 | INFO | 当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。
+2026-05-18 15:10:07,479 | INFO | 即将执行阶段：right_hand_grasp_cup
+2026-05-18 15:10:07,479 | INFO | 该阶段涉及部件：right_arm / right_gripper / left_gripper
+2026-05-18 15:10:07,479 | INFO | 风险提示：右手接近杯子抓取，需确认杯位、桌边和夹爪周围无人手靠近。
+2026-05-18 15:10:07,479 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,479 | INFO | 阶段开始：right_hand_grasp_cup
+2026-05-18 15:10:07,479 | INFO | [right_hand_grasp_cup] DRY-RUN Action 001 | 右夹爪初始化为闭合 | robot.right_gripper.close()
+2026-05-18 15:10:07,479 | INFO | [right_hand_grasp_cup] DRY-RUN Action 002 | 左夹爪初始化为闭合 | robot.left_gripper.close()
+2026-05-18 15:10:07,479 | INFO | [right_hand_grasp_cup] DRY-RUN Action 003 | 右夹爪打开准备抓杯 | robot.right_gripper.open()
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 004 | 右肩俯仰到抓杯预备位 | robot.right_arm.set_shoulder_pitch(0.7, block=False)
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] Action 004 使用 block=False
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 005 | 右肩翻滚到抓杯预备位 | robot.right_arm.set_shoulder_roll(-0.42, block=False)
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] Action 005 使用 block=False
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 006 | 右腕翻滚对齐杯把方向 | robot.right_arm.set_wrist_roll(0.1, block=True)
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 007 | 右肘下探接近杯子 | robot.right_arm.set_elbow_pitch(1.0, block=False)
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] Action 007 使用 block=False
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 008 | 右腕俯仰微调抓取姿态 | robot.right_arm.set_wrist_pitch(0.1, block=True)
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 009 | sleep(1.00) | 保留原始抓杯前等待
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 010 | 右夹爪收至抓杯位置 | robot.right_gripper.set_position(0.6)
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 011 | sleep(1.00) | 保留原始抓杯后等待
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 012 | 右肘抬起准备离开杯架 | robot.right_arm.set_elbow_pitch(0.6, block=False)
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] Action 012 使用 block=False
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 013 | 右肩俯仰抬杯离桌 | robot.right_arm.set_shoulder_pitch(0.6, block=True)
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 014 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,480 | INFO | [right_hand_grasp_cup] DRY-RUN Action 015 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,480 | INFO | 阶段结束：right_hand_grasp_cup
+2026-05-18 15:10:07,480 | INFO | 全部请求阶段执行完成。
+2026-05-18 15:10:07,504 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:10:07,504 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:10:07,505 | INFO | log_file=logs/coffee_replay_safe_20260518_151007.log
+2026-05-18 15:10:07,505 | INFO | dry_run=True
+2026-05-18 15:10:07,505 | INFO | execute=False
+2026-05-18 15:10:07,505 | INFO | selected_stage=prepare_head
+2026-05-18 15:10:07,505 | INFO | resolved_stages=prepare_head
+2026-05-18 15:10:07,505 | INFO | 当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。
+2026-05-18 15:10:07,506 | INFO | 即将执行阶段：prepare_head
+2026-05-18 15:10:07,506 | INFO | 该阶段涉及部件：head
+2026-05-18 15:10:07,506 | INFO | 风险提示：头部下视，需确认前方无遮挡并避免误判为整机静止。
+2026-05-18 15:10:07,506 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,506 | INFO | 阶段开始：prepare_head
+2026-05-18 15:10:07,506 | INFO | [prepare_head] DRY-RUN Action 001 | 头部下视到咖啡流程观察位 | robot.head.look_down(0.5, block=True)
+2026-05-18 15:10:07,506 | INFO | [prepare_head] DRY-RUN Action 002 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,506 | INFO | [prepare_head] DRY-RUN Action 003 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,506 | INFO | 阶段结束：prepare_head
+2026-05-18 15:10:07,506 | INFO | 全部请求阶段执行完成。
+2026-05-18 15:10:07,516 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 15:10:07,516 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 15:10:07,517 | INFO | log_file=logs/coffee_replay_safe_20260518_151007.log
+2026-05-18 15:10:07,518 | INFO | dry_run=True
+2026-05-18 15:10:07,518 | INFO | execute=False
+2026-05-18 15:10:07,519 | INFO | selected_stage=left_hand_pour_milk
+2026-05-18 15:10:07,519 | INFO | resolved_stages=left_hand_pour_milk
+2026-05-18 15:10:07,519 | INFO | 当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。
+2026-05-18 15:10:07,519 | INFO | 即将执行阶段：left_hand_pour_milk
+2026-05-18 15:10:07,520 | INFO | 该阶段涉及部件：left_arm / left_gripper / right_arm / right_gripper
+2026-05-18 15:10:07,520 | INFO | 风险提示：左手执行大角度倒奶动作，是当前流程中风险最高的阶段之一。
+2026-05-18 15:10:07,520 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 15:10:07,520 | INFO | 阶段开始：left_hand_pour_milk
+2026-05-18 15:10:07,520 | INFO | [left_hand_pour_milk] DRY-RUN Action 001 | 左肩俯仰切入倒奶动作 | robot.left_arm.set_shoulder_pitch(-0.6, block=False)
+2026-05-18 15:10:07,520 | INFO | [left_hand_pour_milk] Action 001 使用 block=False
+2026-05-18 15:10:07,520 | INFO | [left_hand_pour_milk] DRY-RUN Action 002 | 左肘俯仰切入倒奶动作 | robot.left_arm.set_elbow_pitch(-0.6, block=True)
+2026-05-18 15:10:07,520 | INFO | [left_hand_pour_milk] DRY-RUN Action 003 | 左肩翻滚增大壶身倾斜 | robot.left_arm.set_shoulder_roll(0.65, block=False)
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] Action 003 使用 block=False
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] DRY-RUN Action 004 | 左腕翻滚执行大角度倒奶 | robot.left_arm.set_wrist_roll(1.7, block=False)
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] Action 004 使用 block=False
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] DRY-RUN Action 005 | 左肘俯仰微调倒奶轨迹 | robot.left_arm.set_elbow_pitch(-0.5, block=True)
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] DRY-RUN Action 006 | 左肘俯仰回到原始收束角度 | robot.left_arm.set_elbow_pitch(-0.6, block=False)
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] Action 006 使用 block=False
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] DRY-RUN Action 007 | 左腕翻滚回到中间角度 | robot.left_arm.set_wrist_roll(0.0, block=True)
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] DRY-RUN Action 008 | 左肩翻滚回到中间角度 | robot.left_arm.set_shoulder_roll(0.0, block=True)
+2026-05-18 15:10:07,521 | INFO | [left_hand_pour_milk] DRY-RUN Action 009 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 15:10:07,522 | INFO | [left_hand_pour_milk] DRY-RUN Action 010 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 15:10:07,522 | INFO | 阶段结束：left_hand_pour_milk
+2026-05-18 15:10:07,522 | INFO | 全部请求阶段执行完成。
