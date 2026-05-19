@@ -1,0 +1,13 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,observed_direction,safety_status,user_observation,note
+2026-05-19T14:21:42+08:00,T0001,left,rel,false,0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.190658,,unknown,向身体内侧,manual relative delta
+2026-05-19T14:21:57+08:00,T0002,left,axis,false,0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,skipped,user_declined_confirmation,0.000000,,,,axis probe +X
+2026-05-19T14:22:17+08:00,T0003,left,rel,false,-0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.027362,,unknown,向身体外侧,manual relative delta
+2026-05-19T14:22:57+08:00,T0004,left,rel,false,0.000000,0.000000,-0.003000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.026935,,unknown,下降,manual relative delta
+2026-05-19T14:24:00+08:00,T0005,left,rel,false,0.000000,0.005000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.037102,,unknown,向前运动,manual relative delta
+2026-05-19T14:24:10+08:00,T0006,left,rel,false,0.000000,0.010000,0.000000,0.000000,0.000000,0.000000,true,rejected,dy=0.010000 超过 --max-delta=0.005000；如确需执行，请显式传入 --allow-large-delta。,0.000000,,,,manual relative delta
+2026-05-19T14:24:54+08:00,T0007,left,rel,false,0.000000,0.005000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.036963,,unknown,不太明显，没看清楚,manual relative delta
+2026-05-19T14:25:08+08:00,T0008,left,rel,false,0.000000,0.009000,0.000000,0.000000,0.000000,0.000000,true,rejected,dy=0.009000 超过 --max-delta=0.005000；如确需执行，请显式传入 --allow-large-delta。,0.000000,,,,manual relative delta
+2026-05-19T14:25:24+08:00,T0009,left,rel,false,0.000000,0.008000,0.000000,0.000000,0.000000,0.000000,true,rejected,dy=0.008000 超过 --max-delta=0.005000；如确需执行，请显式传入 --allow-large-delta。,0.000000,,,,manual relative delta
+2026-05-19T14:26:01+08:00,T0010,left,rel,false,0.000000,0.006000,0.000000,0.000000,0.000000,0.000000,true,rejected,dy=0.006000 超过 --max-delta=0.005000；如确需执行，请显式传入 --allow-large-delta。,0.000000,,,,manual relative delta
+2026-05-19T14:26:26+08:00,T0011,left,rel,false,0.000000,0.005000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.037544,,unknown,,manual relative delta
+2026-05-19T14:26:39+08:00,T0012,left,axis,false,0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,skipped,user_declined_confirmation,0.000000,,,,axis probe +X
