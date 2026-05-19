@@ -1,0 +1,3 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,user_observation,note
+2026-05-19T11:50:12+08:00,T0001,left,readme_abs,true,0.500000,0.200000,0.300000,0.000000,0.000000,0.000000,true,skipped,user_declined_confirmation,0.000000,,README example candidate only
+2026-05-19T11:50:55+08:00,T0002,left,readme_abs,true,0.500000,0.200000,0.300000,0.000000,0.000000,0.000000,true,ok,,1.141806,2关节撞上了,README example candidate only

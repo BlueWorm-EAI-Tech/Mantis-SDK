@@ -35,6 +35,24 @@ CONTROL_MODE_CHOICES = ("relative", "absolute", "mixed")
 README_EXAMPLE_POSE = (0.5, 0.2, 0.3, 0.0, 0.0, 0.0)
 SAFE_CANDIDATES_PATH = PROJECT_ROOT / "logs" / "ik_safe_candidates.json"
 RISK_OBSERVATIONS = {"bad", "near_collision", "jitter", "abort", "危险/中止"}
+UNSAFE_OBSERVATION_KEYWORDS = (
+    "near_collision",
+    "collision",
+    "撞",
+    "碰",
+    "卡",
+    "顶住",
+    "抖动",
+    "异响",
+    "jitter",
+    "bad",
+    "abort",
+    "dangerous",
+    "risk",
+    "不安全",
+    "危险",
+)
+SAFE_OBSERVATIONS = {"ok", "1", "平稳", "正常"}
 COMMAND_KEYWORDS = {
     "help",
     "guide",
@@ -205,7 +223,9 @@ class SessionState:
     demo_passed: bool = False
     abs_attempted: bool = False
     abs_ok: bool = False
+    abs_failed: bool = False
     abs_last_observation: str = ""
+    abs_safety_status: str = "unknown"
     axis_attempted: bool = False
     axis_completed: bool = False
     axis_mode: str = ""
@@ -213,6 +233,7 @@ class SessionState:
     axis_results: dict[str, str] = field(default_factory=dict)
     risk_detected: bool = False
     saved_candidate_path: Optional[Path] = None
+    last_error: str = ""
     last_recommendation: str = ""
     anchor_ready: bool = False
     anchor_source: str = ""
@@ -294,6 +315,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="CSV 日志路径；不指定时自动写入 logs/ik_tune_trials_YYYYmmdd_HHMMSS.csv",
     )
+    parser.add_argument(
+        "--self-check-observation-safety",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
     add_connection_args(parser, default_profile="interactive")
     parser.set_defaults(robot_version=DEFAULT_ROBOT_VERSION)
     return parser.parse_args()
@@ -336,6 +362,52 @@ def now_iso() -> str:
 
 def mode_label(dry_run: bool) -> str:
     return "DRY-RUN" if dry_run else "EXECUTE"
+
+
+def parse_observation_safety(user_observation: str) -> str:
+    observation = user_observation.strip()
+    if not observation:
+        return "unknown"
+    normalized = observation.lower()
+    if normalized in SAFE_OBSERVATIONS or observation in SAFE_OBSERVATIONS:
+        return "safe"
+    if any(keyword in normalized for keyword in UNSAFE_OBSERVATION_KEYWORDS):
+        return "unsafe"
+    return "unknown"
+
+
+def sdk_status_ok(status: str) -> bool:
+    return status in {
+        "ok",
+        "dry_run",
+        "sdk_ok_safety_safe",
+        "sdk_ok_safety_unsafe",
+        "sdk_ok_safety_unknown",
+    }
+
+
+def sdk_status_error(status: str) -> bool:
+    return status in {"error", "sdk_error"}
+
+
+def compose_result_status(sdk_status: str, safety_status: str) -> str:
+    if sdk_status == "dry_run":
+        return "dry_run"
+    if sdk_status == "ok":
+        if safety_status == "safe":
+            return "sdk_ok_safety_safe"
+        if safety_status == "unsafe":
+            return "sdk_ok_safety_unsafe"
+        return "sdk_ok_safety_unknown"
+    if sdk_status == "error":
+        return "sdk_error"
+    return sdk_status
+
+
+def print_unsafe_warning() -> None:
+    print("[UNSAFE]")
+    print("本次 IK 动作不安全，已阻止后续 axis/rel/save。")
+    print("请退出并检查机器人姿态/日志。")
 
 
 def init_csv_log(log_path: Path) -> None:
@@ -786,7 +858,7 @@ def resolve_observation(
     status: str,
     preset_observation: Optional[str],
 ) -> str:
-    if status not in {"ok", "dry_run"}:
+    if not sdk_status_ok(status):
         return ""
     if preset_observation is not None:
         return preset_observation
@@ -837,21 +909,42 @@ def update_state_after_command(
     state: SessionState,
 ) -> None:
     observation = result.user_observation
-    if observation in RISK_OBSERVATIONS:
+    safety_status = parse_observation_safety(observation)
+    if safety_status == "unsafe" or observation in RISK_OBSERVATIONS:
         state.risk_detected = True
+        print_unsafe_warning()
     if command.command_type in {"readme_abs", "abs"}:
         state.abs_attempted = True
         state.abs_last_observation = observation
-        if not state.dry_run and result.status == "ok" and observation == "ok":
+        state.abs_safety_status = safety_status
+        if not state.dry_run and sdk_status_ok(result.status) and safety_status == "safe":
             state.abs_ok = True
+            state.abs_failed = False
             state.last_ok_abs_command = command
             state.last_abs_ok_pose = command
             state.anchor_ready = True
             state.anchor_source = f"{command.label or command.command_type} abs ok"
-        elif not state.dry_run and result.status != "ok":
+            state.last_error = ""
+        elif not state.dry_run and sdk_status_error(result.status):
             state.abs_ok = False
-        elif not state.dry_run and observation and observation != "ok":
+            state.abs_failed = True
+            state.anchor_ready = False
+            state.last_error = result.error or "SDK IK execution failed"
+        elif not state.dry_run and sdk_status_ok(result.status) and safety_status == "unsafe":
             state.abs_ok = False
+            state.abs_failed = True
+            state.anchor_ready = False
+            state.risk_detected = True
+            state.last_error = (
+                "SDK IK executed but user reported unsafe motion: "
+                f"{observation}"
+            )
+            state.last_recommendation = "停止，不要继续 axis/rel；该 ABS 点不可作为 anchor"
+        elif not state.dry_run and sdk_status_ok(result.status) and safety_status == "unknown":
+            state.abs_ok = False
+            state.abs_failed = True
+            state.anchor_ready = False
+            state.last_recommendation = "观察结果不明确，不能建立 anchor；请人工复核"
     if command.command_type == "axis":
         state.axis_attempted = True
         state.axis_mode = mode_label(state.dry_run).lower()
@@ -864,7 +957,7 @@ def update_state_after_command(
         if observation == "危险/中止":
             state.risk_detected = True
             state.stop_requested = True
-    if command.command_type == "rel" and result.status in {"ok", "dry_run"} and observation in {"ok", "dry_run"}:
+    if command.command_type == "rel" and sdk_status_ok(result.status) and observation in {"ok", "dry_run"}:
         state.relative_steps_ok = True
 
 
@@ -923,8 +1016,10 @@ def run_logged_command(
         vprint(args, f"[verbose] rejected: {exc}")
         return result
 
-    status, error, duration_s = execute_ik(arm, command, args, state)
-    observation = resolve_observation(command, args, state, status, preset_observation)
+    sdk_status, error, duration_s = execute_ik(arm, command, args, state)
+    observation = resolve_observation(command, args, state, sdk_status, preset_observation)
+    safety_status = parse_observation_safety(observation)
+    status = compose_result_status(sdk_status, safety_status)
     result = record_result(
         state,
         arm=command.arm,
@@ -987,6 +1082,10 @@ def confirm_rel_execute(command: IkCommand, args: argparse.Namespace, prompt: st
 
 
 def ensure_relative_anchor_ready(arm, args: argparse.Namespace, state: SessionState) -> bool:
+    if state.risk_detected:
+        print("检测到不安全动作，停止 IK 调试。")
+        print("不要继续 axis/rel；请退出并检查机器人姿态/日志。")
+        return False
     if state.anchor_ready:
         return True
 
@@ -1023,12 +1122,13 @@ def ensure_relative_anchor_ready(arm, args: argparse.Namespace, state: SessionSt
 
 
 def describe_abs_outcome(result: TrialResult, state: SessionState) -> tuple[str, str]:
-    if result.status in {"ok", "dry_run"}:
+    if sdk_status_ok(result.status):
         if state.dry_run:
             return "PASS", "yes"
-        if result.user_observation == "ok":
+        safety_status = parse_observation_safety(result.user_observation)
+        if safety_status == "safe":
             return "PASS", "yes"
-        if result.user_observation in {"abort", "near_collision", "jitter"}:
+        if safety_status == "unsafe":
             return "STOP", "no"
         return "REVIEW", "no"
     if result.status == "skipped":
@@ -1037,21 +1137,27 @@ def describe_abs_outcome(result: TrialResult, state: SessionState) -> tuple[str,
 
 
 def print_readme_abs_result(result: TrialResult, command: IkCommand, state: SessionState) -> None:
-    outcome, can_continue = describe_abs_outcome(result, state)
+    safety_status = parse_observation_safety(result.user_observation)
+    sdk_label = "OK" if sdk_status_ok(result.status) else "ERROR"
+    if result.status == "skipped":
+        sdk_label = "SKIPPED"
+    safety_label = safety_status.upper()
+    can_continue = "yes" if sdk_status_ok(result.status) and (state.dry_run or safety_status == "safe") else "no"
     print(f"[ABS] {command.label}")
     print(f"target: {format_pose_short(command)}")
     print(f"mode: {mode_label(state.dry_run).lower()}")
-    print(f"result: {outcome}")
+    print(f"sdk: {sdk_label}")
+    print(f"safety: {safety_label}")
     print(f"continue: {can_continue}")
     if state.dry_run:
         print("next: execute 模式下空载测试时，需要输入 RUN_ABS")
     else:
-        if result.user_observation == "ok":
+        if safety_status == "safe":
             print("next: axis 0.003")
-        elif result.user_observation in {"near_collision", "jitter", "abort"}:
-            print("next: stop，存在风险，不建议继续")
+        elif safety_status == "unsafe":
+            print("next: 停止，不要执行 axis/rel；更换 ABS 点或改用相对小步前先建立安全 anchor")
         else:
-            print("next: 调整 ABS 点后再试")
+            print("next: 观察结果不明确，不能建立 anchor；请人工复核")
 
 
 def run_abs_flow(arm, args: argparse.Namespace, state: SessionState, command: IkCommand) -> None:
@@ -1094,7 +1200,7 @@ def run_abs_flow(arm, args: argparse.Namespace, state: SessionState, command: Ik
 
 
 def demo_step_passed(result: TrialResult) -> bool:
-    return result.status == "dry_run"
+    return sdk_status_ok(result.status)
 
 
 def run_demo(arm, args: argparse.Namespace, state: SessionState) -> None:
@@ -1241,7 +1347,7 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
         all_passed = True
         for axis_command in commands:
             result = run_logged_command(arm, axis_command, args, state)
-            passed = result.status == "dry_run"
+            passed = sdk_status_ok(result.status)
             all_passed = all_passed and passed
             print(f"  {axis_command.label} .... {'PASS' if passed else 'FAIL'}")
         state.axis_completed = all_passed
@@ -1297,7 +1403,7 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
 
 def save_candidate(name: str, state: SessionState) -> TrialResult:
     if not can_save_safe_point(state):
-        print("还没有安全 ABS 点，不建议保存。")
+        print("当前没有安全 anchor，或已经检测到风险，不能保存为安全点。")
         return record_result(
             state,
             arm=state.arm_name,
@@ -1408,6 +1514,12 @@ def log_note(note_text: str, state: SessionState) -> TrialResult:
 
 
 def get_guide_lines(state: SessionState) -> list[str]:
+    if state.risk_detected:
+        return [
+            "1. 检测到不安全动作，停止 IK 调试",
+            "2. 不要继续 axis / rel / save",
+            "3. 请退出并检查机器人姿态/日志",
+        ]
     if state.ik_control_mode == "relative":
         if not state.anchor_ready:
             return [
@@ -1458,12 +1570,17 @@ def get_guide_lines(state: SessionState) -> list[str]:
 
 
 def can_save_safe_point(state: SessionState) -> bool:
-    return bool(state.abs_ok and state.last_ok_abs_command is not None)
+    return bool(
+        state.anchor_ready
+        and not state.risk_detected
+        and state.abs_ok
+        and state.last_ok_abs_command is not None
+    )
 
 
 def get_menu_recommendation(state: SessionState) -> tuple[str, str]:
     if state.risk_detected:
-        return "0", "退出，不继续"
+        return "0", "检测到不安全动作，停止 IK 调试"
     if state.ik_control_mode == "relative":
         if not state.anchor_ready:
             return "2", "先建立相对控制基准"
@@ -1546,6 +1663,8 @@ def print_next_action_hint(state: SessionState) -> None:
 
 
 def update_last_recommendation(state: SessionState) -> None:
+    if state.risk_detected and state.last_recommendation:
+        return
     state.last_recommendation = compute_next_recommendation(state)
 
 
@@ -1559,6 +1678,16 @@ def print_summary(state: SessionState) -> None:
     print(f"arm: {state.arm_name}")
     print(f"ik_control: {state.ik_control_mode}")
     print(f"candidate: {candidate}")
+    if state.risk_detected:
+        print("risk: DETECTED")
+        print("anchor_ready: NO")
+        print("axis probe: BLOCKED")
+        print("saved point: NO")
+        print("")
+        print("next:")
+        print("  停止。不要继续 axis/rel/save。")
+        print("  当前 ABS 点不安全，请换安全起点或回到关节空间控制。")
+        return
     print(f"anchor_ready: {'YES' if state.anchor_ready else 'NO'}")
     print(f"anchor_source: {state.anchor_source or '-'}")
     print(f"last_abs_ok_pose: {last_abs_pose_text(state)}")
@@ -1670,7 +1799,7 @@ def command_from_menu_choice(choice: str, state: SessionState) -> Optional[str]:
             return "__interactive_rel__"
         if choice == "6":
             if not can_save_safe_point(state):
-                print("还没有安全 ABS 点，不建议保存。")
+                print("当前没有安全 anchor，或已经检测到风险，不能保存为安全点。")
                 update_last_recommendation(state)
                 return None
             return f"save {prompt_save_name(state)}"
@@ -1688,7 +1817,7 @@ def command_from_menu_choice(choice: str, state: SessionState) -> Optional[str]:
             return "summary"
         if choice == "4":
             if not can_save_safe_point(state):
-                print("还没有安全 ABS 点，不建议保存。")
+                print("当前没有安全 anchor，或已经检测到风险，不能保存为安全点。")
                 update_last_recommendation(state)
                 return None
             return f"save {prompt_save_name(state)}"
@@ -1707,7 +1836,7 @@ def command_from_menu_choice(choice: str, state: SessionState) -> Optional[str]:
         return "summary"
     if choice == "5":
         if not can_save_safe_point(state):
-            print("还没有安全 ABS 点，不建议保存。")
+            print("当前没有安全 anchor，或已经检测到风险，不能保存为安全点。")
             update_last_recommendation(state)
             return None
         return f"save {prompt_save_name(state)}"
@@ -1735,6 +1864,9 @@ def print_status(args: argparse.Namespace, state: SessionState) -> None:
     print(f"last_abs_ok_pose: {last_abs_pose_text(state)}")
     print(f"anchor_ready: {state.anchor_ready}")
     print(f"anchor_source: {state.anchor_source or '-'}")
+    print(f"abs_safety_status: {state.abs_safety_status}")
+    print(f"risk_detected: {state.risk_detected}")
+    print(f"last_error: {state.last_error or '-'}")
     print(f"relative_steps_ok: {state.relative_steps_ok}")
     print(f"max_delta: {args.max_delta}")
     print(f"allow_large_delta: {args.allow_large_delta}")
@@ -1772,6 +1904,7 @@ def print_last_result(state: SessionState) -> None:
     print(f"abs/rel: {abs_rel}")
     print(f"target/delta: {format_trial_target(result)}")
     print(f"status: {result.status}")
+    print(f"safety: {parse_observation_safety(result.user_observation)}")
     print(f"observation: {result.user_observation or '-'}")
     print(f"note: {result.note or '-'}")
 
@@ -1803,6 +1936,12 @@ def print_exit_summary(state: SessionState) -> None:
     print(f"log: {pretty_path(state.log_path)}")
     print(f"saved: {saved_text}")
     print(f"result: {result_text}")
+    if state.risk_detected:
+        print("risk: DETECTED")
+        print("anchor_ready: NO")
+        print("axis probe: BLOCKED")
+        print("next: 停止。不要继续 axis/rel/save。当前 ABS 点不安全，请换安全起点或回到关节空间控制。")
+        return
     print(f"next: {compute_next_recommendation(state)}")
 
 
@@ -1832,7 +1971,7 @@ def process_repl_command(
             update_last_recommendation(state)
             return True
         result = run_logged_command(arm, command, args, state)
-        outcome = "PASS" if result.status in {"ok", "dry_run"} else "FAIL"
+        outcome = "PASS" if sdk_status_ok(result.status) else "FAIL"
         print(f"result: {outcome}")
         print(f"continue: {'no' if state.risk_detected else 'yes'}")
         print_next_action_hint(state)
@@ -1885,7 +2024,7 @@ def process_repl_command(
             return True
         if len(tokens) == 1:
             if not can_save_safe_point(state):
-                print("还没有安全 ABS 点，不建议保存。")
+                print("当前没有安全 anchor，或已经检测到风险，不能保存为安全点。")
                 return True
             save_candidate(default_save_name(state), state)
             return True
@@ -1909,6 +2048,10 @@ def process_repl_command(
         return True
 
     if command_name == "rel":
+        if state.risk_detected:
+            print("检测到不安全动作，停止 IK 调试。")
+            print("不要继续 rel；请退出并检查机器人姿态/日志。")
+            return True
         values = parse_six_floats(tokens, "rel")
         if values is None:
             return True
@@ -1944,7 +2087,7 @@ def process_repl_command(
             print_next_action_hint(state)
             return True
         result = run_logged_command(arm, command, args, state)
-        outcome = "PASS" if result.status in {"ok", "dry_run"} else "FAIL"
+        outcome = "PASS" if sdk_status_ok(result.status) else "FAIL"
         print("[REL]")
         print(f"delta: {format_delta_short(command)}")
         print(f"result: {outcome}")
@@ -1953,6 +2096,10 @@ def process_repl_command(
         return True
 
     if command_name == "axis":
+        if state.risk_detected:
+            print("检测到不安全动作，停止 IK 调试。")
+            print("不要继续 axis；请退出并检查机器人姿态/日志。")
+            return True
         if len(tokens) > 2:
             print("用法: axis delta")
             return True
@@ -2034,7 +2181,44 @@ def _format_optional_bool(value: Optional[bool]) -> str:
     return "true" if value else "false"
 
 
+def run_observation_safety_self_check() -> int:
+    state = SessionState(
+        log_path=Path("/tmp/ik_tune_observation_safety_self_check.csv"),
+        dry_run=False,
+        arm_name="left",
+        ik_control_mode="relative",
+    )
+    command = build_readme_abs_command("left")
+    result = TrialResult(
+        timestamp=now_iso(),
+        trial_id="SELF",
+        arm="left",
+        command_type="readme_abs",
+        abs_mode=True,
+        x=command.x,
+        y=command.y,
+        z=command.z,
+        roll=command.roll,
+        pitch=command.pitch,
+        yaw=command.yaw,
+        block=command.block,
+        status=compose_result_status("ok", parse_observation_safety("2关节撞上了")),
+        error="",
+        duration_s=0.0,
+        user_observation="2关节撞上了",
+        note="self check",
+    )
+    update_state_after_command(command, result, state)
+    print("safety_status:", state.abs_safety_status)
+    print("anchor_ready:", state.anchor_ready)
+    print("risk_detected:", state.risk_detected)
+    print("status:", result.status)
+    return 0
+
+
 def main() -> int:
+    if "--self-check-observation-safety" in sys.argv:
+        return run_observation_safety_self_check()
     args = parse_args()
     print_compact_safety_notice()
     sys.stdout.flush()
