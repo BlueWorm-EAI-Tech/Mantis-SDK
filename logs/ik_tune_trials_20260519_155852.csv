@@ -1,0 +1,3 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,observed_direction,safety_status,user_observation,note
+2026-05-19T15:59:10+08:00,T0001,left,tilt_micro_demo,,,,,0.500000,,,true,sdk_ok_safety_safe,,1.014854,向身体内侧,safe,direction=向身体内侧; safety=safe; note=安全、平稳,left arm unloaded tilt micro demo tilt wrist_roll
+2026-05-19T15:59:14+08:00,T0002,left,tilt_micro_demo,false,0.005000,0.000000,0.000000,0.000000,0.000000,0.000000,true,skipped,user_declined_confirmation,0.000000,,unknown,,left arm unloaded tilt micro demo tilt swing 1/1 +X

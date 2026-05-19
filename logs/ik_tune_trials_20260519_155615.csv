@@ -1,0 +1,2 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,observed_direction,safety_status,user_observation,note
+2026-05-19T15:56:42+08:00,T0001,left,interrupt,,,,,,,,,keyboard_interrupt,,0.000000,,,,KeyboardInterrupt

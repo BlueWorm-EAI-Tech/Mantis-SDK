@@ -1,0 +1,8 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,observed_direction,safety_status,user_observation,note
+2026-05-19T15:38:12+08:00,T0001,left,relative_micro_demo,false,0.005000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.122462,向身体内侧,safe,direction=向身体内侧; safety=safe; note=安全、平稳,left arm unloaded relative micro demo swing 1/2 +X
+2026-05-19T15:38:18+08:00,T0002,left,relative_micro_demo,false,-0.005000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.031167,向身体外侧,safe,direction=向身体外侧; safety=safe; note=安全、平稳,left arm unloaded relative micro demo swing 1/2 -X
+2026-05-19T15:38:26+08:00,T0003,left,relative_micro_demo,false,0.005000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030639,向身体内侧,safe,direction=向身体内侧; safety=safe; note=安全、平稳,left arm unloaded relative micro demo swing 2/2 +X
+2026-05-19T15:38:32+08:00,T0004,left,relative_micro_demo,false,-0.005000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030324,向身体外侧,safe,direction=向身体外侧; safety=safe; note=安全、平稳,left arm unloaded relative micro demo swing 2/2 -X
+2026-05-19T15:38:48+08:00,T0005,left,relative_micro_demo,false,0.000000,0.000000,0.005000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030558,向上,safe,direction=向上; safety=safe; note=安全、平稳,left arm unloaded relative micro demo lift +Z
+2026-05-19T15:38:54+08:00,T0006,left,relative_micro_demo,false,0.000000,0.000000,-0.005000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.036293,向下,safe,direction=向下; safety=safe; note=安全、平稳,left arm unloaded relative micro demo lift -Z
+2026-05-19T15:56:08+08:00,T0007,left,interrupt,,,,,,,,,keyboard_interrupt,,0.000000,,,,KeyboardInterrupt

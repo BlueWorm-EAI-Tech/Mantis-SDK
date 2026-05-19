@@ -34,6 +34,10 @@ DEFAULT_AXIS_DELTA = 0.003
 DEFAULT_MICRO_DEMO_SWING_DELTA_X = 0.003
 DEFAULT_MICRO_DEMO_LIFT_DELTA_Z = 0.003
 DEFAULT_MICRO_DEMO_CYCLES = 2
+DEFAULT_TILT_WRIST_ROLL = 0.3
+DEFAULT_TILT_SWING_DELTA_X = 0.005
+DEFAULT_TILT_LIFT_DELTA_Z = 0.005
+DEFAULT_TILT_CYCLES = 1
 CONTROL_MODE_CHOICES = ("relative", "absolute", "mixed")
 README_EXAMPLE_POSE = (0.5, 0.2, 0.3, 0.0, 0.0, 0.0)
 SAFE_CANDIDATES_PATH = PROJECT_ROOT / "logs" / "ik_safe_candidates.json"
@@ -66,6 +70,7 @@ COMMAND_KEYWORDS = {
     "rel",
     "axis",
     "micro_demo",
+    "tilt_micro_demo",
     "summary",
     "save",
     "status",
@@ -178,6 +183,10 @@ class DryRunArm:
         _ = (x, y, z, roll, pitch, yaw, block, abs)
         return None
 
+    def set_wrist_roll(self, roll: float, *, block: bool = True) -> None:
+        _ = (roll, block)
+        return None
+
 
 class DryRunRobot:
     def __init__(self) -> None:
@@ -245,6 +254,14 @@ class ObservationRecord:
     safety_status: str = ""
 
 
+@dataclass(frozen=True)
+class TiltDemoStep:
+    kind: str
+    label: str
+    wrist_roll: float = 0.0
+    command: Optional[IkCommand] = None
+
+
 @dataclass
 class SessionState:
     log_path: Path
@@ -278,6 +295,9 @@ class SessionState:
     micro_demo_attempted: bool = False
     micro_demo_passed: bool = False
     micro_demo_results: list[dict[str, str]] = field(default_factory=list)
+    tilt_micro_demo_attempted: bool = False
+    tilt_micro_demo_passed: bool = False
+    tilt_micro_demo_results: list[dict[str, str]] = field(default_factory=list)
     risk_detected: bool = False
     saved_candidate_path: Optional[Path] = None
     last_error: str = ""
@@ -337,6 +357,48 @@ def parse_args() -> argparse.Namespace:
         help=f"允许相对姿态增量单轴绝对值超过 {DEFAULT_MAX_ROTATION_DELTA} rad",
     )
     parser.add_argument(
+        "--micro-swing-dx",
+        type=float,
+        default=DEFAULT_MICRO_DEMO_SWING_DELTA_X,
+        help=f"relative micro demo 的 X 摆动步长，默认 {DEFAULT_MICRO_DEMO_SWING_DELTA_X}",
+    )
+    parser.add_argument(
+        "--micro-lift-dz",
+        type=float,
+        default=DEFAULT_MICRO_DEMO_LIFT_DELTA_Z,
+        help=f"relative micro demo 的 Z 抬升步长，默认 {DEFAULT_MICRO_DEMO_LIFT_DELTA_Z}",
+    )
+    parser.add_argument(
+        "--micro-cycles",
+        type=int,
+        default=DEFAULT_MICRO_DEMO_CYCLES,
+        help=f"relative micro demo 的 X 摆动周期数，默认 {DEFAULT_MICRO_DEMO_CYCLES}",
+    )
+    parser.add_argument(
+        "--tilt-wrist-roll",
+        type=float,
+        default=DEFAULT_TILT_WRIST_ROLL,
+        help=f"tilt micro demo 的腕部 roll 轻微倾斜角，默认 {DEFAULT_TILT_WRIST_ROLL}",
+    )
+    parser.add_argument(
+        "--tilt-swing-dx",
+        type=float,
+        default=DEFAULT_TILT_SWING_DELTA_X,
+        help=f"tilt micro demo 的 X 摆动步长，默认 {DEFAULT_TILT_SWING_DELTA_X}",
+    )
+    parser.add_argument(
+        "--tilt-lift-dz",
+        type=float,
+        default=DEFAULT_TILT_LIFT_DELTA_Z,
+        help=f"tilt micro demo 的 Z 抬离步长，默认 {DEFAULT_TILT_LIFT_DELTA_Z}",
+    )
+    parser.add_argument(
+        "--tilt-cycles",
+        type=int,
+        default=DEFAULT_TILT_CYCLES,
+        help=f"tilt micro demo 的 X 摆动周期数，默认 {DEFAULT_TILT_CYCLES}",
+    )
+    parser.add_argument(
         "--ask-observation-dry-run",
         action="store_true",
         help="dry-run 下也询问 observation；默认 dry-run 自动记录 user_observation=dry_run",
@@ -375,6 +437,41 @@ def parse_args() -> argparse.Namespace:
 def validate_args(args: argparse.Namespace) -> None:
     if args.max_delta <= 0.0:
         raise ValueError("--max-delta 必须大于 0")
+    if args.micro_swing_dx <= 0.0:
+        raise ValueError("--micro-swing-dx 必须大于 0")
+    if args.micro_lift_dz <= 0.0:
+        raise ValueError("--micro-lift-dz 必须大于 0")
+    if args.micro_cycles <= 0:
+        raise ValueError("--micro-cycles 必须大于 0")
+    if args.tilt_wrist_roll < 0.0:
+        raise ValueError("--tilt-wrist-roll 必须大于等于 0")
+    if args.tilt_swing_dx <= 0.0:
+        raise ValueError("--tilt-swing-dx 必须大于 0")
+    if args.tilt_lift_dz <= 0.0:
+        raise ValueError("--tilt-lift-dz 必须大于 0")
+    if args.tilt_cycles <= 0:
+        raise ValueError("--tilt-cycles 必须大于 0")
+    if not args.allow_large_delta:
+        if args.micro_swing_dx > args.max_delta:
+            raise ValueError(
+                f"--micro-swing-dx={args.micro_swing_dx:.6f} 超过 "
+                f"--max-delta={args.max_delta:.6f}"
+            )
+        if args.micro_lift_dz > args.max_delta:
+            raise ValueError(
+                f"--micro-lift-dz={args.micro_lift_dz:.6f} 超过 "
+                f"--max-delta={args.max_delta:.6f}"
+            )
+        if args.tilt_swing_dx > args.max_delta:
+            raise ValueError(
+                f"--tilt-swing-dx={args.tilt_swing_dx:.6f} 超过 "
+                f"--max-delta={args.max_delta:.6f}"
+            )
+        if args.tilt_lift_dz > args.max_delta:
+            raise ValueError(
+                f"--tilt-lift-dz={args.tilt_lift_dz:.6f} 超过 "
+                f"--max-delta={args.max_delta:.6f}"
+            )
 
     if not args.execute:
         args.dry_run = True
@@ -687,6 +784,91 @@ def build_micro_demo_commands(
     return commands
 
 
+def build_tilt_micro_demo_steps(
+    arm_name: str,
+    *,
+    tilt_wrist_roll: float = DEFAULT_TILT_WRIST_ROLL,
+    swing_delta_x: float = DEFAULT_TILT_SWING_DELTA_X,
+    lift_delta_z: float = DEFAULT_TILT_LIFT_DELTA_Z,
+    cycles: int = DEFAULT_TILT_CYCLES,
+) -> list[TiltDemoStep]:
+    if tilt_wrist_roll < 0.0:
+        raise ValueError("tilt_wrist_roll 必须大于等于 0")
+    if swing_delta_x <= 0.0:
+        raise ValueError("tilt_swing_dx 必须大于 0")
+    if lift_delta_z <= 0.0:
+        raise ValueError("tilt_lift_dz 必须大于 0")
+    if cycles <= 0:
+        raise ValueError("tilt_cycles 必须大于 0")
+
+    steps = [
+        TiltDemoStep(
+            kind="wrist_roll",
+            label="tilt wrist_roll",
+            wrist_roll=tilt_wrist_roll,
+        )
+    ]
+    for cycle_index in range(1, cycles + 1):
+        for label, values in (
+            (
+                f"tilt swing {cycle_index}/{cycles} +X",
+                (swing_delta_x, 0.0, 0.0, 0.0, 0.0, 0.0),
+            ),
+            (
+                f"tilt swing {cycle_index}/{cycles} -X",
+                (-swing_delta_x, 0.0, 0.0, 0.0, 0.0, 0.0),
+            ),
+        ):
+            steps.append(
+                TiltDemoStep(
+                    kind="relative_ik",
+                    label=label,
+                    command=IkCommand(
+                        arm=arm_name,
+                        command_type="tilt_micro_demo",
+                        abs_mode=False,
+                        x=values[0],
+                        y=values[1],
+                        z=values[2],
+                        roll=values[3],
+                        pitch=values[4],
+                        yaw=values[5],
+                        block=True,
+                        note=f"left arm unloaded tilt micro demo {label}",
+                        label=label,
+                    ),
+                )
+            )
+    steps.append(
+        TiltDemoStep(
+            kind="relative_ik",
+            label="tilt lift +Z",
+            command=IkCommand(
+                arm=arm_name,
+                command_type="tilt_micro_demo",
+                abs_mode=False,
+                x=0.0,
+                y=0.0,
+                z=lift_delta_z,
+                roll=0.0,
+                pitch=0.0,
+                yaw=0.0,
+                block=True,
+                note="left arm unloaded tilt micro demo lift +Z",
+                label="tilt lift +Z",
+            ),
+        )
+    )
+    steps.append(
+        TiltDemoStep(
+            kind="wrist_roll",
+            label="reset wrist_roll",
+            wrist_roll=0.0,
+        )
+    )
+    return steps
+
+
 def current_candidate_name(state: SessionState) -> str:
     if state.current_candidate_abs is None:
         return "NONE"
@@ -845,6 +1027,16 @@ def prompt_micro_demo_observation(state: SessionState) -> ObservationRecord:
         if record.observed_direction and record.safety_status:
             return record
         print("micro demo 每一步都必须记录 observed_direction 和 safety_status。")
+
+
+def prompt_tilt_micro_demo_observation(state: SessionState) -> ObservationRecord:
+    while True:
+        record = prompt_structured_relative_observation(state, REL_DIRECTION_MENU)
+        if record.user_observation == "observation_skipped_command_redirect":
+            return record
+        if record.observed_direction and record.safety_status:
+            return record
+        print("tilt micro demo 每一步都必须记录 observed_direction 和 safety_status。")
 
 
 def prompt_structured_relative_observation(
@@ -1046,6 +1238,20 @@ def execute_ik(arm, command: IkCommand, args: argparse.Namespace, state: Session
     return status, error, duration_s
 
 
+def execute_wrist_roll_step(robot, wrist_roll: float, args: argparse.Namespace, state: SessionState) -> tuple[str, str, float]:
+    start_time = time.perf_counter()
+    status = "dry_run" if state.dry_run else "ok"
+    error = ""
+    vprint(args, f"[verbose] call: robot.left_arm.set_wrist_roll({wrist_roll:.6f}, block=True)")
+    try:
+        robot.left_arm.set_wrist_roll(wrist_roll, block=True)
+    except Exception as exc:  # pragma: no cover - only hit with real SDK/runtime errors
+        status = "error"
+        error = str(exc)
+    duration_s = time.perf_counter() - start_time
+    return status, error, duration_s
+
+
 def resolve_observation(
     command: IkCommand,
     args: argparse.Namespace,
@@ -1062,10 +1268,10 @@ def resolve_observation(
             return ObservationRecord(
                 user_observation="dry_run",
                 observed_direction="dry_run"
-                if command.command_type in {"axis", "rel", "relative_micro_demo"}
+                if command.command_type in {"axis", "rel", "relative_micro_demo", "tilt_micro_demo"}
                 else "",
                 safety_status="safe"
-                if command.command_type in {"axis", "rel", "relative_micro_demo"}
+                if command.command_type in {"axis", "rel", "relative_micro_demo", "tilt_micro_demo"}
                 else "",
             )
         return ObservationRecord()
@@ -1081,6 +1287,8 @@ def resolve_observation(
         return prompt_rel_observation(state)
     if command.command_type == "relative_micro_demo":
         return prompt_micro_demo_observation(state)
+    if command.command_type == "tilt_micro_demo":
+        return prompt_tilt_micro_demo_observation(state)
     if command.abs_mode:
         user_observation = prompt_abs_observation(state)
     else:
@@ -1105,6 +1313,12 @@ def observation_record_from_preset(command: IkCommand, preset_observation: str) 
             safety_status="safe",
         )
     if command.command_type == "relative_micro_demo" and preset_observation == "dry_run":
+        return ObservationRecord(
+            user_observation=preset_observation,
+            observed_direction="dry_run",
+            safety_status="safe",
+        )
+    if command.command_type == "tilt_micro_demo" and preset_observation == "dry_run":
         return ObservationRecord(
             user_observation=preset_observation,
             observed_direction="dry_run",
@@ -1218,6 +1432,96 @@ def relative_observation_entry(
     }
 
 
+def tilt_step_observation_entry(
+    result: TrialResult,
+    label: str,
+    kind: str,
+    observation: str,
+    observed_direction: str,
+    safety_status: str,
+    dry_run: bool,
+) -> dict[str, str]:
+    if dry_run and not observed_direction:
+        observed_direction = "dry_run"
+    return {
+        "trial_id": result.trial_id,
+        "label": label,
+        "kind": kind,
+        "observed_direction": observed_direction or "-",
+        "safety_status": safety_status or "unknown",
+        "effect": relative_effect_from_observation(
+            observed_direction,
+            safety_status,
+            dry_run,
+        ),
+        "user_observation": observation or "-",
+    }
+
+
+def record_tilt_step_result(
+    state: SessionState,
+    *,
+    label: str,
+    kind: str,
+    abs_mode: Optional[bool],
+    x: Optional[float],
+    y: Optional[float],
+    z: Optional[float],
+    roll: Optional[float],
+    pitch: Optional[float],
+    yaw: Optional[float],
+    block: Optional[bool],
+    status: str,
+    error: str = "",
+    duration_s: float = 0.0,
+    observation: Optional[ObservationRecord] = None,
+    note: str = "",
+) -> TrialResult:
+    observation = observation or ObservationRecord()
+    safety_status = observation.safety_status or parse_observation_safety(
+        observation.user_observation
+    )
+    if observation.observed_direction == "危险/中止":
+        safety_status = "unsafe"
+    result = record_result(
+        state,
+        arm=state.arm_name,
+        command_type="tilt_micro_demo",
+        abs_mode=abs_mode,
+        x=x,
+        y=y,
+        z=z,
+        roll=roll,
+        pitch=pitch,
+        yaw=yaw,
+        block=block,
+        status=compose_result_status(status, normalize_safety_for_status(safety_status)),
+        error=error,
+        duration_s=duration_s,
+        user_observation=observation.user_observation,
+        observed_direction=observation.observed_direction,
+        safety_status=safety_status,
+        note=note,
+    )
+    state.tilt_micro_demo_results.append(
+        tilt_step_observation_entry(
+            result,
+            label,
+            kind,
+            observation.user_observation,
+            observation.observed_direction,
+            safety_status,
+            state.dry_run,
+        )
+    )
+    normalized_safety = normalize_safety_for_status(safety_status)
+    if normalized_safety == "unsafe" or observation.user_observation in RISK_OBSERVATIONS:
+        state.risk_detected = True
+        state.stop_requested = True
+        print_unsafe_warning()
+    return result
+
+
 def update_state_after_command(
     command: IkCommand,
     result: TrialResult,
@@ -1287,7 +1591,7 @@ def update_state_after_command(
             state.stop_requested = True
             if not already_risky:
                 print_unsafe_warning()
-    if command.command_type in {"rel", "relative_micro_demo"}:
+    if command.command_type in {"rel", "relative_micro_demo", "tilt_micro_demo"}:
         state.rel_attempted = True
         observed_direction = result.observed_direction
         rel_entry = relative_observation_entry(
@@ -1301,6 +1605,8 @@ def update_state_after_command(
         state.rel_observations.append(rel_entry)
         if command.command_type == "relative_micro_demo":
             state.micro_demo_results.append(rel_entry)
+        if command.command_type == "tilt_micro_demo":
+            state.tilt_micro_demo_results.append(rel_entry)
         if not state.dry_run and (
             observed_direction == "危险/中止" or normalized_safety == "unsafe"
         ):
@@ -1917,6 +2223,14 @@ def micro_demo_status_text(state: SessionState) -> str:
     return "NOT RUN"
 
 
+def tilt_micro_demo_status_text(state: SessionState) -> str:
+    if state.tilt_micro_demo_passed:
+        return "PASS"
+    if state.tilt_micro_demo_attempted:
+        return "FAIL"
+    return "NOT RUN"
+
+
 def print_micro_demo_summary(state: SessionState) -> None:
     print("[MICRO DEMO SUMMARY]")
     print("step                         observed      safety   effect")
@@ -1941,6 +2255,265 @@ def print_micro_demo_summary(state: SessionState) -> None:
     print("  summary")
 
 
+def print_tilt_micro_demo_safety_notice(args: argparse.Namespace) -> None:
+    print("当前为空载轻微倾斜测试。")
+    print("不要夹奶壶。")
+    print("不要放杯子。")
+    print("不要放液体。")
+    print("第一次 tilt_wrist_roll 不建议超过 0.3 rad。")
+    if args.tilt_wrist_roll > 0.3:
+        print(f"当前 tilt_wrist_roll={args.tilt_wrist_roll:.3f} rad，请人工复核。")
+    print("出现撞、卡、抖、异响，立即停止。")
+
+
+def print_tilt_micro_demo_summary(state: SessionState) -> None:
+    print("[TILT MICRO DEMO SUMMARY]")
+    print("step                         observed      safety   effect")
+    for entry in state.tilt_micro_demo_results:
+        label = entry.get("label", "-")
+        observed = entry.get("observed_direction", "-")
+        safety = format_axis_safety_label(entry.get("safety_status", "unknown"))
+        effect = entry.get("effect", "unknown")
+        print(f"{label:<28} {observed:<12} {safety:<8} {effect}")
+    print("")
+    print(f"tilt_micro_demo: {tilt_micro_demo_status_text(state)}")
+    if state.risk_detected:
+        print("结论：检测到非 safe 安全状态，已停止后续 tilt demo。")
+        print("推荐下一步：")
+        print("  stop")
+        return
+    if state.tilt_micro_demo_passed:
+        print("结论：tilt micro demo 已完成。")
+    else:
+        print("结论：tilt micro demo 未完整通过。")
+    print("推荐下一步：")
+    print("  summary")
+
+
+def tilt_step_call_repr(step: TiltDemoStep) -> str:
+    if step.kind == "wrist_roll":
+        return f"robot.left_arm.set_wrist_roll({step.wrist_roll:.6f}, block=True)"
+    if step.command is not None:
+        return step.command.call_repr()
+    return "-"
+
+
+def tilt_step_plan_text(step: TiltDemoStep) -> str:
+    if step.kind == "wrist_roll":
+        return f"wrist_roll={step.wrist_roll:+.3f} rad"
+    if step.command is not None:
+        return format_delta_short(step.command)
+    return "-"
+
+
+def execute_tilt_micro_demo_step(
+    robot,
+    arm,
+    step: TiltDemoStep,
+    args: argparse.Namespace,
+    state: SessionState,
+    *,
+    preset_observation: Optional[str] = None,
+) -> TrialResult:
+    if step.kind == "relative_ik":
+        if step.command is None:
+            raise ValueError("tilt relative IK step 缺少 command")
+        return run_logged_command(
+            arm,
+            step.command,
+            args,
+            state,
+            preset_observation=preset_observation,
+        )
+    if step.kind != "wrist_roll":
+        raise ValueError(f"未知 tilt step 类型: {step.kind}")
+
+    sdk_status, error, duration_s = execute_wrist_roll_step(
+        robot,
+        step.wrist_roll,
+        args,
+        state,
+    )
+    if preset_observation is not None:
+        observation = ObservationRecord(
+            user_observation=preset_observation,
+            observed_direction="dry_run",
+            safety_status="safe",
+        )
+    elif should_prompt_observation(args, state):
+        observation = prompt_tilt_micro_demo_observation(state)
+    elif state.dry_run:
+        observation = ObservationRecord(
+            user_observation="dry_run",
+            observed_direction="dry_run",
+            safety_status="safe",
+        )
+    else:
+        observation = ObservationRecord()
+    return record_tilt_step_result(
+        state,
+        label=step.label,
+        kind=step.kind,
+        abs_mode=None,
+        x=None,
+        y=None,
+        z=None,
+        roll=step.wrist_roll,
+        pitch=None,
+        yaw=None,
+        block=True,
+        status=sdk_status,
+        error=error,
+        duration_s=duration_s,
+        observation=observation,
+        note=f"left arm unloaded tilt micro demo {step.label}",
+    )
+
+
+def make_tilt_confirmation_command(step: TiltDemoStep, state: SessionState) -> IkCommand:
+    if step.command is not None:
+        return step.command
+    return IkCommand(
+        arm=state.arm_name,
+        command_type="tilt_micro_demo",
+        abs_mode=False,
+        x=0.0,
+        y=0.0,
+        z=0.0,
+        roll=step.wrist_roll,
+        pitch=0.0,
+        yaw=0.0,
+    )
+
+
+def record_tilt_skipped_step(state: SessionState, step: TiltDemoStep) -> TrialResult:
+    return record_tilt_step_result(
+        state,
+        label=step.label,
+        kind=step.kind,
+        abs_mode=step.command.abs_mode if step.command is not None else None,
+        x=step.command.x if step.command is not None else None,
+        y=step.command.y if step.command is not None else None,
+        z=step.command.z if step.command is not None else None,
+        roll=step.command.roll if step.command is not None else step.wrist_roll,
+        pitch=step.command.pitch if step.command is not None else None,
+        yaw=step.command.yaw if step.command is not None else None,
+        block=True,
+        status="skipped",
+        error="user_declined_confirmation",
+        note=f"left arm unloaded tilt micro demo {step.label}",
+    )
+
+
+def execute_tilt_micro_demo(robot, arm, args: argparse.Namespace, state: SessionState) -> None:
+    if state.arm_name != "left":
+        print("tilt micro demo 仅用于左臂空载验证；请使用 --arm left。")
+        update_last_recommendation(state)
+        return
+    if state.risk_detected:
+        print("检测到不安全动作，停止 IK 调试。")
+        print("不要继续 tilt micro demo；请退出并检查机器人姿态/日志。")
+        return
+
+    steps = build_tilt_micro_demo_steps(
+        state.arm_name,
+        tilt_wrist_roll=args.tilt_wrist_roll,
+        swing_delta_x=args.tilt_swing_dx,
+        lift_delta_z=args.tilt_lift_dz,
+        cycles=args.tilt_cycles,
+    )
+    for step in steps:
+        if step.command is not None:
+            validate_relative_command(step.command, args)
+
+    state.tilt_micro_demo_attempted = True
+    state.tilt_micro_demo_passed = False
+    state.tilt_micro_demo_results.clear()
+    print("[TILT MICRO DEMO] 左臂空载轻微倾斜 + relative IK 小摆")
+    print(
+        f"tilt_wrist_roll={args.tilt_wrist_roll:.3f}rad | "
+        f"tilt_swing_dx={args.tilt_swing_dx:.3f}m | "
+        f"tilt_lift_dz={args.tilt_lift_dz:.3f}m | "
+        f"tilt_cycles={args.tilt_cycles}"
+    )
+    print_tilt_micro_demo_safety_notice(args)
+
+    if state.dry_run:
+        print("mode=dry-run：只打印计划，不连接机器人。")
+        step_results: list[tuple[str, bool]] = []
+        for index, step in enumerate(steps, start=1):
+            result = execute_tilt_micro_demo_step(
+                robot,
+                arm,
+                step,
+                args,
+                state,
+                preset_observation="dry_run",
+            )
+            passed = sdk_status_ok(result.status)
+            step_results.append((step.label, passed))
+            print(f"  plan {index}/{len(steps)}: {tilt_step_plan_text(step)}")
+            print(f"    call: {tilt_step_call_repr(step)}")
+        state.tilt_micro_demo_passed = all(passed for _, passed in step_results)
+        print("")
+        print("[TILT MICRO DEMO DRY-RUN]")
+        for index, (label, passed) in enumerate(step_results, start=1):
+            dots = "." * max(1, 28 - len(label))
+            print(f"  {index}/{len(step_results)} {label} {dots} {'PASS' if passed else 'FAIL'}")
+        print(f"tilt_micro_demo: {tilt_micro_demo_status_text(state)}")
+        print(f"日志：{pretty_path(state.log_path)}")
+        update_last_recommendation(state)
+        return
+
+    print("")
+    print("实机执行要求：每一步都单独确认，任一步 safety_status != safe 将立即停止。")
+    for index, step in enumerate(steps, start=1):
+        print(f"[TILT MICRO DEMO {index}/{len(steps)}] {step.label}")
+        print(f"target: {tilt_step_plan_text(step)}")
+        print("本步将调用：")
+        print(tilt_step_call_repr(step))
+        print("")
+        print("检查：")
+        print("1. 左臂空载")
+        print("2. 不夹奶壶、不放杯子、不放液体")
+        print("3. 周围无遮挡，急停可触达")
+        print("4. 出现撞、卡、抖、异响，立即停止")
+        print("")
+        if not confirm_rel_execute(
+            make_tilt_confirmation_command(step, state),
+            args,
+            "确认执行本步？Enter=执行，q=停止 tilt micro demo\n",
+        ):
+            record_tilt_skipped_step(state, step)
+            print("result: SKIP")
+            break
+
+        result = execute_tilt_micro_demo_step(robot, arm, step, args, state)
+        safety_status = normalize_safety_for_status(
+            result.safety_status or parse_observation_safety(result.user_observation)
+        )
+        if safety_status != "safe":
+            state.risk_detected = True
+            state.stop_requested = True
+            print("tilt micro demo 已停止：本步 safety_status != safe。")
+            break
+        if result.user_observation == "observation_skipped_command_redirect":
+            break
+        if state.pending_line is not None:
+            break
+
+    state.tilt_micro_demo_passed = (
+        len(state.tilt_micro_demo_results) == len(steps)
+        and not state.risk_detected
+        and all(
+            normalize_safety_for_status(entry.get("safety_status", "unknown")) == "safe"
+            for entry in state.tilt_micro_demo_results
+        )
+    )
+    print_tilt_micro_demo_summary(state)
+    update_last_recommendation(state)
+
+
 def execute_micro_demo(arm, args: argparse.Namespace, state: SessionState) -> None:
     if state.arm_name != "left":
         print("micro demo 仅用于左臂空载验证；请使用 --arm left。")
@@ -1951,7 +2524,12 @@ def execute_micro_demo(arm, args: argparse.Namespace, state: SessionState) -> No
         print("不要继续 micro demo；请退出并检查机器人姿态/日志。")
         return
 
-    commands = build_micro_demo_commands(state.arm_name)
+    commands = build_micro_demo_commands(
+        state.arm_name,
+        swing_delta_x=args.micro_swing_dx,
+        lift_delta_z=args.micro_lift_dz,
+        cycles=args.micro_cycles,
+    )
     for command in commands:
         validate_relative_command(command, args)
 
@@ -1960,9 +2538,9 @@ def execute_micro_demo(arm, args: argparse.Namespace, state: SessionState) -> No
     state.micro_demo_results.clear()
     print("[MICRO DEMO] 左臂空载 relative IK 小轨迹")
     print(
-        f"swing_delta_x={DEFAULT_MICRO_DEMO_SWING_DELTA_X:.3f}m | "
-        f"lift_delta_z={DEFAULT_MICRO_DEMO_LIFT_DELTA_Z:.3f}m | "
-        f"cycles={DEFAULT_MICRO_DEMO_CYCLES}"
+        f"swing_delta_x={args.micro_swing_dx:.3f}m | "
+        f"lift_delta_z={args.micro_lift_dz:.3f}m | "
+        f"cycles={args.micro_cycles}"
     )
     print("仅调用 arm.ik(..., block=True, abs=False)，不包含 wrist_roll/夹取/倒奶/放杯动作。")
 
@@ -2283,14 +2861,14 @@ def get_menu_recommendation(state: SessionState) -> tuple[str, str]:
         if state.dry_run:
             return "4", "运行左臂空载小轨迹 micro demo"
         if can_save_safe_point(state) and not state.saved_candidate_names:
-            return "6", f"保存当前相对调试结果 {default_save_name(state)}"
+            return "7", f"保存当前相对调试结果 {default_save_name(state)}"
         if (state.axis_completed or state.rel_attempted) and state.saved_candidate_names:
             return "0", "已保存 relative_axis_result，可以退出"
         if state.axis_attempted or state.rel_attempted:
-            return "5", "查看当前摘要 summary"
+            return "6", "查看当前摘要 summary"
         if not state.axis_completed:
             return "2", "先测试 XYZ 小步方向 axis 0.003"
-        return "5", "查看当前摘要 summary"
+        return "6", "查看当前摘要 summary"
     if state.ik_control_mode == "absolute":
         if not state.abs_ok:
             return "1", "谨慎测试绝对 IK 点"
@@ -2396,6 +2974,7 @@ def print_summary(state: SessionState) -> None:
     if state.risk_detected:
         print("risk: DETECTED")
         print(f"micro_demo: {micro_demo_status_text(state)}")
+        print(f"tilt_micro_demo: {tilt_micro_demo_status_text(state)}")
         if state.ik_control_mode == "relative":
             print("relative_mode: ENABLED")
             print("axis probe: BLOCKED")
@@ -2417,6 +2996,7 @@ def print_summary(state: SessionState) -> None:
         print("checks:")
         print(f"  last_relative_step: {relative_record_status_text(state)}")
         print(f"  micro_demo: {micro_demo_status_text(state)}")
+        print(f"  tilt_micro_demo: {tilt_micro_demo_status_text(state)}")
         print(f"  relative axis: {axis_status_text(state)}")
         print("  usable_relative_axes:")
         for axis_name in ("X", "Y", "Z"):
@@ -2437,6 +3017,7 @@ def print_summary(state: SessionState) -> None:
     print(f"  dry-run demo: {demo_status_text(state)}")
     print(f"  abs anchor: {'PASS' if state.anchor_ready else abs_status_text(state)}")
     print(f"  micro_demo: {micro_demo_status_text(state)}")
+    print(f"  tilt_micro_demo: {tilt_micro_demo_status_text(state)}")
     print(f"  relative axis: {'PASS' if state.relative_steps_ok else axis_status_text(state)}")
     print(f"  saved point: {'YES' if state.saved_candidate_names else 'NO'}")
     print(f"  risk: {'DETECTED' if state.risk_detected else 'NONE'}")
@@ -2457,7 +3038,8 @@ def print_help() -> None:
     print("    2. 实机 axis 0.003")
     print("    3. 逐步记录实际方向和安全状态")
     print("    4. 运行左臂空载小轨迹 micro demo")
-    print("    5. 再手动 rel 小步调试")
+    print("    5. 运行左臂空载轻微倾斜 tilt micro demo")
+    print("    6. 再手动 rel 小步调试")
     print("")
     print("absolute 模式：")
     print("  用 abs=True 测试绝对位姿，风险更高。")
@@ -2474,8 +3056,9 @@ def print_help() -> None:
     print("  2 -> 选择观察结果")
     print("  3 -> 逐步记录方向")
     print("  4 -> 每步确认执行左臂空载 micro demo")
-    print("  5 -> 检查 summary")
-    print("  6 -> 保存 relative_axis_result")
+    print("  5 -> 每步确认执行左臂空载 tilt micro demo")
+    print("  6 -> 检查 summary")
+    print("  7 -> 保存 relative_axis_result")
     print("  0 -> 退出")
     print("")
     print("危险情况：")
@@ -2488,6 +3071,7 @@ def print_help() -> None:
     print("  abs x y z r p y")
     print("  rel dx dy dz dr dp dy")
     print("  micro_demo")
+    print("  tilt_micro_demo")
     print("  status")
     print("  last")
     print("  note text")
@@ -2504,9 +3088,10 @@ def print_menu(state: SessionState) -> None:
         print(f"  2. 测试 XYZ 小步方向 axis {DEFAULT_AXIS_DELTA:.3f}")
         print("  3. 手动相对移动 rel")
         print("  4. 运行左臂空载小轨迹 micro demo")
-        print("  5. 查看当前摘要 summary")
-        print("  6. 保存当前相对调试结果 save")
-        print("  7. 切换控制方式")
+        print("  5. 运行左臂空载轻微倾斜 tilt micro demo")
+        print("  6. 查看当前摘要 summary")
+        print("  7. 保存当前相对调试结果 save")
+        print("  8. 切换控制方式")
         print("  0. 退出")
     elif state.ik_control_mode == "absolute":
         print("  1. 尝试 README 绝对 IK 点 readme_abs")
@@ -2546,14 +3131,16 @@ def command_from_menu_choice(choice: str, state: SessionState) -> Optional[str]:
         if choice == "4":
             return "micro_demo"
         if choice == "5":
-            return "summary"
+            return "tilt_micro_demo"
         if choice == "6":
+            return "summary"
+        if choice == "7":
             if not can_save_safe_point(state):
                 print("当前没有可保存的安全结果，或已经检测到风险，不能保存。")
                 update_last_recommendation(state)
                 return None
             return f"save {prompt_save_name(state)}"
-        if choice == "7":
+        if choice == "8":
             return "__switch_mode__"
         if choice == "0":
             return "quit"
@@ -2619,11 +3206,19 @@ def print_status(args: argparse.Namespace, state: SessionState) -> None:
     print(f"last_error: {state.last_error or '-'}")
     print(f"relative_steps_ok: {state.relative_steps_ok}")
     print(f"micro_demo: {micro_demo_status_text(state)}")
+    print(f"tilt_micro_demo: {tilt_micro_demo_status_text(state)}")
     if state.axis_attempted:
         print("usable_relative_axes:")
         for axis_name in ("X", "Y", "Z"):
             print(f"  {axis_name}: {usable_relative_axis_status(state, axis_name)}")
     print(f"max_delta: {args.max_delta}")
+    print(f"micro_swing_dx: {args.micro_swing_dx}")
+    print(f"micro_lift_dz: {args.micro_lift_dz}")
+    print(f"micro_cycles: {args.micro_cycles}")
+    print(f"tilt_wrist_roll: {args.tilt_wrist_roll}")
+    print(f"tilt_swing_dx: {args.tilt_swing_dx}")
+    print(f"tilt_lift_dz: {args.tilt_lift_dz}")
+    print(f"tilt_cycles: {args.tilt_cycles}")
     print(f"allow_large_delta: {args.allow_large_delta}")
     print(f"allow_large_rotation: {args.allow_large_rotation}")
     print(f"ask_observation_dry_run: {args.ask_observation_dry_run}")
@@ -2715,6 +3310,7 @@ def print_exit_summary(state: SessionState) -> None:
 
 def process_repl_command(
     line: str,
+    robot,
     arm,
     args: argparse.Namespace,
     state: SessionState,
@@ -2781,6 +3377,15 @@ def process_repl_command(
             return True
         try:
             execute_micro_demo(arm, args, state)
+        except ValueError as exc:
+            print(f"参数错误: {exc}")
+        return True
+    if command_name == "tilt_micro_demo":
+        if not ensure_relative_motion_allowed(arm, args, state):
+            update_last_recommendation(state)
+            return True
+        try:
+            execute_tilt_micro_demo(robot, arm, args, state)
         except ValueError as exc:
             print(f"参数错误: {exc}")
         return True
@@ -2917,7 +3522,7 @@ def process_repl_command(
     return True
 
 
-def repl_loop(arm, args: argparse.Namespace, state: SessionState) -> None:
+def repl_loop(robot, arm, args: argparse.Namespace, state: SessionState) -> None:
     while not state.stop_requested:
         try:
             if state.pending_line is not None:
@@ -2944,7 +3549,7 @@ def repl_loop(arm, args: argparse.Namespace, state: SessionState) -> None:
             if mapped_command is None:
                 continue
             line = mapped_command
-        should_continue = process_repl_command(line, arm, args, state)
+        should_continue = process_repl_command(line, robot, arm, args, state)
         if not should_continue:
             break
 
@@ -3036,7 +3641,7 @@ def main() -> int:
     print(f"log: {pretty_path(state.log_path)}")
     if args.expert:
         print(f"当前阶段：{current_stage_text(state)}")
-        print("expert 模式：可直接输入 demo / micro_demo / readme_abs / axis / rel / summary / mode ... / quit")
+        print("expert 模式：可直接输入 demo / micro_demo / tilt_micro_demo / readme_abs / axis / rel / summary / mode ... / quit")
 
     robot = None
     try:
@@ -3044,7 +3649,7 @@ def main() -> int:
         if robot is None:
             return 0
         arm = select_arm(robot, args.arm)
-        repl_loop(arm, args, state)
+        repl_loop(robot, arm, args, state)
         print_exit_summary(state)
     except KeyboardInterrupt:
         print("\n捕获 Ctrl-C，尝试停止机器人并断开连接。")
