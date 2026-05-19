@@ -1,0 +1,12 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,observed_direction,safety_status,user_observation,note
+2026-05-19T14:42:15+08:00,T0001,left,rel,false,0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.133030,向身体内侧,safe,direction=向身体内侧; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:42:48+08:00,T0002,left,rel,false,0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030772,向身体内侧,safe,direction=向身体内侧; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:43:09+08:00,T0003,left,rel,false,-0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030398,向身体外侧,safe,direction=向身体外侧; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:43:41+08:00,T0004,left,rel,false,0.000000,0.000000,-0.003000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030680,向下,safe,direction=向下; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:44:00+08:00,T0005,left,rel,false,0.000000,0.000000,-0.003000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030439,向下,safe,direction=向下; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:44:22+08:00,T0006,left,rel,false,0.000000,0.000000,0.003000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.029392,向上,safe,direction=向上; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:44:40+08:00,T0007,left,rel,false,0.000000,0.000000,0.003000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030439,向上,safe,direction=向上; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:44:56+08:00,T0008,left,rel,false,0.000000,0.000000,0.003000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.031281,向上,safe,direction=向上; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:45:23+08:00,T0009,left,rel,false,0.000000,0.003000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030048,向前,safe,direction=向前; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T14:45:34+08:00,T0010,left,rel,false,0.000000,0.005000,0.000000,0.000000,0.000000,0.000000,true,rejected,dy=0.005000 超过 --max-delta=0.003000；如确需执行，请显式传入 --allow-large-delta。,0.000000,,,,manual relative delta
+2026-05-19T14:46:00+08:00,T0011,left,rel,false,0.000000,0.003000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030460,向前,safe,direction=向前; safety=safe; note=安全、平稳,manual relative delta

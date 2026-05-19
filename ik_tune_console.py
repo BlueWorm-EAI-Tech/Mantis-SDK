@@ -113,6 +113,17 @@ AXIS_SAFETY_DESCRIPTIONS = {
     "blocked": "卡住/顶住",
     "uncertain": "不确定",
 }
+REL_DIRECTION_MENU = {
+    "1": "向身体内侧",
+    "2": "向身体外侧",
+    "3": "向前",
+    "4": "向后",
+    "5": "向上",
+    "6": "向下",
+    "7": "几乎不动",
+    "8": "方向不确定",
+    "9": "危险/中止",
+}
 EXPECTED_AXIS_DIRECTIONS = {
     "+X": "向身体内侧",
     "-X": "向身体外侧",
@@ -258,6 +269,8 @@ class SessionState:
     axis_observed_directions: dict[str, str] = field(default_factory=dict)
     axis_safety_statuses: dict[str, str] = field(default_factory=dict)
     axis_results: dict[str, str] = field(default_factory=dict)
+    rel_attempted: bool = False
+    rel_observations: list[dict[str, str]] = field(default_factory=list)
     risk_detected: bool = False
     saved_candidate_path: Optional[Path] = None
     last_error: str = ""
@@ -440,9 +453,13 @@ def compose_result_status(sdk_status: str, safety_status: str) -> str:
 def normalize_safety_for_status(safety_status: str) -> str:
     if safety_status == "safe":
         return "safe"
-    if safety_status in {"unsafe", "jitter", "blocked"}:
+    if safety_status in {"unsafe", "jitter", "blocked", "danger"}:
         return "unsafe"
     return "unknown"
+
+
+def safety_is_savable(safety_status: str) -> bool:
+    return normalize_safety_for_status(safety_status) == "safe"
 
 
 def print_unsafe_warning() -> None:
@@ -741,13 +758,30 @@ def prompt_abs_observation(state: SessionState) -> str:
 
 
 def prompt_axis_observation(state: SessionState) -> ObservationRecord:
+    return prompt_structured_relative_observation(state, AXIS_DIRECTION_MENU)
+
+
+def prompt_rel_observation(state: SessionState) -> ObservationRecord:
+    return prompt_structured_relative_observation(state, REL_DIRECTION_MENU)
+
+
+def prompt_structured_relative_observation(
+    state: SessionState,
+    direction_menu: dict[str, str],
+) -> ObservationRecord:
     print("实际运动方向：")
     print("  1 = 向身体内侧")
     print("  2 = 向身体外侧")
-    print("  3 = 向左")
-    print("  4 = 向右")
-    print("  5 = 向上")
-    print("  6 = 向下")
+    if direction_menu is AXIS_DIRECTION_MENU:
+        print("  3 = 向左")
+        print("  4 = 向右")
+        print("  5 = 向上")
+        print("  6 = 向下")
+    else:
+        print("  3 = 向前")
+        print("  4 = 向后")
+        print("  5 = 向上")
+        print("  6 = 向下")
     print("  7 = 几乎不动")
     print("  8 = 方向不确定")
     print("  9 = 危险/中止")
@@ -757,7 +791,7 @@ def prompt_axis_observation(state: SessionState) -> ObservationRecord:
     redirected = maybe_redirect_commandlike_input(user_input, state)
     if redirected is not None:
         return ObservationRecord(user_observation=redirected)
-    observed_direction = AXIS_DIRECTION_MENU.get(user_input, user_input)
+    observed_direction = direction_menu.get(user_input, user_input)
 
     print("安全状态：")
     print("  1 = 安全、平稳")
@@ -945,8 +979,12 @@ def resolve_observation(
         if state.dry_run:
             return ObservationRecord(
                 user_observation="dry_run",
-                observed_direction="dry_run" if command.command_type == "axis" else "",
-                safety_status="safe" if command.command_type == "axis" else "",
+                observed_direction="dry_run"
+                if command.command_type in {"axis", "rel"}
+                else "",
+                safety_status="safe"
+                if command.command_type in {"axis", "rel"}
+                else "",
             )
         return ObservationRecord()
     if state.dry_run:
@@ -957,6 +995,8 @@ def resolve_observation(
         )
     if command.command_type == "axis":
         return prompt_axis_observation(state)
+    if command.command_type == "rel":
+        return prompt_rel_observation(state)
     if command.abs_mode:
         user_observation = prompt_abs_observation(state)
     else:
@@ -969,6 +1009,12 @@ def resolve_observation(
 
 def observation_record_from_preset(command: IkCommand, preset_observation: str) -> ObservationRecord:
     if command.command_type == "axis" and preset_observation.startswith("dry_run_axis_"):
+        return ObservationRecord(
+            user_observation=preset_observation,
+            observed_direction="dry_run",
+            safety_status="safe",
+        )
+    if command.command_type == "rel" and preset_observation == "dry_run":
         return ObservationRecord(
             user_observation=preset_observation,
             observed_direction="dry_run",
@@ -1020,6 +1066,41 @@ def axis_all_ok(state: SessionState) -> bool:
         state.axis_results[label] in {"moved", "no_effect"}
         for label in expected_labels
     )
+
+
+def rel_command_axis(command: IkCommand) -> str:
+    components = [
+        ("X", abs(command.x)),
+        ("Y", abs(command.y)),
+        ("Z", abs(command.z)),
+    ]
+    axis_name, magnitude = max(components, key=lambda item: item[1])
+    if magnitude <= 0.0:
+        return "unknown"
+    return axis_name
+
+
+def relative_effect_from_observation(
+    observed_direction: str,
+    safety_status: str,
+    dry_run: bool,
+) -> str:
+    if dry_run:
+        return "moved"
+    if observed_direction == "危险/中止":
+        return "unsafe"
+    normalized_safety = normalize_safety_for_status(safety_status)
+    if normalized_safety == "unsafe":
+        return "unsafe"
+    if normalized_safety == "unknown":
+        return "unknown"
+    if observed_direction == "几乎不动":
+        return "no_effect"
+    if observed_direction == "方向不确定":
+        return "unknown"
+    if observed_direction:
+        return "moved"
+    return "unknown"
 
 
 def update_state_after_command(
@@ -1091,8 +1172,38 @@ def update_state_after_command(
             state.stop_requested = True
             if not already_risky:
                 print_unsafe_warning()
-    if command.command_type == "rel" and sdk_status_ok(result.status) and observation in {"ok", "dry_run"}:
-        state.relative_steps_ok = True
+    if command.command_type == "rel":
+        state.rel_attempted = True
+        observed_direction = result.observed_direction
+        if state.dry_run and not observed_direction:
+            observed_direction = "dry_run"
+        rel_entry = {
+            "trial_id": result.trial_id,
+            "delta_axis": rel_command_axis(command),
+            "observed_direction": observed_direction or "-",
+            "safety_status": safety_status or "unknown",
+            "effect": relative_effect_from_observation(
+                observed_direction,
+                safety_status,
+                state.dry_run,
+            ),
+            "user_observation": observation or "-",
+        }
+        state.rel_observations.append(rel_entry)
+        if not state.dry_run and (
+            observed_direction == "危险/中止" or normalized_safety == "unsafe"
+        ):
+            already_risky = state.risk_detected
+            state.risk_detected = True
+            state.stop_requested = True
+            if not already_risky:
+                print_unsafe_warning()
+        elif (
+            sdk_status_ok(result.status)
+            and safety_status == "safe"
+            and observed_direction != "危险/中止"
+        ):
+            state.relative_steps_ok = True
 
 
 def prompt_switch_control_mode(state: SessionState) -> bool:
@@ -1500,6 +1611,68 @@ def summarize_axis_pair(state: SessionState, axis_name: str) -> str:
     return "partial, " + ", ".join(parts)
 
 
+def axis_pair_overall_status(state: SessionState, axis_name: str) -> str:
+    plus = state.axis_results.get(f"+{axis_name}", "missing")
+    minus = state.axis_results.get(f"-{axis_name}", "missing")
+    results = [plus, minus]
+    if any(result == "danger" for result in results):
+        return "unsafe"
+    if any(result in {"missing", "review", "redirected", "direction_uncertain"} for result in results):
+        return "unknown"
+    if any(result == "moved" for result in results):
+        return "usable"
+    if results and all(result == "no_effect" for result in results):
+        return "no_effect"
+    return "unknown"
+
+
+def rel_axis_status(state: SessionState, axis_name: str) -> str:
+    relevant = [
+        entry for entry in state.rel_observations
+        if entry.get("delta_axis") == axis_name
+    ]
+    if not relevant:
+        return "unknown"
+    effects = [entry.get("effect", "unknown") for entry in relevant]
+    if "unsafe" in effects:
+        return "unsafe"
+    if "unknown" in effects:
+        return "unknown"
+    if "moved" in effects:
+        return "usable"
+    if effects and all(effect == "no_effect" for effect in effects):
+        return "no_effect"
+    return "unknown"
+
+
+def usable_relative_axis_status(state: SessionState, axis_name: str) -> str:
+    statuses: list[str] = []
+    if state.axis_attempted:
+        statuses.append(axis_pair_overall_status(state, axis_name))
+    if state.rel_observations:
+        statuses.append(rel_axis_status(state, axis_name))
+    if not statuses:
+        return "unknown"
+    if "unsafe" in statuses:
+        return "unsafe"
+    if "unknown" in statuses:
+        return "unknown"
+    if "usable" in statuses:
+        return "usable"
+    if statuses and all(status == "no_effect" for status in statuses):
+        return "no_effect"
+    return "unknown"
+
+
+def relative_axes_save_ready(state: SessionState) -> bool:
+    if state.risk_detected:
+        return False
+    if not state.axis_attempted and not state.rel_attempted:
+        return False
+    statuses = [usable_relative_axis_status(state, axis_name) for axis_name in ("X", "Y", "Z")]
+    return bool(statuses) and all(status in {"usable", "no_effect"} for status in statuses)
+
+
 def print_axis_summary(state: SessionState, delta: float) -> None:
     print("[AXIS SUMMARY]")
     print("cmd   observed      safety   effect")
@@ -1511,7 +1684,7 @@ def print_axis_summary(state: SessionState, delta: float) -> None:
     print("")
     print("usable_relative_axes:")
     for axis_name in ("X", "Y", "Z"):
-        print(f"  {axis_name}: {summarize_axis_pair(state, axis_name)}")
+        print(f"  {axis_name}: {usable_relative_axis_status(state, axis_name)}")
     print("")
     if state.risk_detected or any(
         state.axis_results.get(label) == "danger" for label in EXPECTED_AXIS_DIRECTIONS
@@ -1654,13 +1827,14 @@ def save_candidate(name: str, state: SessionState) -> TrialResult:
             "ik_control_mode": "relative",
             "result_type": "relative_axis_result",
             "usable_relative_axes": {
-                axis_name: summarize_axis_pair(state, axis_name)
+                axis_name: usable_relative_axis_status(state, axis_name)
                 for axis_name in ("X", "Y", "Z")
             },
             "axis_observations": dict(state.axis_observations),
             "axis_observed_directions": dict(state.axis_observed_directions),
             "axis_safety_statuses": dict(state.axis_safety_statuses),
             "axis_results": dict(state.axis_results),
+            "rel_observations": list(state.rel_observations),
             "note": "relative axis direction and safety result",
         }
         SAFE_CANDIDATES_PATH.write_text(
@@ -1833,7 +2007,7 @@ def get_guide_lines(state: SessionState) -> list[str]:
 
 def can_save_safe_point(state: SessionState) -> bool:
     if state.ik_control_mode == "relative":
-        return bool(state.axis_completed and not state.risk_detected)
+        return relative_axes_save_ready(state)
     return bool(
         state.anchor_ready
         and not state.risk_detected
@@ -1850,8 +2024,10 @@ def get_menu_recommendation(state: SessionState) -> tuple[str, str]:
             return "2", "测试 XYZ 小步方向 axis 0.003"
         if can_save_safe_point(state) and not state.saved_candidate_names:
             return "5", f"保存当前相对调试结果 {default_save_name(state)}"
-        if state.axis_completed and state.saved_candidate_names:
+        if (state.axis_completed or state.rel_attempted) and state.saved_candidate_names:
             return "0", "已保存 relative_axis_result，可以退出"
+        if state.axis_attempted or state.rel_attempted:
+            return "4", "查看当前摘要 summary"
         if not state.axis_completed:
             return "2", "先测试 XYZ 小步方向 axis 0.003"
         return "4", "查看当前摘要 summary"
@@ -1871,8 +2047,10 @@ def get_menu_recommendation(state: SessionState) -> tuple[str, str]:
         return "2", "先做 readme_abs 空载验证"
     if can_save_safe_point(state) and not state.saved_candidate_names:
         return "5", f"保存当前相对调试结果 {default_save_name(state)}"
-    if state.axis_completed and state.saved_candidate_names:
+    if (state.axis_completed or state.rel_attempted) and state.saved_candidate_names:
         return "0", "已保存结果，可以退出"
+    if state.axis_attempted or state.rel_attempted:
+        return "4", "查看当前摘要 summary"
     if not state.axis_completed:
         return "3", "测试 XYZ 小步方向 axis 0.003"
     return "4", "查看当前摘要 summary"
@@ -1914,6 +2092,16 @@ def axis_status_text(state: SessionState) -> str:
         return "REVIEW"
     if state.axis_attempted:
         return "PARTIAL"
+    return "NOT RUN"
+
+
+def relative_record_status_text(state: SessionState) -> str:
+    if state.risk_detected:
+        return "UNSAFE"
+    if relative_axes_save_ready(state):
+        return "PASS"
+    if state.axis_attempted or state.rel_attempted:
+        return "REVIEW"
     return "NOT RUN"
 
 
@@ -1966,8 +2154,11 @@ def print_summary(state: SessionState) -> None:
         print("relative_mode: ENABLED")
         print("")
         print("checks:")
-        print(f"  last_relative_step: {axis_status_text(state)}")
+        print(f"  last_relative_step: {relative_record_status_text(state)}")
         print(f"  relative axis: {axis_status_text(state)}")
+        print("  usable_relative_axes:")
+        for axis_name in ("X", "Y", "Z"):
+            print(f"    {axis_name}: {usable_relative_axis_status(state, axis_name)}")
         print(f"  risk: {'DETECTED' if state.risk_detected else 'NONE'}")
         print(f"  saved result: {'YES' if state.saved_candidate_names else 'NO'}")
         print("")
@@ -2161,7 +2352,7 @@ def print_status(args: argparse.Namespace, state: SessionState) -> None:
     if state.axis_attempted:
         print("usable_relative_axes:")
         for axis_name in ("X", "Y", "Z"):
-            print(f"  {axis_name}: {summarize_axis_pair(state, axis_name)}")
+            print(f"  {axis_name}: {usable_relative_axis_status(state, axis_name)}")
     print(f"max_delta: {args.max_delta}")
     print(f"allow_large_delta: {args.allow_large_delta}")
     print(f"allow_large_rotation: {args.allow_large_rotation}")
@@ -2234,10 +2425,10 @@ def print_exit_summary(state: SessionState) -> None:
     print(f"log: {pretty_path(state.log_path)}")
     print(f"saved: {saved_text}")
     print(f"result: {result_text}")
-    if state.axis_attempted:
+    if state.axis_attempted or state.rel_attempted:
         print("usable_relative_axes:")
         for axis_name in ("X", "Y", "Z"):
-            print(f"  {axis_name}: {summarize_axis_pair(state, axis_name)}")
+            print(f"  {axis_name}: {usable_relative_axis_status(state, axis_name)}")
     if state.risk_detected:
         print("risk: DETECTED")
         if state.ik_control_mode == "relative":
