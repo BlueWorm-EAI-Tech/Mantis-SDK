@@ -31,13 +31,15 @@ DEFAULT_ROBOT_VERSION = "3.0"
 DEFAULT_MAX_DELTA = 0.005
 DEFAULT_MAX_ROTATION_DELTA = 0.05
 DEFAULT_AXIS_DELTA = 0.003
+CONTROL_MODE_CHOICES = ("relative", "absolute", "mixed")
 README_EXAMPLE_POSE = (0.5, 0.2, 0.3, 0.0, 0.0, 0.0)
 SAFE_CANDIDATES_PATH = PROJECT_ROOT / "logs" / "ik_safe_candidates.json"
-RISK_OBSERVATIONS = {"near_collision", "jitter", "abort", "危险/中止"}
+RISK_OBSERVATIONS = {"bad", "near_collision", "jitter", "abort", "危险/中止"}
 COMMAND_KEYWORDS = {
     "help",
     "guide",
     "demo",
+    "mode",
     "readme_abs",
     "abs",
     "rel",
@@ -190,8 +192,10 @@ class SessionState:
     log_path: Path
     dry_run: bool
     arm_name: str
+    ik_control_mode: str
     current_candidate_abs: Optional[IkCommand] = None
     last_ok_abs_command: Optional[IkCommand] = None
+    last_abs_ok_pose: Optional[IkCommand] = None
     last_result: Optional[TrialResult] = None
     pending_line: Optional[str] = None
     saved_candidate_names: list[str] = field(default_factory=list)
@@ -210,6 +214,9 @@ class SessionState:
     risk_detected: bool = False
     saved_candidate_path: Optional[Path] = None
     last_recommendation: str = ""
+    anchor_ready: bool = False
+    anchor_source: str = ""
+    relative_steps_ok: bool = False
 
     def next_trial_id(self) -> str:
         self.trial_counter += 1
@@ -275,6 +282,12 @@ def parse_args() -> argparse.Namespace:
         "--expert",
         action="store_true",
         help="启用英文命令模式；默认进入数字菜单向导模式",
+    )
+    parser.add_argument(
+        "--ik-control-mode",
+        choices=CONTROL_MODE_CHOICES,
+        default="relative",
+        help="IK 控制方式：relative / absolute / mixed，默认 relative",
     )
     parser.add_argument(
         "--log-file",
@@ -480,6 +493,12 @@ def default_save_name(state: SessionState) -> str:
     return f"{state.arm_name}_readme_safe_01"
 
 
+def last_abs_pose_text(state: SessionState) -> str:
+    if state.last_abs_ok_pose is None:
+        return "-"
+    return f"{state.last_abs_ok_pose.label} {format_pose_short(state.last_abs_ok_pose)}"
+
+
 def format_pose_short(command: IkCommand) -> str:
     return (
         f"x={command.x:.3f} y={command.y:.3f} z={command.z:.3f} "
@@ -515,15 +534,29 @@ def print_compact_safety_notice() -> None:
 
 
 def current_stage_text(state: SessionState) -> str:
-    if state.dry_run:
-        return "1/3 dry-run 检查"
+    if state.ik_control_mode == "relative":
+        if state.risk_detected:
+            return "relative 风险复核"
+        if not state.anchor_ready:
+            return "relative 需先建立基准"
+        if not state.relative_steps_ok:
+            return "relative 小步验证"
+        return "relative 验证完成"
+    if state.ik_control_mode == "absolute":
+        if state.risk_detected:
+            return "absolute 风险复核"
+        if not state.abs_ok:
+            return "absolute 绝对点验证"
+        return "absolute 绝对点验证完成"
+    if state.dry_run and not state.demo_passed:
+        return "mixed dry-run 检查"
     if state.risk_detected:
-        return "3/3 风险复核"
+        return "mixed 风险复核"
     if not state.abs_ok:
-        return "2/3 实机空载验证 README ABS"
-    if not state.axis_completed:
-        return "3/3 实机小步验证 IK 坐标方向"
-    return "3/3 坐标方向记录完成"
+        return "mixed 先 absolute 建基准"
+    if not state.relative_steps_ok:
+        return "mixed relative 探测方向"
+    return "mixed 验证完成"
 
 
 def print_startup_banner(state: SessionState) -> None:
@@ -616,6 +649,42 @@ def should_prompt_observation(args: argparse.Namespace, state: SessionState) -> 
     if not state.dry_run:
         return True
     return bool(args.ask_observation_dry_run)
+
+
+def prompt_float_input(prompt: str, *, default: Optional[float] = None) -> float:
+    while True:
+        raw = input(prompt).strip()
+        if not raw:
+            if default is not None:
+                return default
+            print("该项不能为空，请输入数字。")
+            continue
+        try:
+            return float(raw)
+        except ValueError:
+            print("请输入数字。")
+
+
+def prompt_interactive_abs_command(state: SessionState) -> IkCommand:
+    print("请输入绝对 IK 点：")
+    x = prompt_float_input("请输入 x(m)：")
+    y = prompt_float_input("请输入 y(m)：")
+    z = prompt_float_input("请输入 z(m)：")
+    roll = prompt_float_input("请输入 roll(rad)，默认 0：", default=0.0)
+    pitch = prompt_float_input("请输入 pitch(rad)，默认 0：", default=0.0)
+    yaw = prompt_float_input("请输入 yaw(rad)，默认 0：", default=0.0)
+    return build_abs_command(state.arm_name, [x, y, z, roll, pitch, yaw])
+
+
+def prompt_interactive_rel_command(state: SessionState) -> IkCommand:
+    print("请输入相对 IK 增量：")
+    dx = prompt_float_input("请输入 dx(m)，直接回车为 0：", default=0.0)
+    dy = prompt_float_input("请输入 dy(m)，直接回车为 0：", default=0.0)
+    dz = prompt_float_input("请输入 dz(m)，直接回车为 0：", default=0.0)
+    droll = prompt_float_input("请输入 droll(rad)，直接回车为 0：", default=0.0)
+    dpitch = prompt_float_input("请输入 dpitch(rad)，直接回车为 0：", default=0.0)
+    dyaw = prompt_float_input("请输入 dyaw(rad)，直接回车为 0：", default=0.0)
+    return build_rel_command(state.arm_name, [dx, dy, dz, droll, dpitch, dyaw])
 
 
 def validate_relative_command(command: IkCommand, args: argparse.Namespace) -> None:
@@ -776,6 +845,9 @@ def update_state_after_command(
         if not state.dry_run and result.status == "ok" and observation == "ok":
             state.abs_ok = True
             state.last_ok_abs_command = command
+            state.last_abs_ok_pose = command
+            state.anchor_ready = True
+            state.anchor_source = f"{command.label or command.command_type} abs ok"
         elif not state.dry_run and result.status != "ok":
             state.abs_ok = False
         elif not state.dry_run and observation and observation != "ok":
@@ -792,6 +864,33 @@ def update_state_after_command(
         if observation == "危险/中止":
             state.risk_detected = True
             state.stop_requested = True
+    if command.command_type == "rel" and result.status in {"ok", "dry_run"} and observation in {"ok", "dry_run"}:
+        state.relative_steps_ok = True
+
+
+def prompt_switch_control_mode(state: SessionState) -> bool:
+    print("请选择 IK 控制方式：")
+    print("  1. relative 相对控制优先，推荐拉花小步调试")
+    print("  2. absolute 绝对控制，用于测试目标点")
+    print("  3. mixed 先绝对建立基准，再相对探测")
+    print("  0. 取消")
+    user_input = input("请选择 > ").strip()
+    mode_map = {
+        "1": "relative",
+        "2": "absolute",
+        "3": "mixed",
+    }
+    if user_input == "0":
+        return False
+    selected = mode_map.get(user_input)
+    if selected is None:
+        print("输入无效，保持当前控制方式。")
+        return False
+    state.ik_control_mode = selected
+    print(f"已切换到 IK 控制方式：{selected}")
+    update_last_recommendation(state)
+    print_next_action_hint(state)
+    return True
 
 
 def run_logged_command(
@@ -887,6 +986,42 @@ def confirm_rel_execute(command: IkCommand, args: argparse.Namespace, prompt: st
     return True
 
 
+def ensure_relative_anchor_ready(arm, args: argparse.Namespace, state: SessionState) -> bool:
+    if state.anchor_ready:
+        return True
+
+    print("[RELATIVE] 还没有确认相对控制基准点。")
+    print("相对 IK abs=False 会基于 SDK 内部维护的目标位姿累积。")
+    print("建议先选择：")
+    print("  1. 用 README ABS 建立基准 readme_abs")
+    print("  2. 手动输入 ABS 点建立基准 abs ...")
+    print("  3. 我确认当前 SDK 内部目标已经安全，可继续相对控制")
+    print("  0. 取消")
+
+    while True:
+        user_input = input("请选择 > ").strip()
+        if user_input == "0":
+            return False
+        if user_input == "1":
+            run_abs_flow(arm, args, state, build_readme_abs_command(state.arm_name))
+            return state.anchor_ready
+        if user_input == "2":
+            run_abs_flow(arm, args, state, prompt_interactive_abs_command(state))
+            return state.anchor_ready
+        if user_input == "3":
+            confirm = input(
+                "如确认当前 SDK 内部目标已可作为安全基准，请输入 USE_CURRENT_ANCHOR："
+            ).strip()
+            if confirm == "USE_CURRENT_ANCHOR":
+                state.anchor_ready = True
+                state.anchor_source = "USER_CONFIRMED_CURRENT_TARGET"
+                print("已确认当前 SDK 内部目标可作为相对控制基准。")
+                return True
+            print("未确认基准，保持未就绪。")
+            return False
+        print("输入无效，请重新选择。")
+
+
 def describe_abs_outcome(result: TrialResult, state: SessionState) -> tuple[str, str]:
     if result.status in {"ok", "dry_run"}:
         if state.dry_run:
@@ -974,36 +1109,63 @@ def run_demo(arm, args: argparse.Namespace, state: SessionState) -> None:
     state.axis_completed = False
     state.axis_observations.clear()
     state.axis_results.clear()
+    state.relative_steps_ok = False
 
     step_results: list[tuple[str, bool]] = []
-    readme_command = build_readme_abs_command(state.arm_name)
-    state.current_candidate_abs = readme_command
-    readme_result = run_logged_command(
-        arm,
-        readme_command,
-        args,
-        state,
-        preset_observation="dry_run_readme_abs_ok",
-    )
-    step_results.append(("README ABS", demo_step_passed(readme_result)))
+    print("[DEMO] dry-run 检查开始")
 
-    axis_commands = build_axis_commands(state.arm_name, DEFAULT_AXIS_DELTA)
-    for axis_command in axis_commands:
-        result = run_logged_command(
+    if state.ik_control_mode == "relative":
+        print("relative 模式需要先有 anchor，demo 将模拟 anchor 已建立后的 axis dry-run。")
+        axis_commands = build_axis_commands(state.arm_name, DEFAULT_AXIS_DELTA)
+        for axis_command in axis_commands:
+            result = run_logged_command(
+                arm,
+                axis_command,
+                args,
+                state,
+                preset_observation=f"dry_run_axis_{axis_command.label}_ok",
+            )
+            step_results.append((f"{axis_command.label} 0.003m", demo_step_passed(result)))
+    elif state.ik_control_mode == "absolute":
+        readme_command = build_readme_abs_command(state.arm_name)
+        state.current_candidate_abs = readme_command
+        readme_result = run_logged_command(
             arm,
-            axis_command,
+            readme_command,
             args,
             state,
-            preset_observation=f"dry_run_axis_{axis_command.label}_ok",
+            preset_observation="dry_run_readme_abs_ok",
         )
-        step_results.append((f"{axis_command.label} 0.003m", demo_step_passed(result)))
+        step_results.append(("README ABS", demo_step_passed(readme_result)))
+    else:
+        readme_command = build_readme_abs_command(state.arm_name)
+        state.current_candidate_abs = readme_command
+        readme_result = run_logged_command(
+            arm,
+            readme_command,
+            args,
+            state,
+            preset_observation="dry_run_readme_abs_ok",
+        )
+        step_results.append(("README ABS", demo_step_passed(readme_result)))
+        axis_commands = build_axis_commands(state.arm_name, DEFAULT_AXIS_DELTA)
+        for axis_command in axis_commands:
+            result = run_logged_command(
+                arm,
+                axis_command,
+                args,
+                state,
+                preset_observation=f"dry_run_axis_{axis_command.label}_ok",
+            )
+            step_results.append((f"{axis_command.label} 0.003m", demo_step_passed(result)))
 
     state.demo_passed = all(passed for _, passed in step_results)
-    state.axis_completed = state.demo_passed
-    print("[DEMO] dry-run 检查开始")
+    if state.ik_control_mode != "absolute":
+        state.axis_completed = state.demo_passed
+        state.relative_steps_ok = state.demo_passed
     for index, (label, passed) in enumerate(step_results, start=1):
         dots = "." * max(1, 20 - len(label))
-        print(f"  {index}/7 {label} {dots} {'PASS' if passed else 'FAIL'}")
+        print(f"  {index}/{len(step_results)} {label} {dots} {'PASS' if passed else 'FAIL'}")
     print("")
     if state.demo_passed:
         print("结论：dry-run 命令链正常")
@@ -1012,7 +1174,12 @@ def run_demo(arm, args: argparse.Namespace, state: SessionState) -> None:
         print("结论：dry-run 命令链异常")
         print("continue: no")
     print(f"日志：{pretty_path(state.log_path)}")
-    print("下一步：先验证安全门槛，再做实机空载 readme_abs")
+    if state.ik_control_mode == "relative":
+        print("下一步：relative 实机前仍需先建立 anchor，再做 axis 或 rel。")
+    elif state.ik_control_mode == "absolute":
+        print("下一步：absolute 模式下可空载测试 readme_abs。")
+    else:
+        print("下一步：先验证安全门槛，再做实机空载 readme_abs。")
     update_last_recommendation(state)
 
 
@@ -1064,6 +1231,7 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
     commands = build_axis_commands(state.arm_name, delta)
     state.axis_attempted = True
     state.axis_completed = False
+    state.relative_steps_ok = False
     state.axis_mode = mode_label(state.dry_run).lower()
     state.axis_observations.clear()
     state.axis_results.clear()
@@ -1077,6 +1245,7 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
             all_passed = all_passed and passed
             print(f"  {axis_command.label} .... {'PASS' if passed else 'FAIL'}")
         state.axis_completed = all_passed
+        state.relative_steps_ok = all_passed
         print("")
         print("结论：axis dry-run 正常" if all_passed else "结论：axis dry-run 异常")
         print(f"continue: {'yes' if all_passed else 'no'}")
@@ -1121,6 +1290,7 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
             break
 
     state.axis_completed = len(state.axis_observations) == 6 and not state.risk_detected
+    state.relative_steps_ok = state.axis_completed and not state.risk_detected
     print_axis_summary(state, delta)
     update_last_recommendation(state)
 
@@ -1238,17 +1408,41 @@ def log_note(note_text: str, state: SessionState) -> TrialResult:
 
 
 def get_guide_lines(state: SessionState) -> list[str]:
+    if state.ik_control_mode == "relative":
+        if not state.anchor_ready:
+            return [
+                "1. 先建立相对控制基准",
+                "2. 建好 anchor 后再做 axis / rel",
+                "3. 若不确定当前目标，勿直接累积相对控制",
+            ]
+        if not state.relative_steps_ok:
+            return [
+                "1. 输入 axis 0.003",
+                "2. 或手动输入 rel 小步调试",
+                f"3. 若均安全，输入 save {default_save_name(state)}",
+            ]
+        return [
+            "1. relative 小步验证已完成",
+            f"2. 可输入 save {default_save_name(state)}",
+            "3. 然后退出或切到 mixed / absolute 继续",
+        ]
+    if state.ik_control_mode == "absolute":
+        if not state.abs_ok:
+            return [
+                "1. 输入 readme_abs",
+                "2. 或手动输入 abs 点",
+                "3. 实机前仍需 RUN_ABS",
+            ]
+        return [
+            "1. absolute 点验证完成",
+            f"2. 可输入 save {default_save_name(state)}",
+            "3. 或切到 relative / mixed 继续",
+        ]
     if state.dry_run and not state.demo_passed:
         return [
             "1. 输入 demo，检查命令链和日志",
             "2. 检查 summary 是否 PASS",
             "3. 再切到 execute 做空载实机",
-        ]
-    if state.dry_run and state.demo_passed:
-        return [
-            "1. dry-run 已完成",
-            "2. 下一步：执行安全门槛验证",
-            "3. 然后进入 execute 空载实机",
         ]
     if not state.abs_ok:
         return [
@@ -1259,7 +1453,7 @@ def get_guide_lines(state: SessionState) -> list[str]:
     return [
         "1. 输入 axis 0.003",
         "2. 记录 +X/+Y/+Z 实际方向",
-        f"3. 若均安全，输入 save {state.arm_name}_readme_safe_01",
+        f"3. 若均安全，输入 save {default_save_name(state)}",
     ]
 
 
@@ -1270,15 +1464,33 @@ def can_save_safe_point(state: SessionState) -> bool:
 def get_menu_recommendation(state: SessionState) -> tuple[str, str]:
     if state.risk_detected:
         return "0", "退出，不继续"
+    if state.ik_control_mode == "relative":
+        if not state.anchor_ready:
+            return "2", "先建立相对控制基准"
+        if not state.relative_steps_ok:
+            return "3", "测试 XYZ 小步方向 axis 0.003"
+        if can_save_safe_point(state) and not state.saved_candidate_names:
+            return "6", f"保存当前安全点 {default_save_name(state)}"
+        if state.saved_candidate_names:
+            return "0", "已保存安全点，可以退出"
+        return "4", "查看当前摘要 summary"
+    if state.ik_control_mode == "absolute":
+        if not state.abs_ok:
+            return "1", "谨慎测试绝对 IK 点"
+        if can_save_safe_point(state) and not state.saved_candidate_names:
+            return "4", f"保存当前安全点 {default_save_name(state)}"
+        if state.saved_candidate_names:
+            return "0", "已保存安全点，可以退出"
+        return "3", "查看当前摘要 summary"
     if state.dry_run and not state.demo_passed:
         return "1", "先做 dry-run demo"
     if state.dry_run and state.demo_passed:
         return "0", "dry-run 已完成，退出后切到 execute"
     if not state.abs_ok:
         return "2", "先做 readme_abs 空载验证"
-    if not state.axis_attempted or not state.axis_completed:
+    if not state.relative_steps_ok:
         return "3", "测试 XYZ 小步方向 axis 0.003"
-    if state.axis_completed and axis_all_ok(state) and not state.saved_candidate_names:
+    if can_save_safe_point(state) and not state.saved_candidate_names:
         return "5", f"保存当前安全点 {default_save_name(state)}"
     if state.saved_candidate_names:
         return "0", "已保存安全点，可以退出"
@@ -1345,12 +1557,17 @@ def print_summary(state: SessionState) -> None:
     print("[SUMMARY]")
     print(f"mode: {mode_label(state.dry_run)}")
     print(f"arm: {state.arm_name}")
+    print(f"ik_control: {state.ik_control_mode}")
     print(f"candidate: {candidate}")
+    print(f"anchor_ready: {'YES' if state.anchor_ready else 'NO'}")
+    print(f"anchor_source: {state.anchor_source or '-'}")
+    print(f"last_abs_ok_pose: {last_abs_pose_text(state)}")
+    print(f"relative_steps_ok: {'YES' if state.relative_steps_ok else 'NO'}")
     print("")
     print("checks:")
     print(f"  dry-run demo: {demo_status_text(state)}")
-    print(f"  abs reach: {abs_status_text(state)}")
-    print(f"  axis probe: {axis_status_text(state)}")
+    print(f"  abs anchor: {'PASS' if state.anchor_ready else abs_status_text(state)}")
+    print(f"  relative axis: {'PASS' if state.relative_steps_ok else axis_status_text(state)}")
     print(f"  saved point: {'YES' if state.saved_candidate_names else 'NO'}")
     print(f"  risk: {'DETECTED' if state.risk_detected else 'NONE'}")
     print(f"  continue: {can_continue}")
@@ -1361,6 +1578,18 @@ def print_summary(state: SessionState) -> None:
 
 def print_help() -> None:
     print("[HELP]")
+    print("[IK 控制方式]")
+    print("relative:")
+    print("  推荐用于拉花阶段，小步移动，默认模式")
+    print("  需要先建立 anchor")
+    print("")
+    print("absolute:")
+    print("  用于测试一个明确目标点")
+    print("  风险较高，实机需要 RUN_ABS")
+    print("")
+    print("mixed:")
+    print("  先用 absolute 建立基准，再用 relative 探测方向")
+    print("")
     print("第一次 dry-run：")
     print("  1 -> 4 -> 0")
     print("")
@@ -1391,13 +1620,30 @@ def print_menu(state: SessionState) -> None:
     print(f"当前建议：{recommendation_text}")
     print("")
     print("请选择操作：")
-    print("  1. 运行 dry-run demo，检查命令链")
-    print("  2. 尝试 README 绝对 IK 点 readme_abs")
-    print(f"  3. 测试 XYZ 小步方向 axis {DEFAULT_AXIS_DELTA:.3f}")
-    print("  4. 查看当前摘要 summary")
-    print("  5. 保存当前安全点 save")
-    print("  6. 查看帮助 help")
-    print("  0. 退出")
+    if state.ik_control_mode == "relative":
+        print("  1. 运行 relative dry-run demo（模拟已有 anchor）")
+        print("  2. 建立相对控制基准 readme_abs")
+        print(f"  3. 测试 XYZ 小步方向 axis {DEFAULT_AXIS_DELTA:.3f}")
+        print("  4. 查看当前摘要 summary")
+        print("  5. 手动相对移动 rel")
+        print("  6. 保存当前安全点 save")
+        print("  7. 切换控制方式")
+        print("  0. 退出")
+    elif state.ik_control_mode == "absolute":
+        print("  1. 尝试 README 绝对 IK 点 readme_abs")
+        print("  2. 手动输入绝对 IK 点 abs")
+        print("  3. 查看当前摘要 summary")
+        print("  4. 保存当前安全点 save")
+        print("  5. 切换控制方式")
+        print("  0. 退出")
+    else:
+        print("  1. 运行 demo")
+        print("  2. 尝试 README 绝对 IK 点 readme_abs")
+        print(f"  3. 测试 XYZ 小步方向 axis {DEFAULT_AXIS_DELTA:.3f}")
+        print("  4. 查看当前摘要 summary")
+        print("  5. 保存当前安全点 save")
+        print("  6. 切换控制方式")
+        print("  0. 退出")
     print("")
     print(f"推荐：{recommended_choice}")
 
@@ -1411,6 +1657,46 @@ def prompt_save_name(state: SessionState) -> str:
 
 
 def command_from_menu_choice(choice: str, state: SessionState) -> Optional[str]:
+    if state.ik_control_mode == "relative":
+        if choice == "1":
+            return "demo"
+        if choice == "2":
+            return "readme_abs"
+        if choice == "3":
+            return f"axis {DEFAULT_AXIS_DELTA:.3f}"
+        if choice == "4":
+            return "summary"
+        if choice == "5":
+            return "__interactive_rel__"
+        if choice == "6":
+            if not can_save_safe_point(state):
+                print("还没有安全 ABS 点，不建议保存。")
+                update_last_recommendation(state)
+                return None
+            return f"save {prompt_save_name(state)}"
+        if choice == "7":
+            return "__switch_mode__"
+        if choice == "0":
+            return "quit"
+        return None
+    if state.ik_control_mode == "absolute":
+        if choice == "1":
+            return "readme_abs"
+        if choice == "2":
+            return "__interactive_abs__"
+        if choice == "3":
+            return "summary"
+        if choice == "4":
+            if not can_save_safe_point(state):
+                print("还没有安全 ABS 点，不建议保存。")
+                update_last_recommendation(state)
+                return None
+            return f"save {prompt_save_name(state)}"
+        if choice == "5":
+            return "__switch_mode__"
+        if choice == "0":
+            return "quit"
+        return None
     if choice == "1":
         return "demo"
     if choice == "2":
@@ -1426,7 +1712,7 @@ def command_from_menu_choice(choice: str, state: SessionState) -> Optional[str]:
             return None
         return f"save {prompt_save_name(state)}"
     if choice == "6":
-        return "help"
+        return "__switch_mode__"
     if choice == "0":
         return "quit"
     return None
@@ -1436,6 +1722,7 @@ def print_status(args: argparse.Namespace, state: SessionState) -> None:
     print("[STATUS]")
     print(f"mode: {mode_label(state.dry_run)}")
     print(f"arm: {state.arm_name}")
+    print(f"ik_control_mode: {state.ik_control_mode}")
     print(f"log: {state.log_path}")
     print(
         "candidate_abs: "
@@ -1445,6 +1732,10 @@ def print_status(args: argparse.Namespace, state: SessionState) -> None:
         "last_ok_abs: "
         + (format_pose_full(state.last_ok_abs_command) if state.last_ok_abs_command else "-")
     )
+    print(f"last_abs_ok_pose: {last_abs_pose_text(state)}")
+    print(f"anchor_ready: {state.anchor_ready}")
+    print(f"anchor_source: {state.anchor_source or '-'}")
+    print(f"relative_steps_ok: {state.relative_steps_ok}")
     print(f"max_delta: {args.max_delta}")
     print(f"allow_large_delta: {args.allow_large_delta}")
     print(f"allow_large_rotation: {args.allow_large_rotation}")
@@ -1523,11 +1814,43 @@ def process_repl_command(
 ) -> bool:
     command_name = line.split(maxsplit=1)[0].lower()
 
+    if command_name == "__switch_mode__":
+        prompt_switch_control_mode(state)
+        return True
+    if command_name == "__interactive_abs__":
+        run_abs_flow(arm, args, state, prompt_interactive_abs_command(state))
+        return True
+    if command_name == "__interactive_rel__":
+        if not ensure_relative_anchor_ready(arm, args, state):
+            update_last_recommendation(state)
+            return True
+        command = prompt_interactive_rel_command(state)
+        print("[REL]")
+        print(f"delta: {format_delta_short(command)}")
+        if not confirm_rel_execute(command, args, "确认执行？Enter=执行，q=取消\n"):
+            print("已取消本次相对移动。")
+            update_last_recommendation(state)
+            return True
+        result = run_logged_command(arm, command, args, state)
+        outcome = "PASS" if result.status in {"ok", "dry_run"} else "FAIL"
+        print(f"result: {outcome}")
+        print(f"continue: {'no' if state.risk_detected else 'yes'}")
+        print_next_action_hint(state)
+        return True
     if command_name == "help":
         print_help()
         return True
     if command_name == "guide":
         print_guide(state)
+        return True
+    if command_name == "mode":
+        tokens = line.split()
+        if len(tokens) != 2 or tokens[1] not in CONTROL_MODE_CHOICES:
+            print("用法: mode relative|absolute|mixed")
+            return True
+        state.ik_control_mode = tokens[1]
+        print(f"已切换到 IK 控制方式：{state.ik_control_mode}")
+        print_next_action_hint(state)
         return True
     if command_name == "summary":
         print_summary(state)
@@ -1589,7 +1912,12 @@ def process_repl_command(
         values = parse_six_floats(tokens, "rel")
         if values is None:
             return True
+        if not ensure_relative_anchor_ready(arm, args, state):
+            update_last_recommendation(state)
+            return True
         command = build_rel_command(state.arm_name, values)
+        print("[REL]")
+        print(f"delta: {format_delta_short(command)}")
         if not state.dry_run and not confirm_rel_execute(
             command,
             args,
@@ -1636,6 +1964,9 @@ def process_repl_command(
                 return True
         else:
             delta = min(args.max_delta, DEFAULT_AXIS_DELTA)
+        if not ensure_relative_anchor_ready(arm, args, state):
+            update_last_recommendation(state)
+            return True
         try:
             execute_axis_sequence(arm, args, state, delta)
         except ValueError as exc:
@@ -1715,18 +2046,19 @@ def main() -> int:
         log_path=log_path,
         dry_run=args.dry_run,
         arm_name=args.arm,
+        ik_control_mode=args.ik_control_mode,
         current_candidate_abs=build_readme_abs_command(args.arm)
         if args.use_readme_example
         else None,
     )
     print(
         f"[IK Tune] {mode_label(state.dry_run)} | arm={state.arm_name} | "
-        f"candidate={current_candidate_name(state)}"
+        f"mode={state.ik_control_mode}"
     )
     print(f"log: {pretty_path(state.log_path)}")
     if args.expert:
         print(f"当前阶段：{current_stage_text(state)}")
-        print("expert 模式：可直接输入 demo / readme_abs / axis 0.003 / summary / quit")
+        print("expert 模式：可直接输入 demo / readme_abs / axis / rel / summary / mode ... / quit")
 
     robot = None
     try:

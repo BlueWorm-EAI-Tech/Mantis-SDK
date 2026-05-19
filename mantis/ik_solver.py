@@ -21,6 +21,44 @@ from pinocchio import casadi as cpin
 
 from .constants import IK_URDF_FILENAME, LEFT_ARM_URDF_JOINTS, RIGHT_ARM_URDF_JOINTS
 
+IK_URDF_ENV_VAR = "MANTIS_IK_URDF_PATH"
+
+
+def _resolve_ik_urdf_path() -> str:
+    """Resolve the IK URDF path without depending on an external workspace."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    default_urdf_path = os.path.normpath(
+        os.path.join(current_dir, "model", "urdf", IK_URDF_FILENAME)
+    )
+
+    env_urdf_path = os.environ.get(IK_URDF_ENV_VAR)
+    attempted_paths: list[str] = []
+    if env_urdf_path:
+        env_urdf_path = os.path.abspath(os.path.expanduser(env_urdf_path))
+        attempted_paths.append(env_urdf_path)
+        if os.path.exists(env_urdf_path):
+            return env_urdf_path
+
+    attempted_paths.append(default_urdf_path)
+    if os.path.exists(default_urdf_path):
+        return default_urdf_path
+
+    env_status = (
+        f"{IK_URDF_ENV_VAR}={env_urdf_path}"
+        if env_urdf_path
+        else f"{IK_URDF_ENV_VAR} 未设置"
+    )
+    attempted = "\n".join(f"  - {path}" for path in attempted_paths)
+    raise FileNotFoundError(
+        "SDK IK URDF 不存在。\n"
+        f"环境变量状态: {env_status}\n"
+        f"包内默认 URDF 路径: {default_urdf_path}\n"
+        f"已尝试路径:\n{attempted}\n"
+        "请检查 mantis/model/urdf/mantis.urdf 是否存在，或设置有效的 "
+        f"{IK_URDF_ENV_VAR}。"
+    )
+
+
 @dataclass
 class _ReducedRobot:
     """简化的机器人模型数据类。"""
@@ -43,15 +81,10 @@ class MantisArmIK:
         """
         np.set_printoptions(precision=5, suppress=True, linewidth=200)
 
-        # 获取 IK URDF 文件路径。优先对齐 VR 当前使用的专用 IK 模型。
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        pkg_dir = os.path.join(current_dir, 'model')
-        urdf_dir = os.path.join(pkg_dir, 'urdf')
-        urdf_path = os.path.normpath(os.path.join(urdf_dir, IK_URDF_FILENAME))
-        if not os.path.exists(urdf_path):
-            raise FileNotFoundError(f"SDK IK URDF 不存在: {urdf_path}")
+        # 获取 IK URDF 文件路径。默认使用 SDK 包内模型，可用环境变量覆盖。
+        urdf_path = _resolve_ik_urdf_path()
 
-        # 仅加载运动学模型，避免 IK 专用 URDF 中的 mesh/package 路径参与解析。
+        # 仅加载运动学模型，避免 mesh/package 路径参与解析。
         full_model = pin.buildModelFromUrdf(urdf_path)
 
         # 构建简化模型: 锁定非手臂关节

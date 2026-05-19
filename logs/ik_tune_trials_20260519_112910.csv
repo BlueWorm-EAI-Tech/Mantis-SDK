@@ -1,0 +1,2 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,user_observation,note
+2026-05-19T11:29:27+08:00,T0001,left,readme_abs,true,0.500000,0.200000,0.300000,0.000000,0.000000,0.000000,true,error,Failed to compute FK: SDK IK URDF 不存在: /home/lanchong/BlueWorm_ws/bw_teleoperate_ws/src/bw_core/assets/mantis_2_0_ik/mantis_2_0_ik.urdf,0.044072,,README example candidate only

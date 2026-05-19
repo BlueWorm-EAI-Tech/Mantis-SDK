@@ -892,5 +892,5 @@ class Mantis:
     def __repr__(self) -> str:
         """返回机器人的字符串表示。"""
         status = "已连接" if self._connected else "未连接"
-        mode = "仿真" if self._sim_mode else "实机"
+        mode = "仿真" if getattr(self, "_sim_mode", False) else "实机"
         return f"Mantis(status='{status}', mode='{mode}')"
