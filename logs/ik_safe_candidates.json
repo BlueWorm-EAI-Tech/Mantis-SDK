@@ -1,0 +1,24 @@
+{
+  "left_relative_axis_01": {
+    "arm": "left",
+    "axis_observations": {
+      "+X": "向身体内侧",
+      "+Y": "几乎不动",
+      "+Z": "向上",
+      "-X": "向身体外侧",
+      "-Y": "几乎不动",
+      "-Z": "几乎不动"
+    },
+    "axis_results": {
+      "+X": "mismatch",
+      "+Y": "no_motion",
+      "+Z": "ok",
+      "-X": "mismatch",
+      "-Y": "no_motion",
+      "-Z": "no_motion"
+    },
+    "ik_control_mode": "relative",
+    "note": "relative axis direction check",
+    "timestamp": "2026-05-19T12:11:53+08:00"
+  }
+}

@@ -29,7 +29,7 @@ from connection_selector import add_connection_args, connect_robot_with_selector
 PROJECT_ROOT = Path(__file__).resolve().parent
 DEFAULT_ROBOT_VERSION = "3.0"
 DEFAULT_MAX_DELTA = 0.005
-DEFAULT_MAX_ROTATION_DELTA = 0.05
+DEFAULT_MAX_ROTATION_DELTA = 0.03
 DEFAULT_AXIS_DELTA = 0.003
 CONTROL_MODE_CHOICES = ("relative", "absolute", "mixed")
 README_EXAMPLE_POSE = (0.5, 0.2, 0.3, 0.0, 0.0, 0.0)
@@ -562,6 +562,8 @@ def current_candidate_name(state: SessionState) -> str:
 
 
 def default_save_name(state: SessionState) -> str:
+    if state.ik_control_mode == "relative":
+        return f"{state.arm_name}_relative_axis_01"
     return f"{state.arm_name}_readme_safe_01"
 
 
@@ -609,8 +611,6 @@ def current_stage_text(state: SessionState) -> str:
     if state.ik_control_mode == "relative":
         if state.risk_detected:
             return "relative 风险复核"
-        if not state.anchor_ready:
-            return "relative 需先建立基准"
         if not state.relative_steps_ok:
             return "relative 小步验证"
         return "relative 验证完成"
@@ -1081,6 +1081,22 @@ def confirm_rel_execute(command: IkCommand, args: argparse.Namespace, prompt: st
     return True
 
 
+def print_relative_mode_notice() -> None:
+    print("当前将直接使用 SDK 的相对 IK abs=False，小步长测试。")
+    print("请确认左臂当前姿态安全、周围无遮挡。")
+
+
+def ensure_relative_motion_allowed(arm, args: argparse.Namespace, state: SessionState) -> bool:
+    if state.risk_detected:
+        print("检测到不安全动作，停止 IK 调试。")
+        print("不要继续 axis/rel；请退出并检查机器人姿态/日志。")
+        return False
+    if state.ik_control_mode == "relative":
+        print_relative_mode_notice()
+        return True
+    return ensure_relative_anchor_ready(arm, args, state)
+
+
 def ensure_relative_anchor_ready(arm, args: argparse.Namespace, state: SessionState) -> bool:
     if state.risk_detected:
         print("检测到不安全动作，停止 IK 调试。")
@@ -1221,7 +1237,7 @@ def run_demo(arm, args: argparse.Namespace, state: SessionState) -> None:
     print("[DEMO] dry-run 检查开始")
 
     if state.ik_control_mode == "relative":
-        print("relative 模式需要先有 anchor，demo 将模拟 anchor 已建立后的 axis dry-run。")
+        print("relative 模式 dry-run：仅测试 abs=False 的 XYZ 小步命令。")
         axis_commands = build_axis_commands(state.arm_name, DEFAULT_AXIS_DELTA)
         for axis_command in axis_commands:
             result = run_logged_command(
@@ -1281,7 +1297,7 @@ def run_demo(arm, args: argparse.Namespace, state: SessionState) -> None:
         print("continue: no")
     print(f"日志：{pretty_path(state.log_path)}")
     if state.ik_control_mode == "relative":
-        print("下一步：relative 实机前仍需先建立 anchor，再做 axis 或 rel。")
+        print("下一步：execute 下直接用 axis 0.003 记录真实方向。")
     elif state.ik_control_mode == "absolute":
         print("下一步：absolute 模式下可空载测试 readme_abs。")
     else:
@@ -1315,16 +1331,16 @@ def print_axis_summary(state: SessionState, delta: float) -> None:
         state.axis_results.get(label) == "danger" for label in EXPECTED_AXIS_DIRECTIONS
     ):
         print("结论：")
-        print("- 不建议继续。请换 ABS 起点或减小 delta。")
+        print("- 不建议继续。请停止 relative IK 调试。")
         print("推荐下一步：")
         print("  stop")
         return
     if axis_all_ok(state):
         print("结论：")
         print("- 坐标方向已记录")
-        print("- 若无危险项，可 save 当前 ABS 点")
+        print("- 若无危险项，可 save 当前相对调试结果")
         print("推荐下一步：")
-        print(f"  save {state.arm_name}_readme_safe_01")
+        print(f"  save {default_save_name(state)}")
         return
     print("结论：")
     print("- 方向记录不完整或与预期不一致")
@@ -1361,10 +1377,19 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
 
     for index, axis_command in enumerate(commands, start=1):
         print(f"[AXIS {index}/6] {format_delta_compact(axis_command.label, axis_command)}")
+        print("本步将调用：")
+        print(axis_command.call_repr())
+        print("")
+        print("检查：")
+        print("1. 左臂当前姿态安全")
+        print("2. 周围无遮挡")
+        print("3. 急停可触达")
+        print(f"4. 本步只有 {abs(axis_command.x or axis_command.y or axis_command.z) * 1000:.0f}mm 小位移")
+        print("")
         if not confirm_rel_execute(
             axis_command,
             args,
-            "确认执行？Enter=执行，q=跳过/退出 axis\n",
+            "确认执行？Enter=执行，q=停止 axis\n",
         ):
             result = record_result(
                 state,
@@ -1387,7 +1412,7 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
             state.axis_results[axis_command.label] = "review"
             break
         result = run_logged_command(arm, axis_command, args, state)
-        if result.user_observation == "危险/中止":
+        if parse_observation_safety(result.user_observation) == "unsafe":
             state.risk_detected = True
             break
         if result.user_observation == "observation_skipped_command_redirect":
@@ -1403,7 +1428,7 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
 
 def save_candidate(name: str, state: SessionState) -> TrialResult:
     if not can_save_safe_point(state):
-        print("当前没有安全 anchor，或已经检测到风险，不能保存为安全点。")
+        print("当前没有可保存的安全结果，或已经检测到风险，不能保存。")
         return record_result(
             state,
             arm=state.arm_name,
@@ -1417,9 +1442,46 @@ def save_candidate(name: str, state: SessionState) -> TrialResult:
             yaw=None,
             block=None,
             status="error",
-            error="no_safe_abs_point_available",
+            error="no_safe_result_available",
             note=f"save {name}",
         )
+
+    if state.ik_control_mode == "relative":
+        SAFE_CANDIDATES_PATH.parent.mkdir(parents=True, exist_ok=True)
+        candidates = load_safe_candidates()
+        candidates[name] = {
+            "timestamp": now_iso(),
+            "arm": state.arm_name,
+            "ik_control_mode": "relative",
+            "axis_observations": dict(state.axis_observations),
+            "axis_results": dict(state.axis_results),
+            "note": "relative axis direction check",
+        }
+        SAFE_CANDIDATES_PATH.write_text(
+            json.dumps(candidates, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        if name not in state.saved_candidate_names:
+            state.saved_candidate_names.append(name)
+        state.saved_candidate_path = SAFE_CANDIDATES_PATH
+        print(f"saved: {pretty_path(SAFE_CANDIDATES_PATH)}")
+        result = record_result(
+            state,
+            arm=state.arm_name,
+            command_type="save",
+            abs_mode=False,
+            x=None,
+            y=None,
+            z=None,
+            roll=None,
+            pitch=None,
+            yaw=None,
+            block=None,
+            status="saved",
+            note=f"save {name}",
+        )
+        print_next_action_hint(state)
+        return result
 
     source_command = state.last_ok_abs_command or state.current_candidate_abs
     if source_command is None:
@@ -1521,17 +1583,11 @@ def get_guide_lines(state: SessionState) -> list[str]:
             "3. 请退出并检查机器人姿态/日志",
         ]
     if state.ik_control_mode == "relative":
-        if not state.anchor_ready:
-            return [
-                "1. 先建立相对控制基准",
-                "2. 建好 anchor 后再做 axis / rel",
-                "3. 若不确定当前目标，勿直接累积相对控制",
-            ]
         if not state.relative_steps_ok:
             return [
-                "1. 输入 axis 0.003",
-                "2. 或手动输入 rel 小步调试",
-                f"3. 若均安全，输入 save {default_save_name(state)}",
+                "1. 直接输入 axis 0.003",
+                "2. 每步确认方向和安全状态",
+                "3. 或手动输入 rel 小步调试",
             ]
         return [
             "1. relative 小步验证已完成",
@@ -1570,6 +1626,8 @@ def get_guide_lines(state: SessionState) -> list[str]:
 
 
 def can_save_safe_point(state: SessionState) -> bool:
+    if state.ik_control_mode == "relative":
+        return bool(state.relative_steps_ok and not state.risk_detected)
     return bool(
         state.anchor_ready
         and not state.risk_detected
@@ -1582,12 +1640,12 @@ def get_menu_recommendation(state: SessionState) -> tuple[str, str]:
     if state.risk_detected:
         return "0", "检测到不安全动作，停止 IK 调试"
     if state.ik_control_mode == "relative":
-        if not state.anchor_ready:
-            return "2", "先建立相对控制基准"
+        if state.dry_run:
+            return "2", "测试 XYZ 小步方向 axis 0.003"
         if not state.relative_steps_ok:
-            return "3", "测试 XYZ 小步方向 axis 0.003"
+            return "2", "先测试 XYZ 小步方向 axis 0.003"
         if can_save_safe_point(state) and not state.saved_candidate_names:
-            return "6", f"保存当前安全点 {default_save_name(state)}"
+            return "5", f"保存当前相对调试结果 {default_save_name(state)}"
         if state.saved_candidate_names:
             return "0", "已保存安全点，可以退出"
         return "4", "查看当前摘要 summary"
@@ -1610,7 +1668,7 @@ def get_menu_recommendation(state: SessionState) -> tuple[str, str]:
     if can_save_safe_point(state) and not state.saved_candidate_names:
         return "5", f"保存当前安全点 {default_save_name(state)}"
     if state.saved_candidate_names:
-        return "0", "已保存安全点，可以退出"
+        return "0", "已保存结果，可以退出"
     return "4", "查看当前摘要 summary"
 
 
@@ -1677,17 +1735,36 @@ def print_summary(state: SessionState) -> None:
     print(f"mode: {mode_label(state.dry_run)}")
     print(f"arm: {state.arm_name}")
     print(f"ik_control: {state.ik_control_mode}")
-    print(f"candidate: {candidate}")
     if state.risk_detected:
         print("risk: DETECTED")
-        print("anchor_ready: NO")
-        print("axis probe: BLOCKED")
+        if state.ik_control_mode == "relative":
+            print("relative_mode: ENABLED")
+            print("axis probe: BLOCKED")
+        else:
+            print("anchor_ready: NO")
+            print("axis probe: BLOCKED")
         print("saved point: NO")
         print("")
         print("next:")
-        print("  停止。不要继续 axis/rel/save。")
-        print("  当前 ABS 点不安全，请换安全起点或回到关节空间控制。")
+        if state.ik_control_mode == "relative":
+            print("  停止。不要继续 rel/axis。")
+        else:
+            print("  停止。不要继续 axis/rel/save。")
+            print("  当前 ABS 点不安全，请换安全起点或回到关节空间控制。")
         return
+    if state.ik_control_mode == "relative":
+        print("relative_mode: ENABLED")
+        print("")
+        print("checks:")
+        print(f"  last_relative_step: {axis_status_text(state)}")
+        print(f"  relative axis: {axis_status_text(state)}")
+        print(f"  risk: {'DETECTED' if state.risk_detected else 'NONE'}")
+        print(f"  saved point: {'YES' if state.saved_candidate_names else 'NO'}")
+        print("")
+        print("next:")
+        print(f"  {format_menu_next_line(state)}")
+        return
+    print(f"candidate: {candidate}")
     print(f"anchor_ready: {'YES' if state.anchor_ready else 'NO'}")
     print(f"anchor_source: {state.anchor_source or '-'}")
     print(f"last_abs_ok_pose: {last_abs_pose_text(state)}")
@@ -1708,15 +1785,21 @@ def print_summary(state: SessionState) -> None:
 def print_help() -> None:
     print("[HELP]")
     print("[IK 控制方式]")
-    print("relative:")
-    print("  推荐用于拉花阶段，小步移动，默认模式")
-    print("  需要先建立 anchor")
+    print("relative 模式：")
+    print("  用 abs=False 做小步相对 IK。")
+    print("  不再先执行 readme_abs。")
+    print("  推荐流程：")
+    print("    1. 先 dry-run demo")
+    print("    2. 实机 axis 0.003")
+    print("    3. 记录 +X/+Y/+Z 实际方向")
+    print("    4. 再手动 rel 小步调试")
     print("")
-    print("absolute:")
-    print("  用于测试一个明确目标点")
-    print("  风险较高，实机需要 RUN_ABS")
+    print("absolute 模式：")
+    print("  用 abs=True 测试绝对位姿，风险更高。")
+    print("  README 示例点不保证安全。")
+    print("  README absolute 示例点曾导致左臂危险构型，不建议实机继续使用，除非有人确认安全。")
     print("")
-    print("mixed:")
+    print("mixed 模式：")
     print("  先用 absolute 建立基准，再用 relative 探测方向")
     print("")
     print("第一次 dry-run：")
@@ -1750,13 +1833,12 @@ def print_menu(state: SessionState) -> None:
     print("")
     print("请选择操作：")
     if state.ik_control_mode == "relative":
-        print("  1. 运行 relative dry-run demo（模拟已有 anchor）")
-        print("  2. 建立相对控制基准 readme_abs")
-        print(f"  3. 测试 XYZ 小步方向 axis {DEFAULT_AXIS_DELTA:.3f}")
+        print("  1. 运行 relative dry-run demo")
+        print(f"  2. 测试 XYZ 小步方向 axis {DEFAULT_AXIS_DELTA:.3f}")
+        print("  3. 手动相对移动 rel")
         print("  4. 查看当前摘要 summary")
-        print("  5. 手动相对移动 rel")
-        print("  6. 保存当前安全点 save")
-        print("  7. 切换控制方式")
+        print("  5. 保存当前相对调试结果 save")
+        print("  6. 切换控制方式")
         print("  0. 退出")
     elif state.ik_control_mode == "absolute":
         print("  1. 尝试 README 绝对 IK 点 readme_abs")
@@ -1790,20 +1872,18 @@ def command_from_menu_choice(choice: str, state: SessionState) -> Optional[str]:
         if choice == "1":
             return "demo"
         if choice == "2":
-            return "readme_abs"
-        if choice == "3":
             return f"axis {DEFAULT_AXIS_DELTA:.3f}"
+        if choice == "3":
+            return "__interactive_rel__"
         if choice == "4":
             return "summary"
         if choice == "5":
-            return "__interactive_rel__"
-        if choice == "6":
             if not can_save_safe_point(state):
-                print("当前没有安全 anchor，或已经检测到风险，不能保存为安全点。")
+                print("当前没有可保存的安全结果，或已经检测到风险，不能保存。")
                 update_last_recommendation(state)
                 return None
             return f"save {prompt_save_name(state)}"
-        if choice == "7":
+        if choice == "6":
             return "__switch_mode__"
         if choice == "0":
             return "quit"
@@ -1938,9 +2018,14 @@ def print_exit_summary(state: SessionState) -> None:
     print(f"result: {result_text}")
     if state.risk_detected:
         print("risk: DETECTED")
-        print("anchor_ready: NO")
-        print("axis probe: BLOCKED")
-        print("next: 停止。不要继续 axis/rel/save。当前 ABS 点不安全，请换安全起点或回到关节空间控制。")
+        if state.ik_control_mode == "relative":
+            print("relative_mode: ENABLED")
+            print("axis probe: BLOCKED")
+            print("next: 停止。不要继续 rel/axis。")
+        else:
+            print("anchor_ready: NO")
+            print("axis probe: BLOCKED")
+            print("next: 停止。不要继续 axis/rel/save。当前 ABS 点不安全，请换安全起点或回到关节空间控制。")
         return
     print(f"next: {compute_next_recommendation(state)}")
 
@@ -1960,13 +2045,23 @@ def process_repl_command(
         run_abs_flow(arm, args, state, prompt_interactive_abs_command(state))
         return True
     if command_name == "__interactive_rel__":
-        if not ensure_relative_anchor_ready(arm, args, state):
+        if not ensure_relative_motion_allowed(arm, args, state):
             update_last_recommendation(state)
             return True
         command = prompt_interactive_rel_command(state)
         print("[REL]")
         print(f"delta: {format_delta_short(command)}")
-        if not confirm_rel_execute(command, args, "确认执行？Enter=执行，q=取消\n"):
+        if not state.dry_run:
+            print("本步将调用：")
+            print(command.call_repr())
+            print("")
+            print("检查：")
+            print("1. 左臂当前姿态安全")
+            print("2. 周围无遮挡")
+            print("3. 急停可触达")
+            print("4. 本步是小位移/小姿态增量")
+            print("")
+        if not state.dry_run and not confirm_rel_execute(command, args, "确认执行？Enter=执行，q=取消\n"):
             print("已取消本次相对移动。")
             update_last_recommendation(state)
             return True
@@ -2024,7 +2119,7 @@ def process_repl_command(
             return True
         if len(tokens) == 1:
             if not can_save_safe_point(state):
-                print("当前没有安全 anchor，或已经检测到风险，不能保存为安全点。")
+                print("当前没有可保存的安全结果，或已经检测到风险，不能保存。")
                 return True
             save_candidate(default_save_name(state), state)
             return True
@@ -2055,17 +2150,23 @@ def process_repl_command(
         values = parse_six_floats(tokens, "rel")
         if values is None:
             return True
-        if not ensure_relative_anchor_ready(arm, args, state):
+        if not ensure_relative_motion_allowed(arm, args, state):
             update_last_recommendation(state)
             return True
         command = build_rel_command(state.arm_name, values)
         print("[REL]")
         print(f"delta: {format_delta_short(command)}")
-        if not state.dry_run and not confirm_rel_execute(
-            command,
-            args,
-            "确认执行？Enter=执行，q=取消\n",
-        ):
+        if not state.dry_run:
+            print("本步将调用：")
+            print(command.call_repr())
+            print("")
+            print("检查：")
+            print("1. 左臂当前姿态安全")
+            print("2. 周围无遮挡")
+            print("3. 急停可触达")
+            print("4. 本步是小位移/小姿态增量")
+            print("")
+        if not state.dry_run and not confirm_rel_execute(command, args, "确认执行？Enter=执行，q=取消\n"):
             record_result(
                 state,
                 arm=command.arm,
@@ -2111,7 +2212,7 @@ def process_repl_command(
                 return True
         else:
             delta = min(args.max_delta, DEFAULT_AXIS_DELTA)
-        if not ensure_relative_anchor_ready(arm, args, state):
+        if not ensure_relative_motion_allowed(arm, args, state):
             update_last_recommendation(state)
             return True
         try:

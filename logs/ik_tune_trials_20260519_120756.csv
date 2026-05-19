@@ -1,0 +1,1 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,user_observation,note

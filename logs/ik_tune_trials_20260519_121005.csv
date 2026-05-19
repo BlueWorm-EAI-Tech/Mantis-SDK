@@ -1,0 +1,8 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,user_observation,note
+2026-05-19T12:10:56+08:00,T0001,left,axis,false,0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.135481,向身体内侧,axis probe +X
+2026-05-19T12:11:08+08:00,T0002,left,axis,false,-0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.030926,向身体外侧,axis probe -X
+2026-05-19T12:11:19+08:00,T0003,left,axis,false,0.000000,0.003000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.030450,几乎不动,axis probe +Y
+2026-05-19T12:11:25+08:00,T0004,left,axis,false,0.000000,-0.003000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.031183,几乎不动,axis probe -Y
+2026-05-19T12:11:36+08:00,T0005,left,axis,false,0.000000,0.000000,0.003000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.041098,向上,axis probe +Z
+2026-05-19T12:11:44+08:00,T0006,left,axis,false,0.000000,0.000000,-0.003000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.025264,几乎不动,axis probe -Z
+2026-05-19T12:11:53+08:00,T0007,left,save,false,,,,,,,,saved,,0.000000,,save left_relative_axis_01
