@@ -31,6 +31,9 @@ DEFAULT_ROBOT_VERSION = "3.0"
 DEFAULT_MAX_DELTA = 0.005
 DEFAULT_MAX_ROTATION_DELTA = 0.03
 DEFAULT_AXIS_DELTA = 0.003
+DEFAULT_MICRO_DEMO_SWING_DELTA_X = 0.003
+DEFAULT_MICRO_DEMO_LIFT_DELTA_Z = 0.003
+DEFAULT_MICRO_DEMO_CYCLES = 2
 CONTROL_MODE_CHOICES = ("relative", "absolute", "mixed")
 README_EXAMPLE_POSE = (0.5, 0.2, 0.3, 0.0, 0.0, 0.0)
 SAFE_CANDIDATES_PATH = PROJECT_ROOT / "logs" / "ik_safe_candidates.json"
@@ -62,6 +65,7 @@ COMMAND_KEYWORDS = {
     "abs",
     "rel",
     "axis",
+    "micro_demo",
     "summary",
     "save",
     "status",
@@ -271,6 +275,9 @@ class SessionState:
     axis_results: dict[str, str] = field(default_factory=dict)
     rel_attempted: bool = False
     rel_observations: list[dict[str, str]] = field(default_factory=list)
+    micro_demo_attempted: bool = False
+    micro_demo_passed: bool = False
+    micro_demo_results: list[dict[str, str]] = field(default_factory=list)
     risk_detected: bool = False
     saved_candidate_path: Optional[Path] = None
     last_error: str = ""
@@ -615,6 +622,71 @@ def build_axis_commands(arm_name: str, delta: float) -> list[IkCommand]:
     return commands
 
 
+def build_micro_demo_commands(
+    arm_name: str,
+    *,
+    swing_delta_x: float = DEFAULT_MICRO_DEMO_SWING_DELTA_X,
+    lift_delta_z: float = DEFAULT_MICRO_DEMO_LIFT_DELTA_Z,
+    cycles: int = DEFAULT_MICRO_DEMO_CYCLES,
+) -> list[IkCommand]:
+    if swing_delta_x <= 0.0:
+        raise ValueError("swing_delta_x 必须大于 0")
+    if lift_delta_z <= 0.0:
+        raise ValueError("lift_delta_z 必须大于 0")
+    if cycles <= 0:
+        raise ValueError("cycles 必须大于 0")
+
+    commands: list[IkCommand] = []
+    for cycle_index in range(1, cycles + 1):
+        for label, values in (
+            (
+                f"swing {cycle_index}/{cycles} +X",
+                (swing_delta_x, 0.0, 0.0, 0.0, 0.0, 0.0),
+            ),
+            (
+                f"swing {cycle_index}/{cycles} -X",
+                (-swing_delta_x, 0.0, 0.0, 0.0, 0.0, 0.0),
+            ),
+        ):
+            commands.append(
+                IkCommand(
+                    arm=arm_name,
+                    command_type="relative_micro_demo",
+                    abs_mode=False,
+                    x=values[0],
+                    y=values[1],
+                    z=values[2],
+                    roll=values[3],
+                    pitch=values[4],
+                    yaw=values[5],
+                    block=True,
+                    note=f"left arm unloaded relative micro demo {label}",
+                    label=label,
+                )
+            )
+    for label, values in (
+        ("lift +Z", (0.0, 0.0, lift_delta_z, 0.0, 0.0, 0.0)),
+        ("lift -Z", (0.0, 0.0, -lift_delta_z, 0.0, 0.0, 0.0)),
+    ):
+        commands.append(
+            IkCommand(
+                arm=arm_name,
+                command_type="relative_micro_demo",
+                abs_mode=False,
+                x=values[0],
+                y=values[1],
+                z=values[2],
+                roll=values[3],
+                pitch=values[4],
+                yaw=values[5],
+                block=True,
+                note=f"left arm unloaded relative micro demo {label}",
+                label=label,
+            )
+        )
+    return commands
+
+
 def current_candidate_name(state: SessionState) -> str:
     if state.current_candidate_abs is None:
         return "NONE"
@@ -763,6 +835,16 @@ def prompt_axis_observation(state: SessionState) -> ObservationRecord:
 
 def prompt_rel_observation(state: SessionState) -> ObservationRecord:
     return prompt_structured_relative_observation(state, REL_DIRECTION_MENU)
+
+
+def prompt_micro_demo_observation(state: SessionState) -> ObservationRecord:
+    while True:
+        record = prompt_structured_relative_observation(state, REL_DIRECTION_MENU)
+        if record.user_observation == "observation_skipped_command_redirect":
+            return record
+        if record.observed_direction and record.safety_status:
+            return record
+        print("micro demo 每一步都必须记录 observed_direction 和 safety_status。")
 
 
 def prompt_structured_relative_observation(
@@ -980,10 +1062,10 @@ def resolve_observation(
             return ObservationRecord(
                 user_observation="dry_run",
                 observed_direction="dry_run"
-                if command.command_type in {"axis", "rel"}
+                if command.command_type in {"axis", "rel", "relative_micro_demo"}
                 else "",
                 safety_status="safe"
-                if command.command_type in {"axis", "rel"}
+                if command.command_type in {"axis", "rel", "relative_micro_demo"}
                 else "",
             )
         return ObservationRecord()
@@ -997,6 +1079,8 @@ def resolve_observation(
         return prompt_axis_observation(state)
     if command.command_type == "rel":
         return prompt_rel_observation(state)
+    if command.command_type == "relative_micro_demo":
+        return prompt_micro_demo_observation(state)
     if command.abs_mode:
         user_observation = prompt_abs_observation(state)
     else:
@@ -1015,6 +1099,12 @@ def observation_record_from_preset(command: IkCommand, preset_observation: str) 
             safety_status="safe",
         )
     if command.command_type == "rel" and preset_observation == "dry_run":
+        return ObservationRecord(
+            user_observation=preset_observation,
+            observed_direction="dry_run",
+            safety_status="safe",
+        )
+    if command.command_type == "relative_micro_demo" and preset_observation == "dry_run":
         return ObservationRecord(
             user_observation=preset_observation,
             observed_direction="dry_run",
@@ -1103,6 +1193,31 @@ def relative_effect_from_observation(
     return "unknown"
 
 
+def relative_observation_entry(
+    command: IkCommand,
+    result: TrialResult,
+    observation: str,
+    observed_direction: str,
+    safety_status: str,
+    dry_run: bool,
+) -> dict[str, str]:
+    if dry_run and not observed_direction:
+        observed_direction = "dry_run"
+    return {
+        "trial_id": result.trial_id,
+        "label": command.label or "-",
+        "delta_axis": rel_command_axis(command),
+        "observed_direction": observed_direction or "-",
+        "safety_status": safety_status or "unknown",
+        "effect": relative_effect_from_observation(
+            observed_direction,
+            safety_status,
+            dry_run,
+        ),
+        "user_observation": observation or "-",
+    }
+
+
 def update_state_after_command(
     command: IkCommand,
     result: TrialResult,
@@ -1172,24 +1287,20 @@ def update_state_after_command(
             state.stop_requested = True
             if not already_risky:
                 print_unsafe_warning()
-    if command.command_type == "rel":
+    if command.command_type in {"rel", "relative_micro_demo"}:
         state.rel_attempted = True
         observed_direction = result.observed_direction
-        if state.dry_run and not observed_direction:
-            observed_direction = "dry_run"
-        rel_entry = {
-            "trial_id": result.trial_id,
-            "delta_axis": rel_command_axis(command),
-            "observed_direction": observed_direction or "-",
-            "safety_status": safety_status or "unknown",
-            "effect": relative_effect_from_observation(
-                observed_direction,
-                safety_status,
-                state.dry_run,
-            ),
-            "user_observation": observation or "-",
-        }
+        rel_entry = relative_observation_entry(
+            command,
+            result,
+            observation,
+            observed_direction,
+            safety_status,
+            state.dry_run,
+        )
         state.rel_observations.append(rel_entry)
+        if command.command_type == "relative_micro_demo":
+            state.micro_demo_results.append(rel_entry)
         if not state.dry_run and (
             observed_direction == "危险/中止" or normalized_safety == "unsafe"
         ):
@@ -1198,7 +1309,7 @@ def update_state_after_command(
             state.stop_requested = True
             if not already_risky:
                 print_unsafe_warning()
-        elif (
+        elif command.command_type == "rel" and (
             sdk_status_ok(result.status)
             and safety_status == "safe"
             and observed_direction != "危险/中止"
@@ -1798,6 +1909,154 @@ def execute_axis_sequence(arm, args: argparse.Namespace, state: SessionState, de
     update_last_recommendation(state)
 
 
+def micro_demo_status_text(state: SessionState) -> str:
+    if state.micro_demo_passed:
+        return "PASS"
+    if state.micro_demo_attempted:
+        return "FAIL"
+    return "NOT RUN"
+
+
+def print_micro_demo_summary(state: SessionState) -> None:
+    print("[MICRO DEMO SUMMARY]")
+    print("step                         observed      safety   effect")
+    for entry in state.micro_demo_results:
+        label = entry.get("label", "-")
+        observed = entry.get("observed_direction", "-")
+        safety = format_axis_safety_label(entry.get("safety_status", "unknown"))
+        effect = entry.get("effect", "unknown")
+        print(f"{label:<28} {observed:<12} {safety:<8} {effect}")
+    print("")
+    print(f"micro_demo: {micro_demo_status_text(state)}")
+    if state.risk_detected:
+        print("结论：检测到非 safe 安全状态，已停止后续 demo。")
+        print("推荐下一步：")
+        print("  stop")
+        return
+    if state.micro_demo_passed:
+        print("结论：relative micro demo 已完成。")
+    else:
+        print("结论：relative micro demo 未完整通过。")
+    print("推荐下一步：")
+    print("  summary")
+
+
+def execute_micro_demo(arm, args: argparse.Namespace, state: SessionState) -> None:
+    if state.arm_name != "left":
+        print("micro demo 仅用于左臂空载验证；请使用 --arm left。")
+        update_last_recommendation(state)
+        return
+    if state.risk_detected:
+        print("检测到不安全动作，停止 IK 调试。")
+        print("不要继续 micro demo；请退出并检查机器人姿态/日志。")
+        return
+
+    commands = build_micro_demo_commands(state.arm_name)
+    for command in commands:
+        validate_relative_command(command, args)
+
+    state.micro_demo_attempted = True
+    state.micro_demo_passed = False
+    state.micro_demo_results.clear()
+    print("[MICRO DEMO] 左臂空载 relative IK 小轨迹")
+    print(
+        f"swing_delta_x={DEFAULT_MICRO_DEMO_SWING_DELTA_X:.3f}m | "
+        f"lift_delta_z={DEFAULT_MICRO_DEMO_LIFT_DELTA_Z:.3f}m | "
+        f"cycles={DEFAULT_MICRO_DEMO_CYCLES}"
+    )
+    print("仅调用 arm.ik(..., block=True, abs=False)，不包含 wrist_roll/夹取/倒奶/放杯动作。")
+
+    if state.dry_run:
+        print("mode=dry-run：只打印计划，不连接机器人。")
+        step_results: list[tuple[str, bool]] = []
+        for index, command in enumerate(commands, start=1):
+            result = run_logged_command(
+                arm,
+                command,
+                args,
+                state,
+                preset_observation="dry_run",
+            )
+            passed = sdk_status_ok(result.status)
+            step_results.append((command.label, passed))
+            print(f"  plan {index}/{len(commands)}: {format_delta_short(command)}")
+        state.micro_demo_passed = all(passed for _, passed in step_results)
+        state.relative_steps_ok = state.relative_steps_ok or state.micro_demo_passed
+        print("")
+        print("[MICRO DEMO DRY-RUN]")
+        for index, (label, passed) in enumerate(step_results, start=1):
+            dots = "." * max(1, 28 - len(label))
+            print(f"  {index}/{len(step_results)} {label} {dots} {'PASS' if passed else 'FAIL'}")
+        print(f"micro_demo: {micro_demo_status_text(state)}")
+        print(f"日志：{pretty_path(state.log_path)}")
+        update_last_recommendation(state)
+        return
+
+    print("")
+    print("实机执行要求：每一步都单独确认，任一步 safety_status != safe 将立即停止。")
+    for index, command in enumerate(commands, start=1):
+        print(f"[MICRO DEMO {index}/{len(commands)}] {command.label}")
+        print(f"delta: {format_delta_short(command)}")
+        print("本步将调用：")
+        print(command.call_repr())
+        print("")
+        print("检查：")
+        print("1. 左臂空载")
+        print("2. 周围无遮挡")
+        print("3. 急停可触达")
+        print("4. 本步仅为 3mm relative IK 小位移")
+        print("")
+        if not confirm_rel_execute(
+            command,
+            args,
+            "确认执行本步？Enter=执行，q=停止 micro demo\n",
+        ):
+            record_result(
+                state,
+                arm=command.arm,
+                command_type=command.command_type,
+                abs_mode=command.abs_mode,
+                x=command.x,
+                y=command.y,
+                z=command.z,
+                roll=command.roll,
+                pitch=command.pitch,
+                yaw=command.yaw,
+                block=command.block,
+                status="skipped",
+                error="user_declined_confirmation",
+                note=command.note,
+            )
+            print("result: SKIP")
+            break
+
+        result = run_logged_command(arm, command, args, state)
+        safety_status = normalize_safety_for_status(
+            result.safety_status or parse_observation_safety(result.user_observation)
+        )
+        if safety_status != "safe":
+            state.risk_detected = True
+            state.stop_requested = True
+            print("micro demo 已停止：本步 safety_status != safe。")
+            break
+        if result.user_observation == "observation_skipped_command_redirect":
+            break
+        if state.pending_line is not None:
+            break
+
+    state.micro_demo_passed = (
+        len(state.micro_demo_results) == len(commands)
+        and not state.risk_detected
+        and all(
+            normalize_safety_for_status(entry.get("safety_status", "unknown")) == "safe"
+            for entry in state.micro_demo_results
+        )
+    )
+    state.relative_steps_ok = state.relative_steps_ok or state.micro_demo_passed
+    print_micro_demo_summary(state)
+    update_last_recommendation(state)
+
+
 def save_candidate(name: str, state: SessionState) -> TrialResult:
     if not can_save_safe_point(state):
         print("当前没有可保存的安全结果，或已经检测到风险，不能保存。")
@@ -1967,7 +2226,8 @@ def get_guide_lines(state: SessionState) -> list[str]:
             return [
                 "1. 直接输入 axis 0.003",
                 "2. 每步确认方向和安全状态",
-                "3. 或手动输入 rel 小步调试",
+                "3. 运行左臂空载小轨迹 micro demo",
+                "4. 或手动输入 rel 小步调试",
             ]
         return [
             "1. relative 小步验证已完成",
@@ -2021,16 +2281,16 @@ def get_menu_recommendation(state: SessionState) -> tuple[str, str]:
         return "0", "检测到不安全动作，停止 IK 调试"
     if state.ik_control_mode == "relative":
         if state.dry_run:
-            return "2", "测试 XYZ 小步方向 axis 0.003"
+            return "4", "运行左臂空载小轨迹 micro demo"
         if can_save_safe_point(state) and not state.saved_candidate_names:
-            return "5", f"保存当前相对调试结果 {default_save_name(state)}"
+            return "6", f"保存当前相对调试结果 {default_save_name(state)}"
         if (state.axis_completed or state.rel_attempted) and state.saved_candidate_names:
             return "0", "已保存 relative_axis_result，可以退出"
         if state.axis_attempted or state.rel_attempted:
-            return "4", "查看当前摘要 summary"
+            return "5", "查看当前摘要 summary"
         if not state.axis_completed:
             return "2", "先测试 XYZ 小步方向 axis 0.003"
-        return "4", "查看当前摘要 summary"
+        return "5", "查看当前摘要 summary"
     if state.ik_control_mode == "absolute":
         if not state.abs_ok:
             return "1", "谨慎测试绝对 IK 点"
@@ -2135,6 +2395,7 @@ def print_summary(state: SessionState) -> None:
     print(f"ik_control: {state.ik_control_mode}")
     if state.risk_detected:
         print("risk: DETECTED")
+        print(f"micro_demo: {micro_demo_status_text(state)}")
         if state.ik_control_mode == "relative":
             print("relative_mode: ENABLED")
             print("axis probe: BLOCKED")
@@ -2155,6 +2416,7 @@ def print_summary(state: SessionState) -> None:
         print("")
         print("checks:")
         print(f"  last_relative_step: {relative_record_status_text(state)}")
+        print(f"  micro_demo: {micro_demo_status_text(state)}")
         print(f"  relative axis: {axis_status_text(state)}")
         print("  usable_relative_axes:")
         for axis_name in ("X", "Y", "Z"):
@@ -2174,6 +2436,7 @@ def print_summary(state: SessionState) -> None:
     print("checks:")
     print(f"  dry-run demo: {demo_status_text(state)}")
     print(f"  abs anchor: {'PASS' if state.anchor_ready else abs_status_text(state)}")
+    print(f"  micro_demo: {micro_demo_status_text(state)}")
     print(f"  relative axis: {'PASS' if state.relative_steps_ok else axis_status_text(state)}")
     print(f"  saved point: {'YES' if state.saved_candidate_names else 'NO'}")
     print(f"  risk: {'DETECTED' if state.risk_detected else 'NONE'}")
@@ -2193,7 +2456,8 @@ def print_help() -> None:
     print("    1. 先 dry-run demo")
     print("    2. 实机 axis 0.003")
     print("    3. 逐步记录实际方向和安全状态")
-    print("    4. 再手动 rel 小步调试")
+    print("    4. 运行左臂空载小轨迹 micro demo")
+    print("    5. 再手动 rel 小步调试")
     print("")
     print("absolute 模式：")
     print("  用 abs=True 测试绝对位姿，风险更高。")
@@ -2209,8 +2473,9 @@ def print_help() -> None:
     print("第一次实机：")
     print("  2 -> 选择观察结果")
     print("  3 -> 逐步记录方向")
-    print("  4 -> 检查 summary")
-    print("  5 -> 保存 relative_axis_result")
+    print("  4 -> 每步确认执行左臂空载 micro demo")
+    print("  5 -> 检查 summary")
+    print("  6 -> 保存 relative_axis_result")
     print("  0 -> 退出")
     print("")
     print("危险情况：")
@@ -2222,6 +2487,7 @@ def print_help() -> None:
     print("高级命令：")
     print("  abs x y z r p y")
     print("  rel dx dy dz dr dp dy")
+    print("  micro_demo")
     print("  status")
     print("  last")
     print("  note text")
@@ -2237,9 +2503,10 @@ def print_menu(state: SessionState) -> None:
         print("  1. 运行 relative dry-run demo")
         print(f"  2. 测试 XYZ 小步方向 axis {DEFAULT_AXIS_DELTA:.3f}")
         print("  3. 手动相对移动 rel")
-        print("  4. 查看当前摘要 summary")
-        print("  5. 保存当前相对调试结果 save")
-        print("  6. 切换控制方式")
+        print("  4. 运行左臂空载小轨迹 micro demo")
+        print("  5. 查看当前摘要 summary")
+        print("  6. 保存当前相对调试结果 save")
+        print("  7. 切换控制方式")
         print("  0. 退出")
     elif state.ik_control_mode == "absolute":
         print("  1. 尝试 README 绝对 IK 点 readme_abs")
@@ -2277,14 +2544,16 @@ def command_from_menu_choice(choice: str, state: SessionState) -> Optional[str]:
         if choice == "3":
             return "__interactive_rel__"
         if choice == "4":
-            return "summary"
+            return "micro_demo"
         if choice == "5":
+            return "summary"
+        if choice == "6":
             if not can_save_safe_point(state):
                 print("当前没有可保存的安全结果，或已经检测到风险，不能保存。")
                 update_last_recommendation(state)
                 return None
             return f"save {prompt_save_name(state)}"
-        if choice == "6":
+        if choice == "7":
             return "__switch_mode__"
         if choice == "0":
             return "quit"
@@ -2349,6 +2618,7 @@ def print_status(args: argparse.Namespace, state: SessionState) -> None:
     print(f"risk_detected: {state.risk_detected}")
     print(f"last_error: {state.last_error or '-'}")
     print(f"relative_steps_ok: {state.relative_steps_ok}")
+    print(f"micro_demo: {micro_demo_status_text(state)}")
     if state.axis_attempted:
         print("usable_relative_axes:")
         for axis_name in ("X", "Y", "Z"):
@@ -2504,6 +2774,15 @@ def process_repl_command(
         return True
     if command_name == "demo":
         run_demo(arm, args, state)
+        return True
+    if command_name == "micro_demo":
+        if not ensure_relative_motion_allowed(arm, args, state):
+            update_last_recommendation(state)
+            return True
+        try:
+            execute_micro_demo(arm, args, state)
+        except ValueError as exc:
+            print(f"参数错误: {exc}")
         return True
     if command_name == "status":
         print_status(args, state)
@@ -2757,7 +3036,7 @@ def main() -> int:
     print(f"log: {pretty_path(state.log_path)}")
     if args.expert:
         print(f"当前阶段：{current_stage_text(state)}")
-        print("expert 模式：可直接输入 demo / readme_abs / axis / rel / summary / mode ... / quit")
+        print("expert 模式：可直接输入 demo / micro_demo / readme_abs / axis / rel / summary / mode ... / quit")
 
     robot = None
     try:

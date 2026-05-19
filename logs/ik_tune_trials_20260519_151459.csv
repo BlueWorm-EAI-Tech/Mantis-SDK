@@ -1,0 +1,2 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,observed_direction,safety_status,user_observation,note
+2026-05-19T15:15:19+08:00,T0001,left,relative_micro_demo,false,0.003000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_unknown,,1.112999,方向不确定,uncertain,direction=方向不确定; safety=uncertain; note=不确定,left arm unloaded relative micro demo swing 1/2 +X

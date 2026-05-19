@@ -1,0 +1,7 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,observed_direction,safety_status,user_observation,note
+2026-05-19T15:22:46+08:00,T0001,left,rel,false,0.000000,0.000000,-0.005000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.118978,向下,safe,direction=向下; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T15:23:27+08:00,T0002,left,rel,false,0.005000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030822,向身体内侧,safe,direction=向身体内侧; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T15:23:48+08:00,T0003,left,rel,false,0.005000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030524,向身体内侧,safe,direction=向身体内侧; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T15:23:58+08:00,T0004,left,rel,false,-0.005000,0.000000,0.000000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.031150,向身体外侧,safe,direction=向身体外侧; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T15:24:12+08:00,T0005,left,rel,false,0.000000,0.000000,0.005000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.030505,向上,safe,direction=向上; safety=safe; note=安全、平稳,manual relative delta
+2026-05-19T15:24:30+08:00,T0006,left,rel,false,0.000000,0.000000,-0.005000,0.000000,0.000000,0.000000,true,sdk_ok_safety_safe,,1.036264,向下,safe,direction=向下; safety=safe; note=安全、平稳,manual relative delta
