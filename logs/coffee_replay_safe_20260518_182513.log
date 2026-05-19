@@ -1,0 +1,13 @@
+2026-05-18 18:25:13,876 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 18:25:13,876 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 18:25:13,876 | INFO | log_file=logs/coffee_replay_safe_20260518_182513.log
+2026-05-18 18:25:13,877 | INFO | dry_run=True
+2026-05-18 18:25:13,877 | INFO | execute=False
+2026-05-18 18:25:13,877 | INFO | selected_stage=ik_probe_left_arm
+2026-05-18 18:25:13,877 | INFO | resolved_stages=ik_probe_left_arm
+2026-05-18 18:25:13,877 | INFO | ik_probe=left_start_configured=False, probe_delta=0.010
+2026-05-18 18:25:13,877 | INFO | latte_profile=conservative
+2026-05-18 18:25:13,877 | INFO | latte_motion=wrist_roll_max=1.25, shoulder_roll_center=0.50, shoulder_roll_amp=0.03, elbow_pitch_center=-0.42, elbow_pitch_amp=0.02, sway_count=2, step_sleep=0.60
+2026-05-18 18:25:13,877 | INFO | latte_recover=left_pour_shoulder_pitch=-0.35, left_pour_wrist_roll_prep=1.05, left_recover_shoulder_pitch=-0.20, left_recover_shoulder_roll=0.10, left_recover_elbow_pitch=-0.25
+2026-05-18 18:25:13,877 | INFO | 当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。
+2026-05-18 18:25:13,877 | WARNING | 脚本退出：拒绝执行 ik_probe_left_arm：必须显式传入 --ik-left-start-x, --ik-left-start-y, --ik-left-start-z, --ik-left-start-roll, --ik-left-start-pitch, --ik-left-start-yaw；请先在 RViz 或空载状态下确认安全 IK 起点。

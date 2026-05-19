@@ -1,0 +1,30 @@
+2026-05-18 18:25:20,673 | INFO | === coffee_replay_safe 启动 ===
+2026-05-18 18:25:20,673 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-18 18:25:20,674 | INFO | log_file=logs/coffee_replay_safe_20260518_182520.log
+2026-05-18 18:25:20,674 | INFO | dry_run=True
+2026-05-18 18:25:20,674 | INFO | execute=False
+2026-05-18 18:25:20,674 | INFO | selected_stage=ik_probe_left_arm
+2026-05-18 18:25:20,674 | INFO | resolved_stages=ik_probe_left_arm
+2026-05-18 18:25:20,674 | INFO | ik_probe=left_start_configured=True, probe_delta=0.005
+2026-05-18 18:25:20,674 | INFO | latte_profile=conservative
+2026-05-18 18:25:20,674 | INFO | latte_motion=wrist_roll_max=1.25, shoulder_roll_center=0.50, shoulder_roll_amp=0.03, elbow_pitch_center=-0.42, elbow_pitch_amp=0.02, sway_count=2, step_sleep=0.60
+2026-05-18 18:25:20,675 | INFO | latte_recover=left_pour_shoulder_pitch=-0.35, left_pour_wrist_roll_prep=1.05, left_recover_shoulder_pitch=-0.20, left_recover_shoulder_roll=0.10, left_recover_elbow_pitch=-0.25
+2026-05-18 18:25:20,675 | INFO | 当前为 dry-run：不会连接机器人，不会执行任何 SDK 动作。
+2026-05-18 18:25:20,675 | INFO | 即将执行阶段：ik_probe_left_arm
+2026-05-18 18:25:20,675 | INFO | 该阶段涉及部件：left_arm
+2026-05-18 18:25:20,675 | INFO | 风险提示：仅允许空载、小步长验证左臂 IK 坐标方向；禁止夹杯、夹壶、倒奶或靠近障碍物。
+2026-05-18 18:25:20,675 | INFO | dry-run 模式：跳过人工确认，不连接机器人，不执行动作。
+2026-05-18 18:25:20,675 | INFO | 阶段开始：ik_probe_left_arm
+2026-05-18 18:25:20,675 | WARNING | ik_probe_left_arm 仅用于空载验证左臂 IK 坐标方向，请先确认左臂周围无遮挡。
+2026-05-18 18:25:20,675 | INFO | dry-run 模式：跳过 ik_probe_left_arm 额外人工确认。
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 001 | 左臂 IK 探针：移动到绝对安全起点 | robot.left_arm.ik(0.3, 0.2, 0.3, 0.0, 0.0, 0.0, block=True, abs=True)
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 002 | 左臂 IK 探针：相对 +X 小幅增量，确认 x 正方向 | robot.left_arm.ik(0.005, 0.0, 0.0, 0.0, 0.0, 0.0, block=True, abs=False)
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 003 | sleep(0.50) | 观察左臂 x 正方向增量结果
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 004 | 左臂 IK 探针：相对 +Y 小幅增量，确认 y 正方向 | robot.left_arm.ik(0.0, 0.005, 0.0, 0.0, 0.0, 0.0, block=True, abs=False)
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 005 | sleep(0.50) | 观察左臂 y 正方向增量结果
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 006 | 左臂 IK 探针：相对 +Z 小幅增量，确认 z 正方向 | robot.left_arm.ik(0.0, 0.0, 0.005, 0.0, 0.0, 0.0, block=True, abs=False)
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 007 | sleep(0.50) | 观察左臂 z 正方向增量结果
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 008 | robot.wait() | 阶段结束统一等待，兜底处理 block=False 动作
+2026-05-18 18:25:20,676 | INFO | [ik_probe_left_arm] DRY-RUN Action 009 | sleep(0.50) | 阶段结束后观察停稳
+2026-05-18 18:25:20,677 | INFO | 阶段结束：ik_probe_left_arm
+2026-05-18 18:25:20,677 | INFO | 全部请求阶段执行完成。

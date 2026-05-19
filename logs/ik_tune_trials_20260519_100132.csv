@@ -1,0 +1,3 @@
+timestamp,trial_id,arm,command_type,abs_mode,x,y,z,roll,pitch,yaw,block,status,error,duration_s,user_observation,note
+2026-05-19T10:02:29+08:00,T0001,left,readme_abs,true,0.500000,0.200000,0.300000,0.000000,0.000000,0.000000,true,dry_run,,0.000011,axis 0.003,README example candidate only
+2026-05-19T10:02:36+08:00,T0002,left,note,,,,,,,,,noted,,0.000000,,第一次 dry-run 检查命令和日志

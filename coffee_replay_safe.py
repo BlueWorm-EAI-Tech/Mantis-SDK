@@ -22,6 +22,7 @@ from connection_selector import add_connection_args, connect_robot_with_selector
 
 DEFAULT_ROBOT_VERSION = "3.0"
 DEFAULT_STAGE_PAUSE_SECONDS = 0.5
+IK_PROBE_LEFT_ARM_STAGE = "ik_probe_left_arm"
 CONSERVATIVE_LATTE_REACH_PROFILE = "conservative"
 CURRENT_LATTE_REACH_PROFILE = "current"
 CUSTOM_LATTE_REACH_PROFILE = "custom"
@@ -73,7 +74,7 @@ CURRENT_LATTE_PROFILE_DEFAULTS = {
     "left_recover_elbow_pitch": -0.35,
 }
 
-STAGE_ORDER = [
+COFFEE_FLOW_STAGE_ORDER = [
     "prepare_head",
     "right_hand_grasp_cup",
     "right_hand_move_to_coffee_machine",
@@ -84,6 +85,7 @@ STAGE_ORDER = [
     "left_hand_pour_milk",
     "return_home",
 ]
+STAGE_ORDER = [*COFFEE_FLOW_STAGE_ORDER, IK_PROBE_LEFT_ARM_STAGE]
 
 
 class _DryRunCallable:
@@ -131,11 +133,23 @@ class LattePourConfig:
 
 
 @dataclass
+class IkProbeConfig:
+    left_start_x: float | None = None
+    left_start_y: float | None = None
+    left_start_z: float | None = None
+    left_start_roll: float | None = None
+    left_start_pitch: float | None = None
+    left_start_yaw: float | None = None
+    probe_delta: float = 0.01
+
+
+@dataclass
 class ReplayContext:
     dry_run: bool
     yes: bool
     logger: logging.Logger
     latte_config: LattePourConfig
+    ik_probe_config: IkProbeConfig
     sleep_fn: Callable[[float], None] = time.sleep
     action_counter: int = 0
     current_stage: str = ""
@@ -171,6 +185,48 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--log-file",
         help="日志文件路径；不指定时自动写入 logs/coffee_replay_safe_YYYYmmdd_HHMMSS.log",
+    )
+    parser.add_argument(
+        "--ik-left-start-x",
+        type=float,
+        default=None,
+        help="左臂 IK probe 绝对安全起点 x（米）；未显式传入时 ik_probe_left_arm 会拒绝执行",
+    )
+    parser.add_argument(
+        "--ik-left-start-y",
+        type=float,
+        default=None,
+        help="左臂 IK probe 绝对安全起点 y（米）；未显式传入时 ik_probe_left_arm 会拒绝执行",
+    )
+    parser.add_argument(
+        "--ik-left-start-z",
+        type=float,
+        default=None,
+        help="左臂 IK probe 绝对安全起点 z（米）；未显式传入时 ik_probe_left_arm 会拒绝执行",
+    )
+    parser.add_argument(
+        "--ik-left-start-roll",
+        type=float,
+        default=None,
+        help="左臂 IK probe 绝对安全起点 roll（弧度）；未显式传入时 ik_probe_left_arm 会拒绝执行",
+    )
+    parser.add_argument(
+        "--ik-left-start-pitch",
+        type=float,
+        default=None,
+        help="左臂 IK probe 绝对安全起点 pitch（弧度）；未显式传入时 ik_probe_left_arm 会拒绝执行",
+    )
+    parser.add_argument(
+        "--ik-left-start-yaw",
+        type=float,
+        default=None,
+        help="左臂 IK probe 绝对安全起点 yaw（弧度）；未显式传入时 ik_probe_left_arm 会拒绝执行",
+    )
+    parser.add_argument(
+        "--ik-probe-delta",
+        type=float,
+        default=0.01,
+        help="左臂 IK probe 的单轴相对增量（米），默认 0.01",
     )
     parser.add_argument(
         "--latte-reach-profile",
@@ -322,6 +378,20 @@ def build_latte_pour_config(args: argparse.Namespace) -> LattePourConfig:
     return config
 
 
+def build_ik_probe_config(args: argparse.Namespace) -> IkProbeConfig:
+    if args.ik_probe_delta <= 0.0:
+        raise SystemExit("--ik-probe-delta 必须大于 0")
+    return IkProbeConfig(
+        left_start_x=args.ik_left_start_x,
+        left_start_y=args.ik_left_start_y,
+        left_start_z=args.ik_left_start_z,
+        left_start_roll=args.ik_left_start_roll,
+        left_start_pitch=args.ik_left_start_pitch,
+        left_start_yaw=args.ik_left_start_yaw,
+        probe_delta=args.ik_probe_delta,
+    )
+
+
 def validate_latte_pour_config(
     config: LattePourConfig,
     allow_risky_pose: bool = False,
@@ -418,6 +488,36 @@ def call(
     return callable_obj(*args, **kwargs)
 
 
+def call_ik(
+    ctx: ReplayContext,
+    description: str,
+    arm,
+    x: float,
+    y: float,
+    z: float,
+    roll: float,
+    pitch: float,
+    yaw: float,
+    block: bool = True,
+    abs: bool = True,
+    sdk_call: str = "...",
+):
+    return call(
+        ctx,
+        description,
+        arm.ik,
+        x,
+        y,
+        z,
+        roll,
+        pitch,
+        yaw,
+        block=block,
+        abs=abs,
+        sdk_call=sdk_call,
+    )
+
+
 def sleep_step(ctx: ReplayContext, seconds: float, reason: str = "") -> None:
     action_id = next_action_id(ctx)
     suffix = f" | {reason}" if reason else ""
@@ -477,6 +577,45 @@ def confirm_stage(ctx: ReplayContext, stage_name: str, meta: dict[str, str], rob
 def finalize_stage(ctx: ReplayContext, robot) -> None:
     wait_step(ctx, robot, reason="阶段结束统一等待，兜底处理 block=False 动作")
     stage_pause(ctx)
+
+
+def require_left_arm_ik_probe_start(ctx: ReplayContext) -> tuple[float, float, float, float, float, float]:
+    config = ctx.ik_probe_config
+    raw_values = [
+        ("--ik-left-start-x", config.left_start_x),
+        ("--ik-left-start-y", config.left_start_y),
+        ("--ik-left-start-z", config.left_start_z),
+        ("--ik-left-start-roll", config.left_start_roll),
+        ("--ik-left-start-pitch", config.left_start_pitch),
+        ("--ik-left-start-yaw", config.left_start_yaw),
+    ]
+    missing_flags = [flag for flag, value in raw_values if value is None]
+    if missing_flags:
+        raise SystemExit(
+            "拒绝执行 ik_probe_left_arm：必须显式传入 "
+            f"{', '.join(missing_flags)}；请先在 RViz 或空载状态下确认安全 IK 起点。"
+        )
+    return tuple(float(value) for _, value in raw_values)
+
+
+def confirm_left_arm_probe_clearance(ctx: ReplayContext, robot) -> None:
+    ctx.logger.warning("ik_probe_left_arm 仅用于空载验证左臂 IK 坐标方向，请先确认左臂周围无遮挡。")
+    if ctx.dry_run:
+        ctx.logger.info("dry-run 模式：跳过 ik_probe_left_arm 额外人工确认。")
+        return
+    if ctx.yes:
+        ctx.logger.info("--yes 已启用：跳过 ik_probe_left_arm 额外人工确认。")
+        return
+    user_input = input("请确认左臂周围无遮挡且左手空载，按 Enter 继续，输入 q 退出：").strip().lower()
+    if user_input == "q":
+        ctx.logger.warning("用户在 ik_probe_left_arm 额外确认时取消。")
+        if robot is not None:
+            try:
+                robot.stop()
+                ctx.logger.info("已尝试调用 robot.stop()")
+            except Exception:
+                ctx.logger.exception("调用 robot.stop() 失败")
+        raise SystemExit("用户取消阶段执行")
 
 
 def prepare_head(robot, ctx: ReplayContext) -> None:
@@ -1002,6 +1141,48 @@ def left_hand_pour_milk(robot, ctx: ReplayContext) -> None:
     sleep_step(ctx, 0.3, reason="保守倒奶动作完成后观察停稳")
 
 
+def ik_probe_left_arm(robot, ctx: ReplayContext) -> None:
+    start_x, start_y, start_z, start_roll, start_pitch, start_yaw = require_left_arm_ik_probe_start(ctx)
+    delta = ctx.ik_probe_config.probe_delta
+
+    confirm_left_arm_probe_clearance(ctx, robot)
+    call_ik(
+        ctx,
+        "左臂 IK 探针：移动到绝对安全起点",
+        robot.left_arm,
+        start_x,
+        start_y,
+        start_z,
+        start_roll,
+        start_pitch,
+        start_yaw,
+        block=True,
+        abs=True,
+        sdk_call="robot.left_arm.ik",
+    )
+
+    for axis_name, dx, dy, dz in (
+        ("x", delta, 0.0, 0.0),
+        ("y", 0.0, delta, 0.0),
+        ("z", 0.0, 0.0, delta),
+    ):
+        call_ik(
+            ctx,
+            f"左臂 IK 探针：相对 +{axis_name.upper()} 小幅增量，确认 {axis_name} 正方向",
+            robot.left_arm,
+            dx,
+            dy,
+            dz,
+            0.0,
+            0.0,
+            0.0,
+            block=True,
+            abs=False,
+            sdk_call="robot.left_arm.ik",
+        )
+        sleep_step(ctx, 0.5, reason=f"观察左臂 {axis_name} 正方向增量结果")
+
+
 def return_home(robot, ctx: ReplayContext) -> None:
     # 该阶段按原始 coffee.py 顺序保守拆分：先按原流程回杯，再按原流程回奶壶。
     call(ctx, "右臂先回 home 准备放杯", robot.right_arm.home, sdk_call="robot.right_arm.home")
@@ -1198,16 +1379,25 @@ def get_stage_definitions():
             "components": "left_arm / right_arm / left_gripper / right_gripper",
             "risk": "回放杯与回放奶壶都在本阶段执行，需确认路径、桌面和末端物体状态。",
         },
+        IK_PROBE_LEFT_ARM_STAGE: {
+            "func": ik_probe_left_arm,
+            "preflight": require_left_arm_ik_probe_start,
+            "components": "left_arm",
+            "risk": "仅允许空载、小步长验证左臂 IK 坐标方向；禁止夹杯、夹壶、倒奶或靠近障碍物。",
+        },
     }
 
 
 def resolve_stage_sequence(stage: str) -> list[str]:
     if stage == "all":
-        return STAGE_ORDER.copy()
+        return COFFEE_FLOW_STAGE_ORDER.copy()
     return [stage]
 
 
 def run_stage(stage_name: str, stage_meta: dict[str, str], robot, ctx: ReplayContext) -> None:
+    preflight = stage_meta.get("preflight")
+    if preflight is not None:
+        preflight(ctx)
     ctx.current_stage = stage_name
     confirm_stage(ctx, stage_name, stage_meta, robot)
     ctx.logger.info("阶段开始：%s", stage_name)
@@ -1240,12 +1430,14 @@ def main() -> int:
     log_path = build_log_path(args.log_file)
     logger = build_logger(log_path)
     latte_config = build_latte_pour_config(args)
+    ik_probe_config = build_ik_probe_config(args)
 
     ctx = ReplayContext(
         dry_run=dry_run,
         yes=args.yes,
         logger=logger,
         latte_config=latte_config,
+        ik_probe_config=ik_probe_config,
         stage_notes={},
     )
 
@@ -1259,6 +1451,21 @@ def main() -> int:
     logger.info("execute=%s", execute)
     logger.info("selected_stage=%s", args.stage)
     logger.info("resolved_stages=%s", ", ".join(selected_stages))
+    logger.info(
+        "ik_probe=left_start_configured=%s, probe_delta=%.3f",
+        all(
+            value is not None
+            for value in (
+                ik_probe_config.left_start_x,
+                ik_probe_config.left_start_y,
+                ik_probe_config.left_start_z,
+                ik_probe_config.left_start_roll,
+                ik_probe_config.left_start_pitch,
+                ik_probe_config.left_start_yaw,
+            )
+        ),
+        ik_probe_config.probe_delta,
+    )
     logger.info("latte_profile=%s", latte_config.reach_profile)
     logger.info(
         "latte_motion=wrist_roll_max=%.2f, shoulder_roll_center=%.2f, shoulder_roll_amp=%.2f, "
