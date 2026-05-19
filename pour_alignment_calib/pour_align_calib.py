@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import shlex
 import sys
 import time
@@ -33,6 +34,17 @@ DEFAULT_GRIPPER_POSITION = 0.70
 DEFAULT_MAX_WRIST_ROLL = 0.70
 LOG_DIR = Path(__file__).resolve().parent / "logs"
 
+# Source: coffee.py left-hand pour preparation stage, mirrored by
+# coffee_replay_safe.py::left_hand_move_to_pour_pose as the right-hand
+# receive-milk/cup-mouth pose. This command intentionally excludes the
+# surrounding left-arm moves, sleeps, gripper calls, and any home().
+RIGHT_CUP_POSE_STEPS = (
+    ("set_wrist_yaw", -0.7, False),
+    ("set_wrist_pitch", -0.5, False),
+    ("set_wrist_roll", 0.3, False),
+    ("set_shoulder_roll", 0.7, False),
+)
+
 OBSERVATION_CHOICES = {
     "spout_in_cup",
     "edge",
@@ -47,9 +59,11 @@ CSV_FIELDNAMES = [
     "timestamp",
     "command",
     "command_type",
+    "arm",
     "dx",
     "dy",
     "dz",
+    "joint_targets",
     "wrist_roll_target",
     "wrist_yaw_delta_or_target",
     "wrist_pitch_delta_or_target",
@@ -82,6 +96,8 @@ class SessionState:
 class Action:
     command: str
     command_type: str
+    arm: str = ""
+    joint_targets: str = ""
     dx: Optional[float] = None
     dy: Optional[float] = None
     dz: Optional[float] = None
@@ -217,9 +233,11 @@ def append_log(
         "timestamp": now_iso(),
         "command": action.command,
         "command_type": action.command_type,
+        "arm": action.arm,
         "dx": fmt_float(action.dx),
         "dy": fmt_float(action.dy),
         "dz": fmt_float(action.dz),
+        "joint_targets": action.joint_targets,
         "wrist_roll_target": fmt_float(action.wrist_roll_target),
         "wrist_yaw_delta_or_target": fmt_float(action.wrist_yaw_delta_or_target),
         "wrist_pitch_delta_or_target": fmt_float(action.wrist_pitch_delta_or_target),
@@ -257,6 +275,7 @@ Commands:
   roll03               set left wrist_roll target to 0.3
   roll05               set left wrist_roll target to 0.5
   roll07               set left wrist_roll target to 0.7
+  right_cup_pose       set right arm to coffee.py pour-stage cup pose
   yaw+ / yaw-          small left wrist_yaw target step when SDK supports it
   pitch+ / pitch-      small left wrist_pitch target step when SDK supports it
   obs [value]          record observation: spout_in_cup / edge / outside / near_collision / unsafe / uncertain
@@ -303,7 +322,33 @@ def safe_shutdown(robot) -> None:
         print(f"finally: robot.disconnect() 失败: {exc}")
 
 
+def right_cup_pose_joint_targets() -> str:
+    return json.dumps(
+        [
+            {"joint": name.removeprefix("set_"), "target": target, "block": block}
+            for name, target, block in RIGHT_CUP_POSE_STEPS
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
+def build_right_cup_pose_action() -> Action:
+    return Action(
+        command="right_cup_pose",
+        command_type="right_arm_joint_pose",
+        arm="right",
+        joint_targets=right_cup_pose_joint_targets(),
+    )
+
+
 def describe_action(action: Action) -> str:
+    if action.command_type == "right_arm_joint_pose":
+        calls = [
+            f"robot.right_arm.{method}({target:.6f}, block={block})"
+            for method, target, block in RIGHT_CUP_POSE_STEPS
+        ]
+        return "\n  ".join(calls)
     if action.command_type == "relative_ik":
         return (
             "robot.left_arm.ik("
@@ -370,6 +415,36 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
         if status == "ok":
             print(f"[ok] 动作完成，用时 {duration_s:.3f}s。")
             update_tracked_state(action, state)
+    except Exception as exc:  # pragma: no cover - real SDK/runtime only
+        status = f"error: {exc}"
+        print(f"[error] {exc}")
+
+    append_log(state, action, user_confirmed=True, status=status)
+
+
+def execute_right_cup_pose(robot, args: argparse.Namespace, state: SessionState) -> None:
+    action = build_right_cup_pose_action()
+    print("[plan] right_cup_pose will run:")
+    print(f"  {describe_action(action)}")
+
+    if state.dry_run:
+        append_log(state, action, user_confirmed=None, status="dry_run")
+        print("[dry-run] 已记录，不连接机器人，不移动右臂。")
+        return
+
+    confirmed = confirm_real_action(action)
+    if not confirmed:
+        append_log(state, action, user_confirmed=False, status="skipped_by_user")
+        print("[skip] 用户未确认，right_cup_pose 已跳过。")
+        return
+
+    status = "ok"
+    try:
+        start_time = time.perf_counter()
+        for method_name, target, block in RIGHT_CUP_POSE_STEPS:
+            getattr(robot.right_arm, method_name)(target, block=block)
+        duration_s = time.perf_counter() - start_time
+        print(f"[ok] right_cup_pose 指令已发送，用时 {duration_s:.3f}s。")
     except Exception as exc:  # pragma: no cover - real SDK/runtime only
         status = f"error: {exc}"
         print(f"[error] {exc}")
@@ -539,9 +614,13 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
         action = Action(
             command=command,
             command_type="gripper",
+            arm="left",
             gripper_position=args.gripper_position,
         )
         execute_action(robot, action, args, state)
+        return True
+    if command == "right_cup_pose":
+        execute_right_cup_pose(robot, args, state)
         return True
     if command in {"x+", "x-", "y+", "y-", "z+", "z-"}:
         execute_action(robot, build_linear_action(command, args), args, state)
