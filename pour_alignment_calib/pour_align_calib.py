@@ -845,11 +845,91 @@ def pretty_path(path: Path) -> str:
         return str(path)
 
 
-def print_help() -> None:
-    print(
-        """
+HELP_SHORT = """
+Help:
+  默认界面是二级菜单；输入 1-7 进入分组菜单，输入 q 退出。
+  也可以直接输入专家命令，例如 replay_right_pour_ready / x+ / obs edge。
+
+Expert help:
+  help all     show full expert command list
+  help right   show right-arm replay/gripper/wrist/clearance commands
+  help left    show left gripper/alignment/wrist commands
+  help replay  show replay_right_* commands
+""".strip()
+
+
+HELP_REPLAY = """
+Right replay stages:
+  replay_right_grasp_cup
+                       replay coffee_replay_safe right_hand_grasp_cup stage for right cup grasp
+                       right arm order/block/sleep/wait are aligned; cup gripper value
+                       uses --right-gripper-cup-position, default 0.80
+  replay_right_move_to_coffee_machine
+                       replay coffee_replay_safe right_hand_move_to_coffee_machine stage
+  replay_right_retreat_after_coffee
+                       replay coffee_replay_safe right_hand_retreat_after_coffee stage, contains right_arm.home()
+  replay_right_pour_ready
+                       replay only right-hand actions inside left_hand_move_to_pour_pose
+  right_pour_ready / right_cup_pose
+                       alias of replay_right_pour_ready
+  right_table_pregrasp / right_table_grasp_pose / right_lift_cup / right_transfer_cup
+                       deprecated; no action, use replay_right_* commands
+""".strip()
+
+
+HELP_RIGHT = """
+Right commands:
+  right_open           set right_gripper to configured open position
+  right_grip           set right_gripper to configured cup position, default 0.80
+                       calibration override; pass --right-gripper-cup-position 0.6
+                       to match coffee_replay_safe.py's original cup grasp
+  right_loose          loosen right_gripper by configured step
+  right_tight          tighten right_gripper by configured step
+  right_roll+ / right_roll-      adjust right wrist_roll by step
+  right_pitch+ / right_pitch-    adjust right wrist_pitch by step
+  right_yaw+ / right_yaw-        adjust right wrist_yaw by step
+  right_set_roll <value>         set right wrist_roll target
+  right_set_pitch <value>        set right wrist_pitch target
+  right_set_yaw <value>          set right wrist_yaw target
+  right_elbow+ / right_elbow-                  adjust right elbow_pitch by clearance step
+  right_shoulder_pitch+ / right_shoulder_pitch- adjust right shoulder_pitch by clearance step
+  right_set_elbow <value>                      set right elbow_pitch target
+  right_set_shoulder_pitch <value>             set right shoulder_pitch target
+
+Clearance tuning:
+  If left/right vertical distance is too close, first test right_elbow+ / right_elbow-.
+  If elbow is not enough, then test right_shoulder_pitch+ / right_shoulder_pitch-.
+  Change only one joint each time, default 0.05 rad or smaller.
+  Do not use shoulder_roll first for vertical clearance.
+""".strip()
+
+
+HELP_LEFT = """
+Left commands:
+  left_open            set left_gripper to configured open position
+  left_grip            set left_gripper to configured pitcher position, default 0.70
+  left_loose           loosen left_gripper by configured step
+  left_tight           tighten left_gripper by configured step
+  grip                 alias of left_grip
+  x+ / x-              left_arm relative IK X +/- step
+  y+ / y-              left_arm relative IK Y +/- small step
+  z+ / z-              left_arm relative IK Z +/- step
+  roll0                set left wrist_roll target to 0
+  roll03               set left wrist_roll target to 0.3
+  roll05               set left wrist_roll target to 0.5
+  roll07               set left wrist_roll target to 0.7
+  yaw+ / yaw-          small left wrist_yaw target step when SDK supports it
+  pitch+ / pitch-      small left wrist_pitch target step when SDK supports it
+""".strip()
+
+
+HELP_ALL = """
 Commands:
   help                 show commands
+  help all             show full expert command list
+  help right           show right-side commands
+  help left            show left-side commands
+  help replay          show right replay commands
   left_open            set left_gripper to configured open position
   left_grip            set left_gripper to configured pitcher position, default 0.70
   left_loose           loosen left_gripper by configured step
@@ -904,7 +984,21 @@ Clearance tuning:
   Change only one joint each time, default 0.05 rad or smaller.
   Do not use shoulder_roll first for vertical clearance.
 """.strip()
-    )
+
+
+def print_help(topic: str = "short") -> None:
+    if topic == "all":
+        print(HELP_ALL)
+    elif topic == "right":
+        print(HELP_REPLAY)
+        print()
+        print(HELP_RIGHT)
+    elif topic == "left":
+        print(HELP_LEFT)
+    elif topic == "replay":
+        print(HELP_REPLAY)
+    else:
+        print(HELP_SHORT)
 
 
 def print_startup_banner(args: argparse.Namespace, state: SessionState) -> None:
@@ -917,7 +1011,7 @@ def print_startup_banner(args: argparse.Namespace, state: SessionState) -> None:
         print("实机模式：每个真实动作都需要输入 y 二次确认。")
     else:
         print("dry-run：不会连接机器人，只打印动作计划并写日志。")
-    print("输入 help 查看命令，quit 退出。")
+    print("输入 1-7 进入菜单，help 查看简短说明，help all 查看完整专家命令，q 退出。")
 
 
 def connect_robot(args: argparse.Namespace):
@@ -1673,7 +1767,11 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
 
     command = parts[0].lower()
     if command == "help":
-        print_help()
+        topic = parts[1].lower() if len(parts) > 1 else "short"
+        if topic not in {"short", "all", "right", "left", "replay"}:
+            print(f"[help] unknown topic: {topic}; use help all/right/left/replay")
+            topic = "short"
+        print_help(topic)
         return True
     if command in {"quit", "exit", "q"}:
         return False
@@ -1790,16 +1888,188 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
     return True
 
 
+MAIN_MENU = """
+================ Pour Align Calib ================
+[1] 右手流程复现 / Right replay stages
+[2] 右手夹爪 / Right gripper
+[3] 右手接奶位微调 / Right pour-ready adjust
+[4] 左手夹爪 / Left gripper
+[5] 左手空壶对杯口 / Left alignment
+[6] 记录与日志 / Observation & save
+[7] 专家命令帮助 / Expert command help
+[q] 退出
+也可以直接输入专家命令，例如 replay_right_pour_ready / x+ / obs ...
+""".strip()
+
+
+SUBMENUS = {
+    "1": {
+        "title": "右手流程复现 / Right replay stages",
+        "items": [
+            ("1", "replay_right_grasp_cup", "replay_right_grasp_cup"),
+            ("2", "replay_right_move_to_coffee_machine", "replay_right_move_to_coffee_machine"),
+            (
+                "3",
+                "replay_right_retreat_after_coffee  [contains right_arm.home()]",
+                "replay_right_retreat_after_coffee",
+            ),
+            ("4", "replay_right_pour_ready", "replay_right_pour_ready"),
+        ],
+    },
+    "2": {
+        "title": "右手夹爪 / Right gripper",
+        "items": [
+            ("1", "right_open", "right_open"),
+            ("2", "right_grip", "right_grip"),
+            ("3", "right_loose", "right_loose"),
+            ("4", "right_tight", "right_tight"),
+        ],
+    },
+    "3": {
+        "title": "右手接奶位微调 / Right pour-ready adjust",
+        "items": [
+            ("1", "right_roll+", "right_roll+"),
+            ("2", "right_roll-", "right_roll-"),
+            ("3", "right_pitch+", "right_pitch+"),
+            ("4", "right_pitch-", "right_pitch-"),
+            ("5", "right_yaw+", "right_yaw+"),
+            ("6", "right_yaw-", "right_yaw-"),
+            ("7", "right_elbow+", "right_elbow+"),
+            ("8", "right_elbow-", "right_elbow-"),
+            ("9", "right_shoulder_pitch+", "right_shoulder_pitch+"),
+            ("10", "right_shoulder_pitch-", "right_shoulder_pitch-"),
+            ("11", "输入 right_set_roll <value>", "right_set_roll"),
+            ("12", "输入 right_set_pitch <value>", "right_set_pitch"),
+            ("13", "输入 right_set_yaw <value>", "right_set_yaw"),
+            ("14", "输入 right_set_elbow <value>", "right_set_elbow"),
+            ("15", "输入 right_set_shoulder_pitch <value>", "right_set_shoulder_pitch"),
+        ],
+    },
+    "4": {
+        "title": "左手夹爪 / Left gripper",
+        "items": [
+            ("1", "left_open", "left_open"),
+            ("2", "left_grip", "left_grip"),
+            ("3", "left_loose", "left_loose"),
+            ("4", "left_tight", "left_tight"),
+        ],
+    },
+    "5": {
+        "title": "左手空壶对杯口 / Left alignment",
+        "items": [
+            ("1", "x+", "x+"),
+            ("2", "x-", "x-"),
+            ("3", "y+", "y+"),
+            ("4", "y-", "y-"),
+            ("5", "z+", "z+"),
+            ("6", "z-", "z-"),
+            ("7", "roll0", "roll0"),
+            ("8", "roll03", "roll03"),
+            ("9", "roll05", "roll05"),
+            ("10", "roll07", "roll07"),
+            ("11", "yaw+", "yaw+"),
+            ("12", "yaw-", "yaw-"),
+            ("13", "pitch+", "pitch+"),
+            ("14", "pitch-", "pitch-"),
+        ],
+    },
+    "6": {
+        "title": "记录与日志 / Observation & save",
+        "items": [
+            ("1", "obs", "obs"),
+            ("2", "save", "save"),
+            ("3", "显示当前 log_path", "__show_log_path__"),
+        ],
+    },
+    "7": {
+        "title": "专家命令帮助 / Expert command help",
+        "items": [
+            ("1", "help short", "help"),
+            ("2", "help all", "help all"),
+            ("3", "help right", "help right"),
+            ("4", "help left", "help left"),
+            ("5", "help replay", "help replay"),
+        ],
+    },
+}
+
+
+VALUE_PROMPTS = {
+    "right_set_roll": "请输入 right wrist_roll target，例如 0.10：",
+    "right_set_pitch": "请输入 right wrist_pitch target，例如 -0.40：",
+    "right_set_yaw": "请输入 right wrist_yaw target，例如 -0.70：",
+    "right_set_elbow": "请输入 right elbow_pitch target，例如 0.05：",
+    "right_set_shoulder_pitch": "请输入 right shoulder_pitch target，例如 -0.05：",
+}
+
+
+def print_main_menu() -> None:
+    print(MAIN_MENU)
+
+
+def print_submenu(menu_key: str) -> None:
+    menu = SUBMENUS[menu_key]
+    print(f"================ {menu['title']} ================")
+    for key, label, _command in menu["items"]:
+        print(f"{key} {label}")
+    print("b 返回主菜单")
+    print("q 退出")
+
+
+def submenu_command_from_choice(menu_key: str, choice: str, state: SessionState) -> Optional[str]:
+    menu = SUBMENUS[menu_key]
+    command_by_key = {key: command for key, _label, command in menu["items"]}
+    command = command_by_key.get(choice)
+    if command is None:
+        return None
+    if command == "__show_log_path__":
+        print(f"log_path: {pretty_path(state.log_path)}")
+        return ""
+    prompt = VALUE_PROMPTS.get(command)
+    if prompt is None:
+        return command
+    value = input(prompt).strip()
+    if not value:
+        print("[skip] 未输入数值，已取消。")
+        return ""
+    return f"{command} {value}"
+
+
 def repl_loop(robot, args: argparse.Namespace, state: SessionState) -> None:
-    print_help()
+    active_menu: Optional[str] = None
+    print_main_menu()
     while True:
         try:
-            raw_line = input("pour-align> ")
+            prompt = "pour-align> " if active_menu is None else f"pour-align:{active_menu}> "
+            raw_line = input(prompt)
         except EOFError:
             print()
             break
         line = raw_line.strip()
         if not line:
+            continue
+        lowered = line.lower()
+        if active_menu is not None:
+            if lowered in {"b", "back"}:
+                active_menu = None
+                print_main_menu()
+                continue
+            if lowered in {"q", "quit", "exit"}:
+                break
+            mapped_command = submenu_command_from_choice(active_menu, lowered, state)
+            if mapped_command is None:
+                if not process_command(line, robot, args, state):
+                    break
+                continue
+            if not mapped_command:
+                continue
+            if not process_command(mapped_command, robot, args, state):
+                break
+            continue
+
+        if lowered in SUBMENUS:
+            active_menu = lowered
+            print_submenu(active_menu)
             continue
         if not process_command(line, robot, args, state):
             break

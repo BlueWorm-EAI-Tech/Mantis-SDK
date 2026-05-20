@@ -96,6 +96,31 @@ cd /home/lanchong/BlueWorm_ws/Mantis-SDK-github
 python3 pour_alignment_calib/pour_align_calib.py --dry-run
 ```
 
+启动后默认进入二级菜单模式，主菜单按功能分成右手流程复现、右手夹爪、右手接奶位微调、左手夹爪、左手空壶对杯口、记录与日志、专家命令帮助。普通现场调试建议使用二级菜单，降低误输入和长 help 翻找成本。
+
+二级菜单只是把编号映射到已有专家命令，动作仍走同一套 `process_command` / `execute_action` 路径；真实机器人执行前仍然必须人工输入 `y` 确认，不会因为选择菜单编号而绕过确认。
+
+熟悉命令后仍可在主菜单或二级菜单提示符下直接输入专家命令，例如：
+
+```text
+replay_right_pour_ready
+right_set_roll 0.10
+right_elbow+
+left_grip
+x+
+roll07
+obs edge
+save right_clearance_candidate_xxx
+```
+
+帮助命令区别：
+
+- `help`：只显示简短分组说明和可用 help 主题。
+- `help all`：显示完整专家命令列表。
+- `help right`：显示右手 replay、右夹爪、右腕和右臂间隙微调命令。
+- `help left`：显示左夹爪、左手 relative IK 和左腕命令。
+- `help replay`：只显示 `replay_right_*` 相关命令。
+
 显式记录左右夹爪目标值：
 
 ```zsh
