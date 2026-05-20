@@ -39,6 +39,11 @@ DEFAULT_RIGHT_GRIPPER_OPEN_POSITION = 1.00
 DEFAULT_RIGHT_GRIPPER_CLOSED_POSITION = 0.00
 DEFAULT_RIGHT_GRIPPER_CUP_POSITION = 0.80
 DEFAULT_RIGHT_GRIPPER_STEP = 0.05
+DEFAULT_RIGHT_WRIST_STEP = 0.05
+DEFAULT_RIGHT_POUR_READY_WRIST_YAW = -0.70
+DEFAULT_RIGHT_POUR_READY_WRIST_PITCH = -0.50
+DEFAULT_RIGHT_POUR_READY_WRIST_ROLL = 0.30
+DEFAULT_RIGHT_POUR_READY_SHOULDER_ROLL = 0.70
 DEFAULT_MAX_WRIST_ROLL = 0.70
 GRIPPER_MIN = 0.0
 GRIPPER_MAX = 1.0
@@ -46,7 +51,10 @@ LOG_DIR = Path(__file__).resolve().parent / "logs"
 
 # Source: coffee_replay_safe.py right-hand replay stages only.
 # Do not import or call coffee_replay_safe.py; these are explicit SDK calls
-# copied from the named source stages for calibration use.
+# copied from the named source stages for calibration use.  Joint order,
+# target values, block flags, sleep calls, and robot.wait() are kept aligned
+# with the source stages unless a step below explicitly documents a calibration
+# override.
 RIGHT_REPLAY_STAGES = {
     "replay_right_grasp_cup": [
         {
@@ -149,7 +157,10 @@ RIGHT_REPLAY_STAGES = {
             "method": "set_position",
             "value_arg": "right_gripper_cup_position",
             "block": True,
-            "description": "右夹爪收至抓杯位置，标定默认 0.80",
+            "description": (
+                "右夹爪收至抓杯位置；source_sdk_call 是原始 0.6，"
+                "实际执行使用 --right-gripper-cup-position，标定默认 0.80"
+            ),
             "source_stage": "right_hand_grasp_cup",
             "source_action_id": "013",
             "source_sdk_call": "robot.right_gripper.set_position(0.6)",
@@ -364,7 +375,7 @@ RIGHT_REPLAY_STAGES = {
             "kind": "arm",
             "target": "right_arm",
             "method": "set_wrist_yaw",
-            "value": -0.7,
+            "value_arg": "right_pour_ready_wrist_yaw",
             "block": False,
             "description": "右腕偏航对准接奶方向",
             "source_stage": "left_hand_move_to_pour_pose",
@@ -374,7 +385,7 @@ RIGHT_REPLAY_STAGES = {
             "kind": "arm",
             "target": "right_arm",
             "method": "set_wrist_pitch",
-            "value": -0.5,
+            "value_arg": "right_pour_ready_wrist_pitch",
             "block": False,
             "description": "右腕俯仰切到接奶角度",
             "source_stage": "left_hand_move_to_pour_pose",
@@ -384,7 +395,7 @@ RIGHT_REPLAY_STAGES = {
             "kind": "arm",
             "target": "right_arm",
             "method": "set_wrist_roll",
-            "value": 0.3,
+            "value_arg": "right_pour_ready_wrist_roll",
             "block": False,
             "description": "右腕翻滚调整杯口姿态",
             "source_stage": "left_hand_move_to_pour_pose",
@@ -394,7 +405,7 @@ RIGHT_REPLAY_STAGES = {
             "kind": "arm",
             "target": "right_arm",
             "method": "set_shoulder_roll",
-            "value": 0.7,
+            "value_arg": "right_pour_ready_shoulder_roll",
             "block": False,
             "description": "右肩翻滚切到接奶位",
             "source_stage": "left_hand_move_to_pour_pose",
@@ -485,6 +496,9 @@ class SessionState:
     current_wrist_roll: Optional[float] = None
     current_wrist_yaw: Optional[float] = None
     current_wrist_pitch: Optional[float] = None
+    current_right_wrist_roll: Optional[float] = None
+    current_right_wrist_yaw: Optional[float] = None
+    current_right_wrist_pitch: Optional[float] = None
     current_left_gripper_position: Optional[float] = None
     current_right_gripper_position: Optional[float] = None
     last_observed_alignment: str = ""
@@ -594,13 +608,49 @@ def parse_args() -> argparse.Namespace:
         "--right-gripper-cup-position",
         type=float,
         default=DEFAULT_RIGHT_GRIPPER_CUP_POSITION,
-        help=f"右夹爪夹杯目标位置，默认 {DEFAULT_RIGHT_GRIPPER_CUP_POSITION}",
+        help=(
+            "右夹爪夹杯目标位置，默认 "
+            f"{DEFAULT_RIGHT_GRIPPER_CUP_POSITION}；这是 pour_align_calib.py "
+            "的现场标定覆盖值。若要严格复现 coffee_replay_safe.py 原始 "
+            "robot.right_gripper.set_position(0.6)，请显式传 "
+            "--right-gripper-cup-position 0.6"
+        ),
     )
     parser.add_argument(
         "--right-gripper-step",
         type=float,
         default=DEFAULT_RIGHT_GRIPPER_STEP,
         help=f"右夹爪微调步长，默认 {DEFAULT_RIGHT_GRIPPER_STEP}",
+    )
+    parser.add_argument(
+        "--right-wrist-step",
+        type=float,
+        default=DEFAULT_RIGHT_WRIST_STEP,
+        help=f"右手腕微调步长，默认 {DEFAULT_RIGHT_WRIST_STEP}",
+    )
+    parser.add_argument(
+        "--right-pour-ready-wrist-yaw",
+        type=float,
+        default=DEFAULT_RIGHT_POUR_READY_WRIST_YAW,
+        help=f"右手接奶位 wrist_yaw，默认 {DEFAULT_RIGHT_POUR_READY_WRIST_YAW}",
+    )
+    parser.add_argument(
+        "--right-pour-ready-wrist-pitch",
+        type=float,
+        default=DEFAULT_RIGHT_POUR_READY_WRIST_PITCH,
+        help=f"右手接奶位 wrist_pitch，默认 {DEFAULT_RIGHT_POUR_READY_WRIST_PITCH}",
+    )
+    parser.add_argument(
+        "--right-pour-ready-wrist-roll",
+        type=float,
+        default=DEFAULT_RIGHT_POUR_READY_WRIST_ROLL,
+        help=f"右手接奶位 wrist_roll，默认 {DEFAULT_RIGHT_POUR_READY_WRIST_ROLL}",
+    )
+    parser.add_argument(
+        "--right-pour-ready-shoulder-roll",
+        type=float,
+        default=DEFAULT_RIGHT_POUR_READY_SHOULDER_ROLL,
+        help=f"右手接奶位 shoulder_roll，默认 {DEFAULT_RIGHT_POUR_READY_SHOULDER_ROLL}",
     )
     parser.add_argument(
         "--max-wrist-roll",
@@ -665,6 +715,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--right-gripper-cup-position 必须在 0.0 到 1.0 之间")
     if args.right_gripper_step <= 0.0:
         raise SystemExit("--right-gripper-step 必须大于 0")
+    if args.right_wrist_step <= 0.0:
+        raise SystemExit("--right-wrist-step 必须大于 0")
     if args.max_wrist_roll < 0.0:
         raise SystemExit("--max-wrist-roll 必须大于等于 0")
 
@@ -760,18 +812,28 @@ Commands:
   grip                 alias of left_grip
   right_open           set right_gripper to configured open position
   right_grip           set right_gripper to configured cup position, default 0.80
+                       calibration override; pass --right-gripper-cup-position 0.6
+                       to match coffee_replay_safe.py's original cup grasp
   right_loose          loosen right_gripper by configured step
   right_tight          tighten right_gripper by configured step
   replay_right_grasp_cup
                        replay coffee_replay_safe right_hand_grasp_cup stage for right cup grasp
+                       right arm order/block/sleep/wait are aligned; cup gripper value
+                       uses --right-gripper-cup-position, default 0.80
   replay_right_move_to_coffee_machine
                        replay coffee_replay_safe right_hand_move_to_coffee_machine stage
   replay_right_retreat_after_coffee
                        replay coffee_replay_safe right_hand_retreat_after_coffee stage, contains right_arm.home()
   replay_right_pour_ready
-                       replay right-hand actions inside left_hand_move_to_pour_pose
+                       replay only right-hand actions inside left_hand_move_to_pour_pose
   right_pour_ready / right_cup_pose
                        alias of replay_right_pour_ready
+  right_roll+ / right_roll-      adjust right wrist_roll by step
+  right_pitch+ / right_pitch-    adjust right wrist_pitch by step
+  right_yaw+ / right_yaw-        adjust right wrist_yaw by step
+  right_set_roll <value>         set right wrist_roll target
+  right_set_pitch <value>        set right wrist_pitch target
+  right_set_yaw <value>          set right wrist_yaw target
   right_table_pregrasp / right_table_grasp_pose / right_lift_cup / right_transfer_cup
                        deprecated; no action, use replay_right_* commands
   x+ / x-              left_arm relative IK X +/- step
@@ -934,6 +996,19 @@ def describe_action(action: Action, args: Optional[argparse.Namespace] = None) -
         return f"robot.left_arm.set_wrist_yaw({action.wrist_yaw_delta_or_target:.6f}, block=True)"
     if action.command_type == "wrist_pitch":
         return f"robot.left_arm.set_wrist_pitch({action.wrist_pitch_delta_or_target:.6f}, block=True)"
+    if action.command_type == "right_wrist_adjust":
+        if action.wrist_roll_target is not None:
+            return f"robot.right_arm.set_wrist_roll({action.wrist_roll_target:.6f}, block=True)"
+        if action.wrist_pitch_delta_or_target is not None:
+            return (
+                "robot.right_arm.set_wrist_pitch("
+                f"{action.wrist_pitch_delta_or_target:.6f}, block=True)"
+            )
+        if action.wrist_yaw_delta_or_target is not None:
+            return (
+                "robot.right_arm.set_wrist_yaw("
+                f"{action.wrist_yaw_delta_or_target:.6f}, block=True)"
+            )
     if action.command_type == "gripper":
         if action.arm == "left":
             gripper_name = "left_gripper"
@@ -994,6 +1069,21 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
             robot.left_arm.set_wrist_yaw(action.wrist_yaw_delta_or_target, block=True)
         elif action.command_type == "wrist_pitch":
             robot.left_arm.set_wrist_pitch(action.wrist_pitch_delta_or_target, block=True)
+        elif action.command_type == "right_wrist_adjust":
+            if action.wrist_roll_target is not None:
+                robot.right_arm.set_wrist_roll(action.wrist_roll_target, block=True)
+            elif action.wrist_pitch_delta_or_target is not None:
+                robot.right_arm.set_wrist_pitch(
+                    action.wrist_pitch_delta_or_target,
+                    block=True,
+                )
+            elif action.wrist_yaw_delta_or_target is not None:
+                robot.right_arm.set_wrist_yaw(
+                    action.wrist_yaw_delta_or_target,
+                    block=True,
+                )
+            else:
+                status = "unsupported"
         elif action.command_type == "gripper":
             if action.arm == "left":
                 robot.left_gripper.set_position(action.gripper_position, block=True)
@@ -1028,6 +1118,7 @@ def execute_replay_stage(
     if state.dry_run:
         append_log(state, action, user_confirmed=None, status="dry_run")
         print("[dry-run] 已记录，不连接机器人，不执行 replay stage。")
+        update_tracked_state_from_replay_stage(command, args, state)
         return
 
     confirmed = confirm_replay_stage(action, args)
@@ -1048,6 +1139,7 @@ def execute_replay_stage(
         duration_s = time.perf_counter() - start_time
         if wait_status == "ok":
             print(f"[ok] {command} 已完成，用时 {duration_s:.3f}s。")
+            update_tracked_state_from_replay_stage(command, args, state)
         else:
             status = wait_status
             user_observation = "wait_unsupported"
@@ -1092,6 +1184,18 @@ def execute_replay_step(robot, step: dict, args: argparse.Namespace) -> None:
         method(value, block=block)
 
 
+def update_tracked_state_from_replay_stage(
+    command: str,
+    args: argparse.Namespace,
+    state: SessionState,
+) -> None:
+    if replay_stage_name(command) != "replay_right_pour_ready":
+        return
+    state.current_right_wrist_yaw = args.right_pour_ready_wrist_yaw
+    state.current_right_wrist_pitch = args.right_pour_ready_wrist_pitch
+    state.current_right_wrist_roll = args.right_pour_ready_wrist_roll
+
+
 def wait_for_right_arm(robot) -> str:
     wait_method = getattr(robot.right_arm, "wait", None)
     if callable(wait_method):
@@ -1120,6 +1224,13 @@ def update_tracked_state(action: Action, state: SessionState) -> None:
         state.current_wrist_yaw = action.wrist_yaw_delta_or_target
     elif action.command_type == "wrist_pitch":
         state.current_wrist_pitch = action.wrist_pitch_delta_or_target
+    elif action.command_type == "right_wrist_adjust":
+        if action.wrist_roll_target is not None:
+            state.current_right_wrist_roll = action.wrist_roll_target
+        elif action.wrist_yaw_delta_or_target is not None:
+            state.current_right_wrist_yaw = action.wrist_yaw_delta_or_target
+        elif action.wrist_pitch_delta_or_target is not None:
+            state.current_right_wrist_pitch = action.wrist_pitch_delta_or_target
     elif action.command_type == "gripper":
         if action.arm == "left":
             state.current_left_gripper_position = action.gripper_position
@@ -1222,6 +1333,68 @@ def build_left_gripper_action(
         command_type="gripper",
         arm="left",
         gripper_position=target,
+    )
+
+
+def build_right_wrist_adjust_action(
+    parts: list[str],
+    args: argparse.Namespace,
+    state: SessionState,
+) -> Action:
+    command = parts[0].lower()
+    if command in {"right_set_roll", "right_set_pitch", "right_set_yaw"}:
+        if len(parts) != 2:
+            raise ValueError(f"{command} requires exactly one numeric value")
+        try:
+            target = float(parts[1])
+        except ValueError as exc:
+            raise ValueError(f"{command} value must be numeric: {parts[1]}") from exc
+    elif command in {"right_roll+", "right_roll-"}:
+        current = state.current_right_wrist_roll
+        if current is None:
+            current = args.right_pour_ready_wrist_roll
+            print(
+                "[info] current_right_wrist_roll 未知，"
+                f"以 right_pour_ready_wrist_roll={current:.3f} 作为微调基准。"
+            )
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.right_wrist_step
+    elif command in {"right_pitch+", "right_pitch-"}:
+        current = state.current_right_wrist_pitch
+        if current is None:
+            current = args.right_pour_ready_wrist_pitch
+            print(
+                "[info] current_right_wrist_pitch 未知，"
+                f"以 right_pour_ready_wrist_pitch={current:.3f} 作为微调基准。"
+            )
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.right_wrist_step
+    elif command in {"right_yaw+", "right_yaw-"}:
+        current = state.current_right_wrist_yaw
+        if current is None:
+            current = args.right_pour_ready_wrist_yaw
+            print(
+                "[info] current_right_wrist_yaw 未知，"
+                f"以 right_pour_ready_wrist_yaw={current:.3f} 作为微调基准。"
+            )
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.right_wrist_step
+    else:
+        raise ValueError(f"unsupported right wrist command: {command}")
+
+    kwargs = {}
+    if command in {"right_roll+", "right_roll-", "right_set_roll"}:
+        kwargs["wrist_roll_target"] = target
+    elif command in {"right_pitch+", "right_pitch-", "right_set_pitch"}:
+        kwargs["wrist_pitch_delta_or_target"] = target
+    else:
+        kwargs["wrist_yaw_delta_or_target"] = target
+
+    return Action(
+        command=" ".join(parts),
+        command_type="right_wrist_adjust",
+        arm="right",
+        **kwargs,
     )
 
 
@@ -1363,6 +1536,30 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
         return True
     if command in {"right_open", "right_grip", "right_loose", "right_tight"}:
         execute_action(robot, build_right_gripper_action(command, args, state), args, state)
+        return True
+    if command in {
+        "right_roll+",
+        "right_roll-",
+        "right_pitch+",
+        "right_pitch-",
+        "right_yaw+",
+        "right_yaw-",
+        "right_set_roll",
+        "right_set_pitch",
+        "right_set_yaw",
+    }:
+        try:
+            action = build_right_wrist_adjust_action(parts, args, state)
+        except ValueError as exc:
+            print(f"[blocked] {exc}")
+            append_log(
+                state,
+                Action(command=" ".join(parts), command_type="right_wrist_adjust", arm="right"),
+                user_confirmed=None,
+                status=f"blocked: {exc}",
+            )
+            return True
+        execute_action(robot, action, args, state)
         return True
     if command in RIGHT_REPLAY_STAGES or command in RIGHT_REPLAY_STAGE_ALIASES:
         execute_replay_stage(command, robot, args, state)
