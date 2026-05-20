@@ -557,6 +557,7 @@ def run_open_gripper(
     label = side_label(side)
     if not confirm_action(
         f"[高风险提醒] 即将打开{label}夹爪。"
+        "本命令使用 set_position(1.00) 打开夹爪，不调用 SDK open()。"
         "如果当前夹着杯子或拉花壶，请先确认物体已由桌面或人工支撑。"
     ):
         print("已取消打开夹爪。")
@@ -567,10 +568,12 @@ def run_open_gripper(
             action="open_gripper",
             side=side,
             status="cancelled",
+            notes="open_method=set_position_not_open",
         )
         return
 
-    get_gripper(robot, side).open(block=True)
+    print("本命令使用 set_position(1.00) 打开夹爪，不调用 SDK open()。")
+    get_gripper(robot, side).set_position(GRIPPER_MAX, block=True)
     set_gripper_estimate(state, side, GRIPPER_MAX)
     print(f"{label}夹爪已打开。")
     append_log_row(
@@ -581,6 +584,7 @@ def run_open_gripper(
         side=side,
         command_value=f"{GRIPPER_MAX:.2f}",
         status="success",
+        notes="open_method=set_position_not_open",
     )
 
 
@@ -591,6 +595,7 @@ def run_open_both_grippers(
 ) -> None:
     if not confirm_action(
         "[高风险提醒] 即将打开双夹爪。"
+        "本命令使用 set_position(1.00) 打开夹爪，不调用 SDK open()。"
         "如果当前夹着杯子或拉花壶，请先确认物体已由桌面或人工支撑。"
     ):
         print("已取消打开双夹爪。")
@@ -601,11 +606,13 @@ def run_open_both_grippers(
             action="open_gripper",
             side="both",
             status="cancelled",
+            notes="open_method=set_position_not_open",
         )
         return
 
-    robot.left_gripper.open(block=False)
-    robot.right_gripper.open(block=False)
+    print("本命令使用 set_position(1.00) 打开夹爪，不调用 SDK open()。")
+    robot.left_gripper.set_position(GRIPPER_MAX, block=False)
+    robot.right_gripper.set_position(GRIPPER_MAX, block=False)
     robot.wait([robot.left_gripper.joint_name, robot.right_gripper.joint_name])
     state.left_gripper_est = GRIPPER_MAX
     state.right_gripper_est = GRIPPER_MAX
@@ -618,6 +625,7 @@ def run_open_both_grippers(
         side="both",
         command_value=f"{GRIPPER_MAX:.2f}",
         status="success",
+        notes="open_method=set_position_not_open",
     )
 
 

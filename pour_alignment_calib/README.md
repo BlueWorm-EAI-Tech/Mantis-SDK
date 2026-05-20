@@ -7,10 +7,11 @@
 1. 先 dry-run 查看 `right_cup_pose` 将要执行的右臂持杯位姿。
 2. 再 execute 空载验证右臂位姿，现场确认路径和终点安全。
 3. 再让右手拿空杯验证杯口位置、夹持稳定性和周围间隙。
-4. 确认右手杯子固定后，用左手夹住空奶壶，建议先执行 `grip`，默认 `left_gripper.set_position(0.70)`。
-5. 用 `x+` / `x-` / `y+` / `y-` / `z+` / `z-` 做单步 relative IK 对位。
-6. 空壶壶嘴接近杯口后，再用 `roll03`、`roll05`、`roll07` 分步验证倾斜姿态。
-7. 少量水测试前，必须先通过空壶 `roll07` 对杯口验证，并确认没有碰撞、卡住、打滑或杯口干涉。
+4. 标定过程中需要操作右夹爪时，优先在本脚本内使用 `right_open` / `right_grip` / `right_loose` / `right_tight`，不要频繁切换到 `robot_rescue_console.py` 打开右夹爪。
+5. 确认右手杯子固定后，用左手夹住空奶壶，建议先执行 `grip`，默认 `left_gripper.set_position(0.70)`。
+6. 用 `x+` / `x-` / `y+` / `y-` / `z+` / `z-` 做单步 relative IK 对位。
+7. 空壶壶嘴接近杯口后，再用 `roll03`、`roll05`、`roll07` 分步验证倾斜姿态。
+8. 少量水测试前，必须先通过空壶 `roll07` 对杯口验证，并确认没有碰撞、卡住、打滑或杯口干涉。
 
 `right_cup_pose` 用途：
 
@@ -18,6 +19,13 @@
 - 该命令只在本标定脚本内发送右臂关节目标，不会自动调用完整 `coffee.py` 流程。
 - 该命令不会修改或调用 `coffee_replay_safe.py`，也不会接入 `left_hand_pour_milk`。
 - 该位姿必须现场确认安全，不能默认认为适合所有初始姿态、杯子尺寸或夹持状态。
+
+右夹爪命令：
+
+- `right_open` 使用 `robot.right_gripper.set_position(1.00, block=True)` 打开右夹爪，不调用 SDK `open()`。
+- `right_grip` 使用 `robot.right_gripper.set_position(0.70, block=True)` 夹杯。
+- `right_loose` / `right_tight` 基于本脚本内部记录的右夹爪估计值按 `--right-gripper-step` 微调，并裁剪到 `[0.0, 1.0]`。
+- 这些命令都需要人工输入 `y` 才会在 execute 模式执行，并且都会写入 CSV。
 
 运行方式：
 
@@ -40,6 +48,7 @@ python3 pour_alignment_calib/pour_align_calib.py --execute --i-understand-real-r
 - 左臂平移动作默认使用 `arm.ik(dx, dy, dz, 0, 0, 0, block=True, abs=False)`。
 - `obs unsafe` 或 `obs near_collision` 会在 CSV 中标记 `risk_detected=True`；出现这两种观察时建议停止本轮调试。
 - 调试时必须有人看护急停，空壶、杯子和周边障碍物的位置变化后要重新确认安全间隙。
+- 如果执行 `right_open` 或救援控制台菜单 5 后出现双夹爪同时动作或回 home，必须立即停止本轮标定，检查是否有多个控制脚本同时运行，并检查日志，不要继续夹杯/倒水。
 
 日志会自动写入：
 

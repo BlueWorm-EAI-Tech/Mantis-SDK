@@ -31,7 +31,12 @@ DEFAULT_LINEAR_STEP = 0.005
 DEFAULT_LINEAR_STEP_SMALL = 0.003
 DEFAULT_ROT_STEP = 0.05
 DEFAULT_GRIPPER_POSITION = 0.70
+DEFAULT_RIGHT_GRIPPER_OPEN_POSITION = 1.00
+DEFAULT_RIGHT_GRIPPER_CUP_POSITION = 0.70
+DEFAULT_RIGHT_GRIPPER_STEP = 0.05
 DEFAULT_MAX_WRIST_ROLL = 0.70
+GRIPPER_MIN = 0.0
+GRIPPER_MAX = 1.0
 LOG_DIR = Path(__file__).resolve().parent / "logs"
 
 # Source: coffee.py left-hand pour preparation stage, mirrored by
@@ -87,6 +92,7 @@ class SessionState:
     current_wrist_yaw: Optional[float] = None
     current_wrist_pitch: Optional[float] = None
     current_gripper_position: Optional[float] = None
+    current_right_gripper_position: Optional[float] = None
     last_observed_alignment: str = ""
     last_user_observation: str = ""
     risk_detected: bool = False
@@ -152,6 +158,24 @@ def parse_args() -> argparse.Namespace:
         help=f"左夹爪目标位置，默认 {DEFAULT_GRIPPER_POSITION}",
     )
     parser.add_argument(
+        "--right-gripper-open-position",
+        type=float,
+        default=DEFAULT_RIGHT_GRIPPER_OPEN_POSITION,
+        help=f"右夹爪打开目标位置，默认 {DEFAULT_RIGHT_GRIPPER_OPEN_POSITION}",
+    )
+    parser.add_argument(
+        "--right-gripper-cup-position",
+        type=float,
+        default=DEFAULT_RIGHT_GRIPPER_CUP_POSITION,
+        help=f"右夹爪夹杯目标位置，默认 {DEFAULT_RIGHT_GRIPPER_CUP_POSITION}",
+    )
+    parser.add_argument(
+        "--right-gripper-step",
+        type=float,
+        default=DEFAULT_RIGHT_GRIPPER_STEP,
+        help=f"右夹爪微调步长，默认 {DEFAULT_RIGHT_GRIPPER_STEP}",
+    )
+    parser.add_argument(
         "--max-wrist-roll",
         type=float,
         default=DEFAULT_MAX_WRIST_ROLL,
@@ -183,6 +207,12 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--rot-step 必须大于 0")
     if not 0.0 <= args.gripper_position <= 1.0:
         raise SystemExit("--gripper-position 必须在 0.0 到 1.0 之间")
+    if not GRIPPER_MIN <= args.right_gripper_open_position <= GRIPPER_MAX:
+        raise SystemExit("--right-gripper-open-position 必须在 0.0 到 1.0 之间")
+    if not GRIPPER_MIN <= args.right_gripper_cup_position <= GRIPPER_MAX:
+        raise SystemExit("--right-gripper-cup-position 必须在 0.0 到 1.0 之间")
+    if args.right_gripper_step <= 0.0:
+        raise SystemExit("--right-gripper-step 必须大于 0")
     if args.max_wrist_roll < 0.0:
         raise SystemExit("--max-wrist-roll 必须大于等于 0")
 
@@ -218,6 +248,10 @@ def fmt_float(value: Optional[float]) -> str:
     if value is None:
         return ""
     return f"{value:.6f}"
+
+
+def clamp(value: float, lower: float, upper: float) -> float:
+    return max(lower, min(upper, value))
 
 
 def append_log(
@@ -268,6 +302,10 @@ def print_help() -> None:
 Commands:
   help                 show commands
   grip                 set left_gripper to configured position
+  right_open           set right_gripper to configured open position
+  right_grip           set right_gripper to configured cup position
+  right_loose          loosen right_gripper by configured step
+  right_tight          tighten right_gripper by configured step
   x+ / x-              left_arm relative IK X +/- step
   y+ / y-              left_arm relative IK Y +/- small step
   z+ / z-              left_arm relative IK Z +/- step
@@ -362,7 +400,8 @@ def describe_action(action: Action) -> str:
     if action.command_type == "wrist_pitch":
         return f"robot.left_arm.set_wrist_pitch({action.wrist_pitch_delta_or_target:.6f}, block=True)"
     if action.command_type == "gripper":
-        return f"robot.left_gripper.set_position({action.gripper_position:.6f})"
+        gripper_name = "right_gripper" if action.arm == "right" else "left_gripper"
+        return f"robot.{gripper_name}.set_position({action.gripper_position:.6f}, block=True)"
     return action.command
 
 
@@ -408,7 +447,8 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
         elif action.command_type == "wrist_pitch":
             robot.left_arm.set_wrist_pitch(action.wrist_pitch_delta_or_target, block=True)
         elif action.command_type == "gripper":
-            robot.left_gripper.set_position(action.gripper_position)
+            gripper = robot.right_gripper if action.arm == "right" else robot.left_gripper
+            gripper.set_position(action.gripper_position, block=True)
         else:
             status = "unsupported"
         duration_s = time.perf_counter() - start_time
@@ -439,17 +479,54 @@ def execute_right_cup_pose(robot, args: argparse.Namespace, state: SessionState)
         return
 
     status = "ok"
+    user_observation = ""
     try:
         start_time = time.perf_counter()
         for method_name, target, block in RIGHT_CUP_POSE_STEPS:
             getattr(robot.right_arm, method_name)(target, block=block)
+        wait_status = wait_for_right_arm(robot)
         duration_s = time.perf_counter() - start_time
-        print(f"[ok] right_cup_pose 指令已发送，用时 {duration_s:.3f}s。")
+        if wait_status == "ok":
+            print(f"[ok] right_cup_pose 已完成/已等待完成，用时 {duration_s:.3f}s。")
+        else:
+            status = wait_status
+            user_observation = "wait_unsupported"
+            print(
+                "[warning] right_cup_pose 关节命令已发送，但 SDK 不支持已知等待接口；"
+                "CSV 已记录 wait_unsupported。"
+            )
     except Exception as exc:  # pragma: no cover - real SDK/runtime only
         status = f"error: {exc}"
         print(f"[error] {exc}")
 
-    append_log(state, action, user_confirmed=True, status=status)
+    append_log(
+        state,
+        action,
+        user_confirmed=True,
+        status=status,
+        user_observation=user_observation,
+    )
+
+
+def wait_for_right_arm(robot) -> str:
+    wait_method = getattr(robot.right_arm, "wait", None)
+    if callable(wait_method):
+        try:
+            wait_method()
+            return "ok"
+        except (AttributeError, TypeError):
+            pass
+
+    robot_wait = getattr(robot, "wait", None)
+    joint_names = getattr(robot.right_arm, "joint_names", None)
+    if callable(robot_wait) and joint_names is not None:
+        try:
+            robot_wait(joint_names)
+            return "ok"
+        except (AttributeError, TypeError):
+            pass
+
+    return "wait_unsupported"
 
 
 def update_tracked_state(action: Action, state: SessionState) -> None:
@@ -460,7 +537,10 @@ def update_tracked_state(action: Action, state: SessionState) -> None:
     elif action.command_type == "wrist_pitch":
         state.current_wrist_pitch = action.wrist_pitch_delta_or_target
     elif action.command_type == "gripper":
-        state.current_gripper_position = action.gripper_position
+        if action.arm == "right":
+            state.current_right_gripper_position = action.gripper_position
+        else:
+            state.current_gripper_position = action.gripper_position
 
 
 def build_linear_action(command: str, args: argparse.Namespace) -> Action:
@@ -495,6 +575,34 @@ def build_roll_action(command: str, args: argparse.Namespace) -> Action:
             f"{command} target {target:.3f} exceeds --max-wrist-roll {args.max_wrist_roll:.3f}"
         )
     return Action(command=command, command_type="wrist_roll", wrist_roll_target=target)
+
+
+def build_right_gripper_action(
+    command: str,
+    args: argparse.Namespace,
+    state: SessionState,
+) -> Action:
+    if command == "right_open":
+        target = args.right_gripper_open_position
+    elif command == "right_grip":
+        target = args.right_gripper_cup_position
+    else:
+        current = state.current_right_gripper_position
+        if current is None:
+            current = args.right_gripper_cup_position
+        sign = 1.0 if command == "right_loose" else -1.0
+        target = clamp(
+            current + sign * args.right_gripper_step,
+            GRIPPER_MIN,
+            GRIPPER_MAX,
+        )
+
+    return Action(
+        command=command,
+        command_type="gripper",
+        arm="right",
+        gripper_position=target,
+    )
 
 
 def get_current_joint_target(arm, state: SessionState, joint_name: str) -> Optional[float]:
@@ -618,6 +726,9 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
             gripper_position=args.gripper_position,
         )
         execute_action(robot, action, args, state)
+        return True
+    if command in {"right_open", "right_grip", "right_loose", "right_tight"}:
+        execute_action(robot, build_right_gripper_action(command, args, state), args, state)
         return True
     if command == "right_cup_pose":
         execute_right_cup_pose(robot, args, state)
