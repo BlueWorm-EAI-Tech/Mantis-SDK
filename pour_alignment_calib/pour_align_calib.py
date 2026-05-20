@@ -40,9 +40,10 @@ DEFAULT_RIGHT_GRIPPER_CLOSED_POSITION = 0.00
 DEFAULT_RIGHT_GRIPPER_CUP_POSITION = 0.80
 DEFAULT_RIGHT_GRIPPER_STEP = 0.05
 DEFAULT_RIGHT_WRIST_STEP = 0.05
+DEFAULT_RIGHT_ARM_CLEARANCE_STEP = 0.05
 DEFAULT_RIGHT_POUR_READY_WRIST_YAW = -0.70
-DEFAULT_RIGHT_POUR_READY_WRIST_PITCH = -0.50
-DEFAULT_RIGHT_POUR_READY_WRIST_ROLL = 0.30
+DEFAULT_RIGHT_POUR_READY_WRIST_PITCH = -0.40
+DEFAULT_RIGHT_POUR_READY_WRIST_ROLL = 0.10
 DEFAULT_RIGHT_POUR_READY_SHOULDER_ROLL = 0.70
 DEFAULT_MAX_WRIST_ROLL = 0.70
 GRIPPER_MIN = 0.0
@@ -412,6 +413,28 @@ RIGHT_REPLAY_STAGES = {
             "source_action_id": "064",
         },
         {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_elbow_pitch",
+            "value_arg": "right_pour_ready_elbow_pitch",
+            "block": True,
+            "description": "可选：右肘俯仰微调接奶间隙，仅显式传参时执行",
+            "source_stage": "pour_alignment_calib_optional_clearance",
+            "source_action_id": "064a",
+            "enabled_if_not_none": "right_pour_ready_elbow_pitch",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_pitch",
+            "value_arg": "right_pour_ready_shoulder_pitch",
+            "block": True,
+            "description": "可选：右肩俯仰微调接奶间隙，仅显式传参时执行",
+            "source_stage": "pour_alignment_calib_optional_clearance",
+            "source_action_id": "064b",
+            "enabled_if_not_none": "right_pour_ready_shoulder_pitch",
+        },
+        {
             "kind": "sleep",
             "target": "robot",
             "method": "sleep",
@@ -499,6 +522,8 @@ class SessionState:
     current_right_wrist_roll: Optional[float] = None
     current_right_wrist_yaw: Optional[float] = None
     current_right_wrist_pitch: Optional[float] = None
+    current_right_elbow_pitch: Optional[float] = None
+    current_right_shoulder_pitch: Optional[float] = None
     current_left_gripper_position: Optional[float] = None
     current_right_gripper_position: Optional[float] = None
     last_observed_alignment: str = ""
@@ -629,6 +654,12 @@ def parse_args() -> argparse.Namespace:
         help=f"右手腕微调步长，默认 {DEFAULT_RIGHT_WRIST_STEP}",
     )
     parser.add_argument(
+        "--right-arm-clearance-step",
+        type=float,
+        default=DEFAULT_RIGHT_ARM_CLEARANCE_STEP,
+        help=f"右臂接奶间隙 elbow/shoulder_pitch 微调步长，默认 {DEFAULT_RIGHT_ARM_CLEARANCE_STEP}",
+    )
+    parser.add_argument(
         "--right-pour-ready-wrist-yaw",
         type=float,
         default=DEFAULT_RIGHT_POUR_READY_WRIST_YAW,
@@ -651,6 +682,18 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=DEFAULT_RIGHT_POUR_READY_SHOULDER_ROLL,
         help=f"右手接奶位 shoulder_roll，默认 {DEFAULT_RIGHT_POUR_READY_SHOULDER_ROLL}",
+    )
+    parser.add_argument(
+        "--right-pour-ready-elbow-pitch",
+        type=float,
+        default=None,
+        help="右手接奶位可选 elbow_pitch 覆盖；默认不主动设置该关节。",
+    )
+    parser.add_argument(
+        "--right-pour-ready-shoulder-pitch",
+        type=float,
+        default=None,
+        help="右手接奶位可选 shoulder_pitch 覆盖；默认不主动设置该关节。",
     )
     parser.add_argument(
         "--max-wrist-roll",
@@ -717,6 +760,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--right-gripper-step 必须大于 0")
     if args.right_wrist_step <= 0.0:
         raise SystemExit("--right-wrist-step 必须大于 0")
+    if args.right_arm_clearance_step <= 0.0:
+        raise SystemExit("--right-arm-clearance-step 必须大于 0")
     if args.max_wrist_roll < 0.0:
         raise SystemExit("--max-wrist-roll 必须大于等于 0")
 
@@ -834,6 +879,10 @@ Commands:
   right_set_roll <value>         set right wrist_roll target
   right_set_pitch <value>        set right wrist_pitch target
   right_set_yaw <value>          set right wrist_yaw target
+  right_elbow+ / right_elbow-                  adjust right elbow_pitch by clearance step
+  right_shoulder_pitch+ / right_shoulder_pitch- adjust right shoulder_pitch by clearance step
+  right_set_elbow <value>                      set right elbow_pitch target
+  right_set_shoulder_pitch <value>             set right shoulder_pitch target
   right_table_pregrasp / right_table_grasp_pose / right_lift_cup / right_transfer_cup
                        deprecated; no action, use replay_right_* commands
   x+ / x-              left_arm relative IK X +/- step
@@ -848,6 +897,12 @@ Commands:
   obs [value]          record observation: spout_in_cup / edge / outside / near_collision / unsafe / uncertain
   save [note]          save current calibration note
   quit                 exit
+
+Clearance tuning:
+  If left/right vertical distance is too close, first test right_elbow+ / right_elbow-.
+  If elbow is not enough, then test right_shoulder_pitch+ / right_shoulder_pitch-.
+  Change only one joint each time, default 0.05 rad or smaller.
+  Do not use shoulder_roll first for vertical clearance.
 """.strip()
     )
 
@@ -898,6 +953,9 @@ def replay_stage_steps(command: str) -> list[dict]:
 
 
 def step_enabled(step: dict, args: argparse.Namespace) -> bool:
+    enabled_if_not_none = step.get("enabled_if_not_none")
+    if enabled_if_not_none is not None:
+        return getattr(args, enabled_if_not_none) is not None
     enabled_arg = step.get("enabled_arg")
     if enabled_arg is None:
         return True
@@ -952,6 +1010,9 @@ def format_replay_step(step: dict, args: argparse.Namespace) -> str:
     action_id = step["source_action_id"]
     prefix = f"{action_id} {step['description']}: "
     if not step_enabled(step, args):
+        enabled_if_not_none = step.get("enabled_if_not_none")
+        if enabled_if_not_none is not None:
+            return prefix + f"[skipped unless --{enabled_if_not_none.replace('_', '-')} is set]"
         return prefix + "[skipped unless --include-left-gripper-init]"
     kind = step["kind"]
     target = step["target"]
@@ -1009,6 +1070,15 @@ def describe_action(action: Action, args: Optional[argparse.Namespace] = None) -
                 "robot.right_arm.set_wrist_yaw("
                 f"{action.wrist_yaw_delta_or_target:.6f}, block=True)"
             )
+    if action.command_type == "right_arm_clearance_adjust":
+        try:
+            payload = json.loads(action.joint_targets)
+            joint = payload["joint"]
+            target = float(payload["target"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            return action.command
+        method_name = "set_elbow_pitch" if joint == "elbow_pitch" else "set_shoulder_pitch"
+        return f"robot.right_arm.{method_name}({target:.6f}, block=True)"
     if action.command_type == "gripper":
         if action.arm == "left":
             gripper_name = "left_gripper"
@@ -1084,6 +1154,20 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
                 )
             else:
                 status = "unsupported"
+        elif action.command_type == "right_arm_clearance_adjust":
+            try:
+                payload = json.loads(action.joint_targets)
+                joint = payload["joint"]
+                target = float(payload["target"])
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                status = "unsupported"
+            else:
+                if joint == "elbow_pitch":
+                    robot.right_arm.set_elbow_pitch(target, block=True)
+                elif joint == "shoulder_pitch":
+                    robot.right_arm.set_shoulder_pitch(target, block=True)
+                else:
+                    status = "unsupported"
         elif action.command_type == "gripper":
             if action.arm == "left":
                 robot.left_gripper.set_position(action.gripper_position, block=True)
@@ -1190,10 +1274,17 @@ def update_tracked_state_from_replay_stage(
     state: SessionState,
 ) -> None:
     if replay_stage_name(command) != "replay_right_pour_ready":
+        if replay_stage_name(command) == "replay_right_retreat_after_coffee":
+            state.current_right_elbow_pitch = 0.0
+            state.current_right_shoulder_pitch = 0.0
         return
     state.current_right_wrist_yaw = args.right_pour_ready_wrist_yaw
     state.current_right_wrist_pitch = args.right_pour_ready_wrist_pitch
     state.current_right_wrist_roll = args.right_pour_ready_wrist_roll
+    if args.right_pour_ready_elbow_pitch is not None:
+        state.current_right_elbow_pitch = args.right_pour_ready_elbow_pitch
+    if args.right_pour_ready_shoulder_pitch is not None:
+        state.current_right_shoulder_pitch = args.right_pour_ready_shoulder_pitch
 
 
 def wait_for_right_arm(robot) -> str:
@@ -1231,6 +1322,17 @@ def update_tracked_state(action: Action, state: SessionState) -> None:
             state.current_right_wrist_yaw = action.wrist_yaw_delta_or_target
         elif action.wrist_pitch_delta_or_target is not None:
             state.current_right_wrist_pitch = action.wrist_pitch_delta_or_target
+    elif action.command_type == "right_arm_clearance_adjust":
+        try:
+            payload = json.loads(action.joint_targets)
+            joint = payload["joint"]
+            target = float(payload["target"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            return
+        if joint == "elbow_pitch":
+            state.current_right_elbow_pitch = target
+        elif joint == "shoulder_pitch":
+            state.current_right_shoulder_pitch = target
     elif action.command_type == "gripper":
         if action.arm == "left":
             state.current_left_gripper_position = action.gripper_position
@@ -1398,6 +1500,60 @@ def build_right_wrist_adjust_action(
     )
 
 
+def build_right_arm_clearance_action(
+    parts: list[str],
+    args: argparse.Namespace,
+    state: SessionState,
+) -> Action:
+    command = parts[0].lower()
+    if command in {"right_set_elbow", "right_set_shoulder_pitch"}:
+        if len(parts) != 2:
+            raise ValueError(f"{command} requires exactly one numeric value")
+        try:
+            target = float(parts[1])
+        except ValueError as exc:
+            raise ValueError(f"{command} value must be numeric: {parts[1]}") from exc
+    elif command in {"right_elbow+", "right_elbow-"}:
+        current = state.current_right_elbow_pitch
+        if current is None:
+            current = 0.0
+            print(
+                "[warn] current_right_elbow_pitch unknown, "
+                "using 0.0 as estimate after right_arm.home context"
+            )
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.right_arm_clearance_step
+    elif command in {"right_shoulder_pitch+", "right_shoulder_pitch-"}:
+        current = state.current_right_shoulder_pitch
+        if current is None:
+            current = 0.0
+            print(
+                "[warn] current_right_shoulder_pitch unknown, "
+                "using 0.0 as estimate after right_arm.home context"
+            )
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.right_arm_clearance_step
+    else:
+        raise ValueError(f"unsupported right arm clearance command: {command}")
+
+    joint = (
+        "elbow_pitch"
+        if command in {"right_elbow+", "right_elbow-", "right_set_elbow"}
+        else "shoulder_pitch"
+    )
+    joint_targets = json.dumps(
+        {"joint": joint, "target": target},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return Action(
+        command=" ".join(parts),
+        command_type="right_arm_clearance_adjust",
+        arm="right",
+        joint_targets=joint_targets,
+    )
+
+
 def get_current_joint_target(arm, state: SessionState, joint_name: str) -> Optional[float]:
     if joint_name == "wrist_yaw" and state.current_wrist_yaw is not None:
         return state.current_wrist_yaw
@@ -1555,6 +1711,31 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
             append_log(
                 state,
                 Action(command=" ".join(parts), command_type="right_wrist_adjust", arm="right"),
+                user_confirmed=None,
+                status=f"blocked: {exc}",
+            )
+            return True
+        execute_action(robot, action, args, state)
+        return True
+    if command in {
+        "right_elbow+",
+        "right_elbow-",
+        "right_shoulder_pitch+",
+        "right_shoulder_pitch-",
+        "right_set_elbow",
+        "right_set_shoulder_pitch",
+    }:
+        try:
+            action = build_right_arm_clearance_action(parts, args, state)
+        except ValueError as exc:
+            print(f"[blocked] {exc}")
+            append_log(
+                state,
+                Action(
+                    command=" ".join(parts),
+                    command_type="right_arm_clearance_adjust",
+                    arm="right",
+                ),
                 user_confirmed=None,
                 status=f"blocked: {exc}",
             )

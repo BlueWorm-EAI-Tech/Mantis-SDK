@@ -37,7 +37,9 @@
 
 - 它不是完整取杯流程，只设置倒奶前右手杯口姿态相关的部分右臂关节。
 - 它不是完整 `left_hand_move_to_pour_pose`，只复现其中右手接奶位动作子集，不会加入左臂动作。
-- `replay_right_pour_ready` / `right_pour_ready` / `right_cup_pose` 使用 `--right-pour-ready-wrist-yaw -0.70`、`--right-pour-ready-wrist-pitch -0.50`、`--right-pour-ready-wrist-roll 0.30`、`--right-pour-ready-shoulder-roll 0.70` 作为默认目标，可在启动脚本时覆盖。
+- `replay_right_pour_ready` / `right_pour_ready` / `right_cup_pose` 使用 `--right-pour-ready-wrist-yaw -0.70`、`--right-pour-ready-wrist-pitch -0.40`、`--right-pour-ready-wrist-roll 0.10`、`--right-pour-ready-shoulder-roll 0.70` 作为当前实机标定默认目标，可在启动脚本时覆盖。
+- 原始 `coffee_replay_safe.py` 接奶位中右腕候选为 `wrist_pitch=-0.5`、`wrist_roll=0.3`；当前标定脚本默认值已根据实机调整为 `wrist_pitch=-0.40`、`wrist_roll=0.10`。
+- `--right-pour-ready-elbow-pitch` 和 `--right-pour-ready-shoulder-pitch` 默认不设置；只有显式传入时，`replay_right_pour_ready` 才会在右手腕和 `shoulder_roll` 动作之后额外设置对应关节。
 - 它要求右手已经稳定夹杯。
 - 它最好在 `replay_right_grasp_cup` -> `replay_right_move_to_coffee_machine` -> `replay_right_retreat_after_coffee` 之后使用。
 - 该命令只在本标定脚本内发送右臂关节目标，不会自动调用完整 `coffee.py` 流程。
@@ -48,6 +50,18 @@
 - 如果杯口方向不朝左手奶壶，再用 `right_yaw+` / `right_yaw-` 微调右腕 `wrist_yaw`。
 - 推荐每次只改 `0.05 rad`，不要同时改多个关节；步长可用 `--right-wrist-step` 调整。
 - 不要优先用 `shoulder_roll` 修杯口倾角；`shoulder_roll` 主要用于调整空间位置。
+
+右手接奶位间隙调试：
+
+- 当前推荐手腕候选：`wrist_yaw=-0.70`、`wrist_pitch=-0.40`、`wrist_roll=0.10`、`shoulder_roll=0.70`。
+- 如果杯口姿态已经基本合适，但右手杯子与左手 home 位垂直距离太近，先调 `right_elbow_pitch`，再调 `right_shoulder_pitch`，最后才考虑 `shoulder_roll`。
+- 推荐现场测试顺序：`replay_right_pour_ready` -> `obs before_clearance_adjust` -> `right_elbow+` -> `obs check_right_elbow_plus` -> `right_elbow-` -> `obs check_right_elbow_minus` -> `save right_clearance_candidate_xxx`。
+- `right_elbow+` / `right_elbow-` 按 `--right-arm-clearance-step` 微调右肘俯仰，默认 `0.05 rad`。
+- `right_shoulder_pitch+` / `right_shoulder_pitch-` 按 `--right-arm-clearance-step` 微调右肩俯仰，默认 `0.05 rad`。
+- `right_set_elbow <value>` 和 `right_set_shoulder_pitch <value>` 可直接设置目标值。
+- 这些命令只控制右臂对应关节，不控制左右夹爪，不移动左臂，不调用 home，不自动跑 replay stage；真实执行前都需要人工输入 `y` 确认。
+- 每次只改一个关节，每次默认 `0.05 rad` 或更小；不要优先用 `shoulder_roll` 拉开垂直距离，因为它会明显改变杯口横向位置。
+- 如果出现杯子晃动、杯口偏离、靠近碰撞、异响，立即停止，不继续左手标定。
 
 右手接奶位手腕微调命令：
 
