@@ -1,45 +1,40 @@
 # 空壶壶嘴对杯口标定
 
-这个目录只用于倒奶/拉花前的右手取杯与空壶壶嘴对杯口标定，不接入正式 coffee 流程，也不执行少量水测试自动流程。现在右手杯子标定不再只依赖 `right_cup_pose`，应先把右手从桌面取杯、抬杯、转移到倒奶前杯口位姿的路径分阶段调稳定，再让左手空壶对杯口。
+这个目录只用于倒奶/拉花前的右手取杯与空壶壶嘴对杯口标定，不接入正式 coffee 流程，也不执行少量水测试自动流程。右手杯子位姿必须从 `coffee_replay_safe.py` 的真实阶段链路复现，不再建议单独使用旧的猜测版 `right_table_*` 命令。
 
 左右夹爪默认值：
 
 - `left_grip` 默认执行 `robot.left_gripper.set_position(0.70, block=True)`，用于夹空奶壶。
 - `right_grip` 默认执行 `robot.right_gripper.set_position(0.80, block=True)`，用于夹杯子。
+- `replay_right_grasp_cup` 中右夹爪初始化闭合默认使用 `--right-gripper-closed-position 0.00`；该值可按 SDK/实机实际闭合定义调整。
+- `replay_right_grasp_cup` 默认不执行左夹爪初始化；只有显式传入 `--include-left-gripper-init` 才会使用 `--left-gripper-closed-position` 初始化左夹爪。
 - `grip` 是 `left_grip` 的兼容别名；新标定记录中建议优先使用 `left_grip`。
 - 推荐通过 `--left-gripper-pitcher-position` 和 `--right-gripper-cup-position` 显式记录本轮标定值。
+- `right_grip` / `replay_right_grasp_cup` 抓杯默认 0.80 是当前实机杯子夹持经验值；原始 `coffee_replay_safe.py` 中抓杯位置为 0.6，可按杯子实际夹持情况调整 `--right-gripper-cup-position`。
 
 推荐标定顺序：
 
-1. `right_open` 打开右夹爪。
-2. `right_table_pregrasp` 让右臂到桌面杯子附近的预抓取位姿。
-3. `right_table_grasp_pose` 让右臂进入桌面抓杯位姿。
-4. 人工放杯/确认夹持位置，确认杯子、桌面、手指和周边间隙安全。
-5. `right_grip` 夹杯，默认 `robot.right_gripper.set_position(0.80, block=True)`。
-6. `right_lift_cup` 夹杯后抬离桌面。
-7. `right_transfer_cup` 将右手杯子转移到后续倒奶前区域的第一段。
-8. `right_transfer_cup_b` 完成右手杯子转移的第二段。
-9. `right_pour_ready` 将右手杯子移动到左手空壶对杯口时使用的杯口目标位姿。
-10. 使用 `left_grip` 或兼容别名 `grip` 夹住空奶壶。
-11. 用 `x+` / `x-` / `y+` / `y-` / `z+` / `z-` 做左手单步 relative IK，对准杯口。
-12. 空壶壶嘴接近杯口后，再用 `roll03`、`roll05`、`roll07` 分步做空壶倾斜验证。
-13. 少量水测试前，必须先通过空壶 `roll07` 对杯口验证，并确认没有碰撞、卡住、打滑或杯口干涉。
+1. 先右手空载复现：`replay_right_grasp_cup` -> `replay_right_move_to_coffee_machine` -> `replay_right_retreat_after_coffee` -> `replay_right_pour_ready`。
+2. 再右手夹空杯复现同一条阶段链路，逐阶段确认杯子、桌面、手指、身体和周边间隙安全。
+3. 右手链路稳定后，使用 `left_grip` 或兼容别名 `grip` 夹住空奶壶。
+4. 用 `x+` / `x-` / `y+` / `y-` / `z+` / `z-` 做左手单步 relative IK，对准杯口。
+5. 空壶壶嘴接近杯口后，再用 `roll03`、`roll05`、`roll07` 分步做空壶倾斜验证。
+6. 少量水测试前，必须先通过空壶 `roll07` 对杯口验证，并确认没有碰撞、卡住、打滑或杯口干涉。
 
-右手取杯阶段命令：
+右手 replay 阶段命令：
 
-- `right_table_pregrasp` 只移动右臂到桌面杯子附近的预抓取位姿，不控制右夹爪。
-- `right_table_grasp_pose` 只移动右臂进入桌面抓杯位姿，不控制右夹爪。
-- `right_lift_cup` 用于 `right_grip` 后抬杯离开桌面。
-- `right_transfer_cup` 用于将右手杯子转移到后续倒奶前区域的第一段。
-- `right_transfer_cup_b` 用于完成右手杯子转移的第二段；如果第一段后出现风险，不要继续执行。
-- `right_pour_ready` 用于进入后续左手空壶对杯口时使用的右手杯口目标位姿。
-- `right_cup_pose` 保留为兼容旧记录的命令，是 `right_pour_ready` 的 alias/legacy command。
+- `replay_right_grasp_cup` 复现 `coffee_replay_safe.py::right_hand_grasp_cup`，用于右手从桌面抓杯并抬离桌面。
+- `replay_right_move_to_coffee_machine` 复现 `coffee_replay_safe.py::right_hand_move_to_coffee_machine`。
+- `replay_right_retreat_after_coffee` 复现 `coffee_replay_safe.py::right_hand_retreat_after_coffee`，包含 `robot.right_arm.home()`，必须重点确认路径安全。
+- `replay_right_pour_ready` 只复现 `coffee_replay_safe.py::left_hand_move_to_pour_pose` 中右手相关动作，不执行左手动作。
+- `right_pour_ready` 和 `right_cup_pose` 保留为兼容旧记录的命令，都是 `replay_right_pour_ready` 的 alias。
+- `right_table_pregrasp`、`right_table_grasp_pose`、`right_lift_cup`、`right_transfer_cup`、`right_transfer_cup_b` 已标记 deprecated，不再执行旧的猜测版动作。
 
 `right_pour_ready` / `right_cup_pose` 注意事项：
 
 - 它不是完整取杯流程，只设置倒奶前右手杯口姿态相关的部分右臂关节。
 - 它要求右手已经稳定夹杯。
-- 它最好在 `right_table_pregrasp` -> `right_table_grasp_pose` -> `right_grip` -> `right_lift_cup` -> `right_transfer_cup` -> `right_transfer_cup_b` 之后使用。
+- 它最好在 `replay_right_grasp_cup` -> `replay_right_move_to_coffee_machine` -> `replay_right_retreat_after_coffee` 之后使用。
 - 该命令只在本标定脚本内发送右臂关节目标，不会自动调用完整 `coffee.py` 流程。
 - 该命令不会修改或调用 `coffee_replay_safe.py`，也不会接入 `left_hand_pour_milk`。
 - 该位姿必须现场确认安全，不能默认认为适合所有初始姿态、杯子尺寸或夹持状态。
@@ -59,7 +54,7 @@
 - `right_loose` / `right_tight` 基于本脚本内部记录的右夹爪估计值按 `--right-gripper-step` 微调，并裁剪到 `[0.0, 1.0]`。
 - 这些命令都需要人工输入 `y` 才会在 execute 模式执行，并且都会写入 CSV。
 
-所有夹爪命令均使用 `set_position()`，不调用 SDK `open()`。
+所有夹爪命令和 replay stage 内的夹爪动作均使用 `set_position(..., block=True)`，不调用 SDK `open()` 或 `close()`。
 
 运行方式：
 
@@ -85,16 +80,16 @@ python3 pour_alignment_calib/pour_align_calib.py --execute --i-understand-real-r
 安全注意事项：
 
 - 每个真实动作执行前都需要人工输入 `y` 确认。
-- 每个右臂阶段命令执行完后会优先尝试 `robot.right_arm.wait()`，不支持时再尝试 `robot.wait(robot.right_arm.joint_names)`。
-- `right_table_pregrasp`、`right_table_grasp_pose`、`right_lift_cup`、`right_transfer_cup`、`right_transfer_cup_b`、`right_pour_ready` 和 `right_cup_pose` 都只移动右臂，不控制任何夹爪。
-- `right_pour_ready` / `right_cup_pose` 不会自动调用 `robot.home()`，执行前必须人工确认当前右臂初始姿态是否适合直接切到该位姿。
-- 本工具不会自动调用 `robot.home()`。
-- 本工具不会调用 `right_arm.home()` 或 `left_arm.home()`。
+- 每个 replay stage 执行前都需要人工输入 `y` 确认，stage 内部按 `coffee_replay_safe.py` 原顺序连续执行。
+- 每个 replay stage 末尾都会显式执行 `robot.wait()` 和 `sleep(0.5)`。
+- `replay_right_retreat_after_coffee` 包含 `right_arm.home()`，风险比普通小步标定更高，必须重点确认路径安全。
+- 除 `replay_right_retreat_after_coffee` 为严格复现会调用 `right_arm.home()` 外，本工具不会自动调用 `robot.home()`、`right_arm.home()` 或 `left_arm.home()`。
 - 本工具不会自动跑完整 `coffee.py` 流程。
 - 本工具不会自动接入或调用 `coffee_replay_safe.py`。
 - 本工具不会自动做少量水测试。
-- 本工具不会自动运行完整拿杯序列；每一步都需要手动输入命令。
-- 本工具不使用 SDK `open()`，夹爪打开也使用 `set_position()`。
+- 本工具不会自动连续执行多个 replay stage；每个阶段都需要手动输入命令。
+- 本工具不会自动执行左手倒奶动作。
+- 本工具不使用 SDK `open()` 或 `close()`，夹爪打开/闭合也使用 `set_position()`。
 - 本工具不使用 README 示例 absolute IK 点，不做大范围 absolute IK。
 - 左臂平移动作默认使用 `arm.ik(dx, dy, dz, 0, 0, 0, block=True, abs=False)`。
 - `obs unsafe` 或 `obs near_collision` 会在 CSV 中标记 `risk_detected=True`；出现这两种观察时建议停止本轮调试。

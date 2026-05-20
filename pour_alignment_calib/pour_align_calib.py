@@ -32,9 +32,11 @@ DEFAULT_LINEAR_STEP_SMALL = 0.003
 DEFAULT_ROT_STEP = 0.05
 DEFAULT_GRIPPER_POSITION = 0.70
 DEFAULT_LEFT_GRIPPER_OPEN_POSITION = 1.00
+DEFAULT_LEFT_GRIPPER_CLOSED_POSITION = 0.00
 DEFAULT_LEFT_GRIPPER_PITCHER_POSITION = 0.70
 DEFAULT_LEFT_GRIPPER_STEP = 0.05
 DEFAULT_RIGHT_GRIPPER_OPEN_POSITION = 1.00
+DEFAULT_RIGHT_GRIPPER_CLOSED_POSITION = 0.00
 DEFAULT_RIGHT_GRIPPER_CUP_POSITION = 0.80
 DEFAULT_RIGHT_GRIPPER_STEP = 0.05
 DEFAULT_MAX_WRIST_ROLL = 0.70
@@ -42,44 +44,404 @@ GRIPPER_MIN = 0.0
 GRIPPER_MAX = 1.0
 LOG_DIR = Path(__file__).resolve().parent / "logs"
 
-# Source: coffee.py right-hand cup pickup and pour preparation snippets.
-# These staged commands intentionally exclude sleeps, gripper calls,
-# left-arm moves, full coffee flow, and any home().
-RIGHT_CUP_PICK_STAGES = {
-    "right_table_pregrasp": (
-        ("set_shoulder_pitch", 0.7, False),
-        ("set_shoulder_roll", -0.42, False),
-        ("set_wrist_roll", 0.1, True),
-    ),
-    "right_table_grasp_pose": (
-        ("set_elbow_pitch", 1.0, False),
-        ("set_wrist_pitch", 0.1, True),
-    ),
-    "right_lift_cup": (
-        ("set_elbow_pitch", 0.6, False),
-        ("set_shoulder_pitch", 0.6, True),
-    ),
-    "right_transfer_cup": (
-        ("set_shoulder_roll", 0.3, True),
-        ("set_shoulder_pitch", 0.7, False),
-        ("set_shoulder_roll", 0.65, False),
-        ("set_wrist_roll", -0.3, True),
-    ),
-    "right_transfer_cup_b": (
-        ("set_shoulder_pitch", 0.98, False),
-        ("set_elbow_pitch", 0.98, False),
-        ("set_wrist_roll", -0.68, False),
-        ("set_wrist_pitch", 0.0, True),
-    ),
-    "right_pour_ready": (
-        ("set_wrist_yaw", -0.7, False),
-        ("set_wrist_pitch", -0.5, False),
-        ("set_wrist_roll", 0.3, False),
-        ("set_shoulder_roll", 0.7, False),
-    ),
+# Source: coffee_replay_safe.py right-hand replay stages only.
+# Do not import or call coffee_replay_safe.py; these are explicit SDK calls
+# copied from the named source stages for calibration use.
+RIGHT_REPLAY_STAGES = {
+    "replay_right_grasp_cup": [
+        {
+            "kind": "gripper",
+            "target": "right_gripper",
+            "method": "set_position",
+            "value_arg": "right_gripper_closed_position",
+            "block": True,
+            "description": "右夹爪初始化为闭合",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "004",
+            "source_sdk_call": "robot.right_gripper.close()",
+        },
+        {
+            "kind": "gripper",
+            "target": "left_gripper",
+            "method": "set_position",
+            "value_arg": "left_gripper_closed_position",
+            "block": True,
+            "description": "左夹爪初始化为闭合，仅 --include-left-gripper-init 时执行",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "005",
+            "source_sdk_call": "robot.left_gripper.close()",
+            "enabled_arg": "include_left_gripper_init",
+        },
+        {
+            "kind": "gripper",
+            "target": "right_gripper",
+            "method": "set_position",
+            "value_arg": "right_gripper_open_position",
+            "block": True,
+            "description": "右夹爪打开准备抓杯",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "006",
+            "source_sdk_call": "robot.right_gripper.open()",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_pitch",
+            "value": 0.7,
+            "block": False,
+            "description": "右肩俯仰到抓杯预备位",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "007",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_roll",
+            "value": -0.42,
+            "block": False,
+            "description": "右肩翻滚到抓杯预备位",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "008",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_roll",
+            "value": 0.1,
+            "block": True,
+            "description": "右腕翻滚对齐杯把方向",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "009",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_elbow_pitch",
+            "value": 1.0,
+            "block": False,
+            "description": "右肘下探接近杯子",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "010",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_pitch",
+            "value": 0.1,
+            "block": True,
+            "description": "右腕俯仰微调抓取姿态",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "011",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 1.0,
+            "block": True,
+            "description": "保留原始抓杯前等待",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "012",
+        },
+        {
+            "kind": "gripper",
+            "target": "right_gripper",
+            "method": "set_position",
+            "value_arg": "right_gripper_cup_position",
+            "block": True,
+            "description": "右夹爪收至抓杯位置，标定默认 0.80",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "013",
+            "source_sdk_call": "robot.right_gripper.set_position(0.6)",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 1.0,
+            "block": True,
+            "description": "保留原始抓杯后等待",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "014",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_elbow_pitch",
+            "value": 0.6,
+            "block": False,
+            "description": "右肘抬起准备离开杯架",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "015",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_pitch",
+            "value": 0.6,
+            "block": True,
+            "description": "右肩俯仰抬杯离桌",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "016",
+        },
+        {
+            "kind": "wait",
+            "target": "robot",
+            "method": "wait",
+            "value": None,
+            "block": True,
+            "description": "阶段结束统一等待，兜底处理 block=False 动作",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "017",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 0.5,
+            "block": True,
+            "description": "阶段结束后观察停稳",
+            "source_stage": "right_hand_grasp_cup",
+            "source_action_id": "018",
+        },
+    ],
+    "replay_right_move_to_coffee_machine": [
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_roll",
+            "value": 0.3,
+            "block": None,
+            "description": "右肩翻滚离开抓杯位",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "019",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_pitch",
+            "value": 0.7,
+            "block": False,
+            "description": "右肩俯仰朝向咖啡机",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "020",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_roll",
+            "value": 0.65,
+            "block": False,
+            "description": "右肩翻滚横向送杯到咖啡机",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "021",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_roll",
+            "value": -0.3,
+            "block": None,
+            "description": "右腕翻滚调整接咖啡角度",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "022",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_pitch",
+            "value": 0.98,
+            "block": False,
+            "description": "右肩俯仰继续送杯到咖啡出口",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "023",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_elbow_pitch",
+            "value": 0.98,
+            "block": False,
+            "description": "右肘俯仰配合送杯到最终接咖啡位",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "024",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_roll",
+            "value": -0.68,
+            "block": False,
+            "description": "右腕翻滚微调接咖啡姿态",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "025",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_pitch",
+            "value": 0.0,
+            "block": True,
+            "description": "右腕俯仰归零以对齐杯口",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "026",
+        },
+        {
+            "kind": "wait",
+            "target": "robot",
+            "method": "wait",
+            "value": None,
+            "block": True,
+            "description": "阶段结束统一等待",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "027",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 0.5,
+            "block": True,
+            "description": "阶段结束后观察停稳",
+            "source_stage": "right_hand_move_to_coffee_machine",
+            "source_action_id": "028",
+        },
+    ],
+    "replay_right_retreat_after_coffee": [
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "home",
+            "value": None,
+            "block": None,
+            "description": "右臂从咖啡机位置回撤到 home",
+            "source_stage": "right_hand_retreat_after_coffee",
+            "source_action_id": "037",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_roll",
+            "value": 0.6,
+            "block": False,
+            "description": "右肩翻滚切到后续接奶中间姿态",
+            "source_stage": "right_hand_retreat_after_coffee",
+            "source_action_id": "038",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_pitch",
+            "value": -0.3,
+            "block": True,
+            "description": "右腕俯仰切到后续接奶中间姿态",
+            "source_stage": "right_hand_retreat_after_coffee",
+            "source_action_id": "039",
+        },
+        {
+            "kind": "wait",
+            "target": "robot",
+            "method": "wait",
+            "value": None,
+            "block": True,
+            "description": "阶段结束统一等待",
+            "source_stage": "right_hand_retreat_after_coffee",
+            "source_action_id": "040",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 0.5,
+            "block": True,
+            "description": "阶段结束后观察停稳",
+            "source_stage": "right_hand_retreat_after_coffee",
+            "source_action_id": "041",
+        },
+    ],
+    "replay_right_pour_ready": [
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_yaw",
+            "value": -0.7,
+            "block": False,
+            "description": "右腕偏航对准接奶方向",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "061",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_pitch",
+            "value": -0.5,
+            "block": False,
+            "description": "右腕俯仰切到接奶角度",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "062",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_wrist_roll",
+            "value": 0.3,
+            "block": False,
+            "description": "右腕翻滚调整杯口姿态",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "063",
+        },
+        {
+            "kind": "arm",
+            "target": "right_arm",
+            "method": "set_shoulder_roll",
+            "value": 0.7,
+            "block": False,
+            "description": "右肩翻滚切到接奶位",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "064",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 1.0,
+            "block": True,
+            "description": "保留原始倒奶前等待",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "065",
+        },
+        {
+            "kind": "wait",
+            "target": "robot",
+            "method": "wait",
+            "value": None,
+            "block": True,
+            "description": "阶段结束统一等待",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "066",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 0.5,
+            "block": True,
+            "description": "阶段结束后观察停稳",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "067",
+        },
+    ],
 }
-RIGHT_ARM_STAGE_ALIASES = {
-    "right_cup_pose": ("right_pour_ready",),
+RIGHT_REPLAY_STAGE_ALIASES = {
+    "right_pour_ready": "replay_right_pour_ready",
+    "right_cup_pose": "replay_right_pour_ready",
+}
+DEPRECATED_RIGHT_STAGE_COMMANDS = {
+    "right_table_pregrasp",
+    "right_table_grasp_pose",
+    "right_lift_cup",
+    "right_transfer_cup",
+    "right_transfer_cup_b",
 }
 
 OBSERVATION_CHOICES = {
@@ -199,6 +561,12 @@ def parse_args() -> argparse.Namespace:
         help=f"左夹爪打开目标位置，默认 {DEFAULT_LEFT_GRIPPER_OPEN_POSITION}",
     )
     parser.add_argument(
+        "--left-gripper-closed-position",
+        type=float,
+        default=DEFAULT_LEFT_GRIPPER_CLOSED_POSITION,
+        help=f"左夹爪闭合初始化目标位置，默认 {DEFAULT_LEFT_GRIPPER_CLOSED_POSITION}",
+    )
+    parser.add_argument(
         "--left-gripper-pitcher-position",
         type=float,
         default=DEFAULT_LEFT_GRIPPER_PITCHER_POSITION,
@@ -215,6 +583,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=DEFAULT_RIGHT_GRIPPER_OPEN_POSITION,
         help=f"右夹爪打开目标位置，默认 {DEFAULT_RIGHT_GRIPPER_OPEN_POSITION}",
+    )
+    parser.add_argument(
+        "--right-gripper-closed-position",
+        type=float,
+        default=DEFAULT_RIGHT_GRIPPER_CLOSED_POSITION,
+        help=f"右夹爪闭合初始化目标位置，默认 {DEFAULT_RIGHT_GRIPPER_CLOSED_POSITION}",
     )
     parser.add_argument(
         "--right-gripper-cup-position",
@@ -238,6 +612,11 @@ def parse_args() -> argparse.Namespace:
         "--log-file",
         default=None,
         help="CSV 日志路径；默认写入 pour_alignment_calib/logs/。",
+    )
+    parser.add_argument(
+        "--include-left-gripper-init",
+        action="store_true",
+        help="replay_right_grasp_cup 中包含左夹爪闭合初始化；默认不执行左夹爪初始化。",
     )
     add_connection_args(parser, default_profile="interactive")
     parser.set_defaults(robot_version=DEFAULT_ROBOT_VERSION)
@@ -272,12 +651,16 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--gripper-position 必须在 0.0 到 1.0 之间")
     if not GRIPPER_MIN <= args.left_gripper_open_position <= GRIPPER_MAX:
         raise SystemExit("--left-gripper-open-position 必须在 0.0 到 1.0 之间")
+    if not GRIPPER_MIN <= args.left_gripper_closed_position <= GRIPPER_MAX:
+        raise SystemExit("--left-gripper-closed-position 必须在 0.0 到 1.0 之间")
     if not GRIPPER_MIN <= args.left_gripper_pitcher_position <= GRIPPER_MAX:
         raise SystemExit("--left-gripper-pitcher-position 必须在 0.0 到 1.0 之间")
     if args.left_gripper_step <= 0.0:
         raise SystemExit("--left-gripper-step 必须大于 0")
     if not GRIPPER_MIN <= args.right_gripper_open_position <= GRIPPER_MAX:
         raise SystemExit("--right-gripper-open-position 必须在 0.0 到 1.0 之间")
+    if not GRIPPER_MIN <= args.right_gripper_closed_position <= GRIPPER_MAX:
+        raise SystemExit("--right-gripper-closed-position 必须在 0.0 到 1.0 之间")
     if not GRIPPER_MIN <= args.right_gripper_cup_position <= GRIPPER_MAX:
         raise SystemExit("--right-gripper-cup-position 必须在 0.0 到 1.0 之间")
     if args.right_gripper_step <= 0.0:
@@ -379,13 +762,18 @@ Commands:
   right_grip           set right_gripper to configured cup position, default 0.80
   right_loose          loosen right_gripper by configured step
   right_tight          tighten right_gripper by configured step
-  right_table_pregrasp      move right arm near table cup pre-grasp pose
-  right_table_grasp_pose    move right arm to table cup grasp pose
-  right_lift_cup            lift right-hand cup from table after right_grip
-  right_transfer_cup        transfer right-hand cup toward pour-ready area
-  right_transfer_cup_b      finish right-hand cup transfer before pour-ready
-  right_pour_ready          move right-hand cup to pour-ready pose
-  right_cup_pose            alias/legacy command of right_pour_ready
+  replay_right_grasp_cup
+                       replay coffee_replay_safe right_hand_grasp_cup stage for right cup grasp
+  replay_right_move_to_coffee_machine
+                       replay coffee_replay_safe right_hand_move_to_coffee_machine stage
+  replay_right_retreat_after_coffee
+                       replay coffee_replay_safe right_hand_retreat_after_coffee stage, contains right_arm.home()
+  replay_right_pour_ready
+                       replay right-hand actions inside left_hand_move_to_pour_pose
+  right_pour_ready / right_cup_pose
+                       alias of replay_right_pour_ready
+  right_table_pregrasp / right_table_grasp_pose / right_lift_cup / right_transfer_cup
+                       deprecated; no action, use replay_right_* commands
   x+ / x-              left_arm relative IK X +/- step
   y+ / y-              left_arm relative IK Y +/- small step
   z+ / z-              left_arm relative IK Z +/- step
@@ -439,53 +827,101 @@ def safe_shutdown(robot) -> None:
         print(f"finally: robot.disconnect() 失败: {exc}")
 
 
-def get_right_arm_stage_steps(stage_name: str):
-    return RIGHT_CUP_PICK_STAGES[stage_name]
+def replay_stage_name(command: str) -> str:
+    return RIGHT_REPLAY_STAGE_ALIASES.get(command, command)
 
 
-def right_arm_stage_sequence(command: str) -> tuple[str, ...]:
-    if command in RIGHT_CUP_PICK_STAGES:
-        return (command,)
-    return RIGHT_ARM_STAGE_ALIASES[command]
+def replay_stage_steps(command: str) -> list[dict]:
+    return RIGHT_REPLAY_STAGES[replay_stage_name(command)]
 
 
-def right_arm_stage_joint_targets(command: str) -> str:
+def step_enabled(step: dict, args: argparse.Namespace) -> bool:
+    enabled_arg = step.get("enabled_arg")
+    if enabled_arg is None:
+        return True
+    return bool(getattr(args, enabled_arg))
+
+
+def resolve_step_value(step: dict, args: argparse.Namespace) -> Optional[float]:
+    if "value_arg" in step:
+        return getattr(args, step["value_arg"])
+    return step.get("value")
+
+
+def replay_step_payload(command: str, args: argparse.Namespace) -> str:
     payload = []
-    for stage_name in right_arm_stage_sequence(command):
-        for method_name, target, block in get_right_arm_stage_steps(stage_name):
-            payload.append(
-                {
-                    "stage": stage_name,
-                    "joint": method_name.removeprefix("set_"),
-                    "target": target,
-                    "block": block,
-                }
-            )
+    for step in replay_stage_steps(command):
+        value = resolve_step_value(step, args)
+        payload.append(
+            {
+                "source_stage": step["source_stage"],
+                "source_action_id": step["source_action_id"],
+                "kind": step["kind"],
+                "target": step["target"],
+                "method": step["method"],
+                "value": value,
+                "block": step.get("block"),
+                "description": step["description"],
+                "enabled": step_enabled(step, args),
+                "source_sdk_call": step.get("source_sdk_call", ""),
+            }
+        )
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def build_right_arm_stage_action(command: str) -> Action:
+def replay_stage_arm_label(command: str, args: argparse.Namespace) -> str:
+    steps = replay_stage_steps(command)
+    targets = {step["target"] for step in steps if step_enabled(step, args)}
+    if "left_gripper" in targets:
+        return "right/left_gripper_init"
+    return "right"
+
+
+def build_replay_stage_action(command: str, args: argparse.Namespace) -> Action:
     return Action(
         command=command,
-        command_type="right_arm_stage",
-        arm="right",
-        joint_targets=right_arm_stage_joint_targets(command),
+        command_type="replay_stage",
+        arm=replay_stage_arm_label(command, args),
+        joint_targets=replay_step_payload(command, args),
     )
 
 
-def right_arm_stage_calls(command: str) -> list[str]:
+def format_replay_step(step: dict, args: argparse.Namespace) -> str:
+    action_id = step["source_action_id"]
+    prefix = f"{action_id} {step['description']}: "
+    if not step_enabled(step, args):
+        return prefix + "[skipped unless --include-left-gripper-init]"
+    kind = step["kind"]
+    target = step["target"]
+    method = step["method"]
+    value = resolve_step_value(step, args)
+    block = step.get("block")
+    if kind == "sleep":
+        return prefix + f"time.sleep({value:.1f})"
+    if kind == "wait":
+        return prefix + "robot.wait()"
+    if method == "home":
+        return prefix + f"robot.{target}.home()"
+    if block is None:
+        return prefix + f"robot.{target}.{method}({value:.6f})"
+    return prefix + f"robot.{target}.{method}({value:.6f}, block={block})"
+
+
+def replay_stage_lines(command: str, args: argparse.Namespace) -> list[str]:
     calls = []
-    for stage_name in right_arm_stage_sequence(command):
-        for method_name, target, block in get_right_arm_stage_steps(stage_name):
-            calls.append(
-                f"robot.right_arm.{method_name}({target:.6f}, block={block})"
-            )
+    stage_name = replay_stage_name(command)
+    if command != stage_name:
+        calls.append(f"[alias] {command} -> {stage_name}")
+    for step in replay_stage_steps(command):
+        calls.append(format_replay_step(step, args))
     return calls
 
 
-def describe_action(action: Action) -> str:
-    if action.command_type == "right_arm_stage":
-        return "\n  ".join(right_arm_stage_calls(action.command))
+def describe_action(action: Action, args: Optional[argparse.Namespace] = None) -> str:
+    if action.command_type == "replay_stage":
+        if args is None:
+            return action.command
+        return "\n  ".join(replay_stage_lines(action.command, args))
     if action.command_type == "relative_ik":
         return (
             "robot.left_arm.ik("
@@ -512,6 +948,14 @@ def describe_action(action: Action) -> str:
 def confirm_real_action(action: Action) -> bool:
     print(f"[confirm] {describe_action(action)}")
     user_input = input("输入 y 执行该真实动作，其他任意输入跳过：").strip().lower()
+    return user_input == "y"
+
+
+def confirm_replay_stage(action: Action, args: argparse.Namespace) -> bool:
+    if action.command == "replay_right_retreat_after_coffee":
+        print("[warning] replay_right_retreat_after_coffee 包含 robot.right_arm.home()，请重点确认路径安全。")
+    print(f"[confirm] {describe_action(action, args)}")
+    user_input = input("输入 y 执行该 replay stage，其他任意输入跳过：").strip().lower()
     return user_input == "y"
 
 
@@ -570,43 +1014,45 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
     append_log(state, action, user_confirmed=True, status=status)
 
 
-def execute_right_arm_stage(
-    stage_name: str,
+def execute_replay_stage(
+    command: str,
     robot,
     args: argparse.Namespace,
     state: SessionState,
 ) -> None:
-    action = build_right_arm_stage_action(stage_name)
-    print(f"[plan] {stage_name} will run:")
-    print(f"  {describe_action(action)}")
+    action = build_replay_stage_action(command, args)
+    stage_name = replay_stage_name(command)
+    print(f"[plan] {command} will run:")
+    print(f"  {describe_action(action, args)}")
 
     if state.dry_run:
         append_log(state, action, user_confirmed=None, status="dry_run")
-        print("[dry-run] 已记录，不连接机器人，不移动右臂，不控制夹爪。")
+        print("[dry-run] 已记录，不连接机器人，不执行 replay stage。")
         return
 
-    confirmed = confirm_real_action(action)
+    confirmed = confirm_replay_stage(action, args)
     if not confirmed:
         append_log(state, action, user_confirmed=False, status="skipped_by_user")
-        print(f"[skip] 用户未确认，{stage_name} 已跳过。")
+        print(f"[skip] 用户未确认，{command} 已跳过。")
         return
 
     status = "ok"
     user_observation = ""
     try:
         start_time = time.perf_counter()
-        for sub_stage_name in right_arm_stage_sequence(stage_name):
-            for method_name, target, block in get_right_arm_stage_steps(sub_stage_name):
-                getattr(robot.right_arm, method_name)(target, block=block)
-        wait_status = wait_for_right_arm(robot)
+        for step in replay_stage_steps(command):
+            if not step_enabled(step, args):
+                continue
+            execute_replay_step(robot, step, args)
+        wait_status = "ok"
         duration_s = time.perf_counter() - start_time
         if wait_status == "ok":
-            print(f"[ok] {stage_name} 已完成/已等待完成，用时 {duration_s:.3f}s。")
+            print(f"[ok] {command} 已完成，用时 {duration_s:.3f}s。")
         else:
             status = wait_status
             user_observation = "wait_unsupported"
             print(
-                f"[warning] {stage_name} 关节命令已发送，但 SDK 不支持已知等待接口；"
+                f"[warning] {command} 关节命令已发送，但 SDK 不支持已知等待接口；"
                 "CSV 已记录 wait_unsupported。"
             )
     except Exception as exc:  # pragma: no cover - real SDK/runtime only
@@ -620,6 +1066,30 @@ def execute_right_arm_stage(
         status=status,
         user_observation=user_observation,
     )
+
+
+def execute_replay_step(robot, step: dict, args: argparse.Namespace) -> None:
+    kind = step["kind"]
+    target_name = step["target"]
+    method_name = step["method"]
+    value = resolve_step_value(step, args)
+    block = step.get("block")
+
+    if kind == "sleep":
+        time.sleep(value)
+        return
+    if kind == "wait":
+        robot.wait()
+        return
+
+    target = getattr(robot, target_name)
+    method = getattr(target, method_name)
+    if method_name == "home":
+        method()
+    elif block is None:
+        method(value)
+    else:
+        method(value, block=block)
 
 
 def wait_for_right_arm(robot) -> str:
@@ -805,6 +1275,22 @@ def record_unsupported(command: str, command_type: str, state: SessionState) -> 
     )
 
 
+def handle_deprecated_right_stage(command: str, state: SessionState) -> None:
+    print(
+        f"[deprecated] {command} 已禁用：上一版动作不是 coffee_replay_safe.py 的严格复现。"
+    )
+    print(
+        "请改用 replay_right_grasp_cup / replay_right_move_to_coffee_machine / "
+        "replay_right_retreat_after_coffee / replay_right_pour_ready。"
+    )
+    append_log(
+        state,
+        Action(command=command, command_type="deprecated_right_stage", arm="right"),
+        user_confirmed=None,
+        status="deprecated_no_action",
+    )
+
+
 def handle_observation(parts: list[str], state: SessionState) -> None:
     if len(parts) > 1:
         observation = " ".join(parts[1:]).strip()
@@ -878,8 +1364,11 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
     if command in {"right_open", "right_grip", "right_loose", "right_tight"}:
         execute_action(robot, build_right_gripper_action(command, args, state), args, state)
         return True
-    if command in RIGHT_CUP_PICK_STAGES or command in RIGHT_ARM_STAGE_ALIASES:
-        execute_right_arm_stage(command, robot, args, state)
+    if command in RIGHT_REPLAY_STAGES or command in RIGHT_REPLAY_STAGE_ALIASES:
+        execute_replay_stage(command, robot, args, state)
+        return True
+    if command in DEPRECATED_RIGHT_STAGE_COMMANDS:
+        handle_deprecated_right_stage(command, state)
         return True
     if command in {"x+", "x-", "y+", "y-", "z+", "z-"}:
         execute_action(robot, build_linear_action(command, args), args, state)
