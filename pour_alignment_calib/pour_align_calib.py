@@ -31,8 +31,11 @@ DEFAULT_LINEAR_STEP = 0.005
 DEFAULT_LINEAR_STEP_SMALL = 0.003
 DEFAULT_ROT_STEP = 0.05
 DEFAULT_GRIPPER_POSITION = 0.70
+DEFAULT_LEFT_GRIPPER_OPEN_POSITION = 1.00
+DEFAULT_LEFT_GRIPPER_PITCHER_POSITION = 0.70
+DEFAULT_LEFT_GRIPPER_STEP = 0.05
 DEFAULT_RIGHT_GRIPPER_OPEN_POSITION = 1.00
-DEFAULT_RIGHT_GRIPPER_CUP_POSITION = 0.70
+DEFAULT_RIGHT_GRIPPER_CUP_POSITION = 0.80
 DEFAULT_RIGHT_GRIPPER_STEP = 0.05
 DEFAULT_MAX_WRIST_ROLL = 0.70
 GRIPPER_MIN = 0.0
@@ -91,7 +94,7 @@ class SessionState:
     current_wrist_roll: Optional[float] = None
     current_wrist_yaw: Optional[float] = None
     current_wrist_pitch: Optional[float] = None
-    current_gripper_position: Optional[float] = None
+    current_left_gripper_position: Optional[float] = None
     current_right_gripper_position: Optional[float] = None
     last_observed_alignment: str = ""
     last_user_observation: str = ""
@@ -155,7 +158,28 @@ def parse_args() -> argparse.Namespace:
         "--gripper-position",
         type=float,
         default=DEFAULT_GRIPPER_POSITION,
-        help=f"左夹爪目标位置，默认 {DEFAULT_GRIPPER_POSITION}",
+        help=(
+            "兼容旧参数：左夹爪夹空奶壶目标位置，默认 "
+            f"{DEFAULT_GRIPPER_POSITION}；建议改用 --left-gripper-pitcher-position"
+        ),
+    )
+    parser.add_argument(
+        "--left-gripper-open-position",
+        type=float,
+        default=DEFAULT_LEFT_GRIPPER_OPEN_POSITION,
+        help=f"左夹爪打开目标位置，默认 {DEFAULT_LEFT_GRIPPER_OPEN_POSITION}",
+    )
+    parser.add_argument(
+        "--left-gripper-pitcher-position",
+        type=float,
+        default=DEFAULT_LEFT_GRIPPER_PITCHER_POSITION,
+        help=f"左夹爪夹空奶壶目标位置，默认 {DEFAULT_LEFT_GRIPPER_PITCHER_POSITION}",
+    )
+    parser.add_argument(
+        "--left-gripper-step",
+        type=float,
+        default=DEFAULT_LEFT_GRIPPER_STEP,
+        help=f"左夹爪微调步长，默认 {DEFAULT_LEFT_GRIPPER_STEP}",
     )
     parser.add_argument(
         "--right-gripper-open-position",
@@ -188,7 +212,17 @@ def parse_args() -> argparse.Namespace:
     )
     add_connection_args(parser, default_profile="interactive")
     parser.set_defaults(robot_version=DEFAULT_ROBOT_VERSION)
-    return parser.parse_args()
+    args = parser.parse_args()
+    argv = sys.argv[1:]
+    old_gripper_arg_used = flag_present(argv, "--gripper-position")
+    left_pitcher_arg_used = flag_present(argv, "--left-gripper-pitcher-position")
+    if old_gripper_arg_used and not left_pitcher_arg_used:
+        args.left_gripper_pitcher_position = args.gripper_position
+    return args
+
+
+def flag_present(argv: list[str], flag: str) -> bool:
+    return any(item == flag or item.startswith(f"{flag}=") for item in argv)
 
 
 def validate_args(args: argparse.Namespace) -> None:
@@ -207,6 +241,12 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--rot-step 必须大于 0")
     if not 0.0 <= args.gripper_position <= 1.0:
         raise SystemExit("--gripper-position 必须在 0.0 到 1.0 之间")
+    if not GRIPPER_MIN <= args.left_gripper_open_position <= GRIPPER_MAX:
+        raise SystemExit("--left-gripper-open-position 必须在 0.0 到 1.0 之间")
+    if not GRIPPER_MIN <= args.left_gripper_pitcher_position <= GRIPPER_MAX:
+        raise SystemExit("--left-gripper-pitcher-position 必须在 0.0 到 1.0 之间")
+    if args.left_gripper_step <= 0.0:
+        raise SystemExit("--left-gripper-step 必须大于 0")
     if not GRIPPER_MIN <= args.right_gripper_open_position <= GRIPPER_MAX:
         raise SystemExit("--right-gripper-open-position 必须在 0.0 到 1.0 之间")
     if not GRIPPER_MIN <= args.right_gripper_cup_position <= GRIPPER_MAX:
@@ -301,9 +341,13 @@ def print_help() -> None:
         """
 Commands:
   help                 show commands
-  grip                 set left_gripper to configured position
+  left_open            set left_gripper to configured open position
+  left_grip            set left_gripper to configured pitcher position, default 0.70
+  left_loose           loosen left_gripper by configured step
+  left_tight           tighten left_gripper by configured step
+  grip                 alias of left_grip
   right_open           set right_gripper to configured open position
-  right_grip           set right_gripper to configured cup position
+  right_grip           set right_gripper to configured cup position, default 0.80
   right_loose          loosen right_gripper by configured step
   right_tight          tighten right_gripper by configured step
   x+ / x-              left_arm relative IK X +/- step
@@ -400,7 +444,12 @@ def describe_action(action: Action) -> str:
     if action.command_type == "wrist_pitch":
         return f"robot.left_arm.set_wrist_pitch({action.wrist_pitch_delta_or_target:.6f}, block=True)"
     if action.command_type == "gripper":
-        gripper_name = "right_gripper" if action.arm == "right" else "left_gripper"
+        if action.arm == "left":
+            gripper_name = "left_gripper"
+        elif action.arm == "right":
+            gripper_name = "right_gripper"
+        else:
+            return f"unsupported gripper arm: {action.arm}"
         return f"robot.{gripper_name}.set_position({action.gripper_position:.6f}, block=True)"
     return action.command
 
@@ -447,8 +496,12 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
         elif action.command_type == "wrist_pitch":
             robot.left_arm.set_wrist_pitch(action.wrist_pitch_delta_or_target, block=True)
         elif action.command_type == "gripper":
-            gripper = robot.right_gripper if action.arm == "right" else robot.left_gripper
-            gripper.set_position(action.gripper_position, block=True)
+            if action.arm == "left":
+                robot.left_gripper.set_position(action.gripper_position, block=True)
+            elif action.arm == "right":
+                robot.right_gripper.set_position(action.gripper_position, block=True)
+            else:
+                status = "unsupported"
         else:
             status = "unsupported"
         duration_s = time.perf_counter() - start_time
@@ -537,10 +590,10 @@ def update_tracked_state(action: Action, state: SessionState) -> None:
     elif action.command_type == "wrist_pitch":
         state.current_wrist_pitch = action.wrist_pitch_delta_or_target
     elif action.command_type == "gripper":
-        if action.arm == "right":
+        if action.arm == "left":
+            state.current_left_gripper_position = action.gripper_position
+        elif action.arm == "right":
             state.current_right_gripper_position = action.gripper_position
-        else:
-            state.current_gripper_position = action.gripper_position
 
 
 def build_linear_action(command: str, args: argparse.Namespace) -> Action:
@@ -590,6 +643,10 @@ def build_right_gripper_action(
         current = state.current_right_gripper_position
         if current is None:
             current = args.right_gripper_cup_position
+            print(
+                "[info] current_right_gripper_position 未知，"
+                f"以 right_gripper_cup_position={current:.3f} 作为微调基准。"
+            )
         sign = 1.0 if command == "right_loose" else -1.0
         target = clamp(
             current + sign * args.right_gripper_step,
@@ -601,6 +658,38 @@ def build_right_gripper_action(
         command=command,
         command_type="gripper",
         arm="right",
+        gripper_position=target,
+    )
+
+
+def build_left_gripper_action(
+    command: str,
+    args: argparse.Namespace,
+    state: SessionState,
+) -> Action:
+    if command == "left_open":
+        target = args.left_gripper_open_position
+    elif command in {"left_grip", "grip"}:
+        target = args.left_gripper_pitcher_position
+    else:
+        current = state.current_left_gripper_position
+        if current is None:
+            current = args.left_gripper_pitcher_position
+            print(
+                "[info] current_left_gripper_position 未知，"
+                f"以 left_gripper_pitcher_position={current:.3f} 作为微调基准。"
+            )
+        sign = 1.0 if command == "left_loose" else -1.0
+        target = clamp(
+            current + sign * args.left_gripper_step,
+            GRIPPER_MIN,
+            GRIPPER_MAX,
+        )
+
+    return Action(
+        command=command,
+        command_type="gripper",
+        arm="left",
         gripper_position=target,
     )
 
@@ -719,13 +808,11 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
         handle_save(parts, state)
         return True
     if command == "grip":
-        action = Action(
-            command=command,
-            command_type="gripper",
-            arm="left",
-            gripper_position=args.gripper_position,
-        )
-        execute_action(robot, action, args, state)
+        print("[alias] grip 等价于 left_grip")
+        execute_action(robot, build_left_gripper_action(command, args, state), args, state)
+        return True
+    if command in {"left_open", "left_grip", "left_loose", "left_tight"}:
+        execute_action(robot, build_left_gripper_action(command, args, state), args, state)
         return True
     if command in {"right_open", "right_grip", "right_loose", "right_tight"}:
         execute_action(robot, build_right_gripper_action(command, args, state), args, state)
