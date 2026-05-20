@@ -1,0 +1,45 @@
+2026-05-20 11:04:48,054 | INFO | === coffee_replay_safe 启动 ===
+2026-05-20 11:04:48,055 | INFO | DEFAULT_ROBOT_VERSION=3.0
+2026-05-20 11:04:48,055 | INFO | log_file=logs/coffee_replay_safe_20260520_110448.log
+2026-05-20 11:04:48,055 | INFO | dry_run=False
+2026-05-20 11:04:48,055 | INFO | execute=True
+2026-05-20 11:04:48,055 | INFO | selected_stage=left_hand_pour_milk
+2026-05-20 11:04:48,055 | INFO | resolved_stages=left_hand_pour_milk
+2026-05-20 11:04:48,055 | INFO | ik_probe=left_start_configured=False, probe_delta=0.010
+2026-05-20 11:04:48,055 | INFO | latte_profile=conservative
+2026-05-20 11:04:48,055 | INFO | latte_motion=wrist_roll_max=1.25, shoulder_roll_center=0.50, shoulder_roll_amp=0.03, elbow_pitch_center=-0.42, elbow_pitch_amp=0.02, sway_count=2, step_sleep=0.60
+2026-05-20 11:04:48,055 | INFO | latte_recover=left_pour_shoulder_pitch=-0.35, left_pour_wrist_roll_prep=1.05, left_recover_shoulder_pitch=-0.20, left_recover_shoulder_roll=0.10, left_recover_elbow_pitch=-0.25
+2026-05-20 11:04:48,055 | WARNING | 当前为 execute：将尝试连接机器人并执行实机动作。
+2026-05-20 11:04:50,834 | INFO | 即将执行阶段：left_hand_pour_milk
+2026-05-20 11:04:50,834 | INFO | 该阶段涉及部件：left_arm / left_gripper / right_arm / right_gripper
+2026-05-20 11:04:50,834 | INFO | 风险提示：左手执行保守拉花/倒奶动作，风险主要来自 wrist_roll 倒奶角、shoulder_roll 摆动以及双臂间距。
+2026-05-20 11:04:52,674 | INFO | 阶段开始：left_hand_pour_milk
+2026-05-20 11:04:52,675 | INFO | [left_hand_pour_milk] latte profile=conservative | wrist_roll_max=1.25 | shoulder_roll_center=0.50 | shoulder_roll_amp=0.03 | elbow_pitch_center=-0.42 | elbow_pitch_amp=0.02 | sway_count=2 | step_sleep=0.60
+2026-05-20 11:04:52,675 | INFO | [left_hand_pour_milk] Action 001 | 左肩俯仰切入保守倒奶预备姿态 | robot.left_arm.set_shoulder_pitch(-0.35, block=False)
+2026-05-20 11:04:52,675 | INFO | [left_hand_pour_milk] Action 001 使用 block=False
+2026-05-20 11:04:52,675 | INFO | [left_hand_pour_milk] Action 002 | 左肘俯仰对齐保守摆动中心 | robot.left_arm.set_elbow_pitch(-0.42, block=False)
+2026-05-20 11:04:52,675 | INFO | [left_hand_pour_milk] Action 002 使用 block=False
+2026-05-20 11:04:52,675 | INFO | [left_hand_pour_milk] Action 003 | 左肩翻滚对齐保守摆动中心 | robot.left_arm.set_shoulder_roll(0.5, block=False)
+2026-05-20 11:04:52,675 | INFO | [left_hand_pour_milk] Action 003 使用 block=False
+2026-05-20 11:04:52,675 | INFO | [left_hand_pour_milk] Action 004 | 左腕翻滚进入保守倒奶预备角 | robot.left_arm.set_wrist_roll(1.05, block=True)
+2026-05-20 11:04:53,690 | INFO | [left_hand_pour_milk] Action 005 | sleep(0.30) | 保守倒奶预备后短暂停顿
+2026-05-20 11:04:53,990 | INFO | [left_hand_pour_milk] Action 006 | 左腕翻滚增大到保守倒奶角 | robot.left_arm.set_wrist_roll(1.25, block=True)
+2026-05-20 11:04:55,005 | INFO | [left_hand_pour_milk] Action 007 | sleep(0.30) | 进入保守倒奶角后短暂停顿
+2026-05-20 11:04:55,306 | INFO | [left_hand_pour_milk] Action 008 | 左手保守拉花第 1/2 次左摆 shoulder_roll | robot.left_arm.set_shoulder_roll(0.47, block=False)
+2026-05-20 11:04:55,306 | INFO | [left_hand_pour_milk] Action 008 使用 block=False
+2026-05-20 11:04:55,306 | INFO | [left_hand_pour_milk] Action 009 | 左手保守拉花第 1/2 次左摆 elbow_pitch | robot.left_arm.set_elbow_pitch(-0.44, block=True)
+2026-05-20 11:04:56,321 | INFO | [left_hand_pour_milk] Action 010 | sleep(0.60) | 左手保守拉花第 1/2 次左摆停顿
+2026-05-20 11:04:56,922 | INFO | [left_hand_pour_milk] Action 011 | 左手保守拉花第 1/2 次右摆 shoulder_roll | robot.left_arm.set_shoulder_roll(0.53, block=False)
+2026-05-20 11:04:56,922 | INFO | [left_hand_pour_milk] Action 011 使用 block=False
+2026-05-20 11:04:56,923 | INFO | [left_hand_pour_milk] Action 012 | 左手保守拉花第 1/2 次右摆 elbow_pitch | robot.left_arm.set_elbow_pitch(-0.4, block=True)
+2026-05-20 11:04:57,937 | INFO | [left_hand_pour_milk] Action 013 | sleep(0.60) | 左手保守拉花第 1/2 次右摆停顿
+2026-05-20 11:04:58,538 | INFO | [left_hand_pour_milk] Action 014 | 左手保守拉花第 2/2 次左摆 shoulder_roll | robot.left_arm.set_shoulder_roll(0.47, block=False)
+2026-05-20 11:04:58,538 | INFO | [left_hand_pour_milk] Action 014 使用 block=False
+2026-05-20 11:04:58,539 | INFO | [left_hand_pour_milk] Action 015 | 左手保守拉花第 2/2 次左摆 elbow_pitch | robot.left_arm.set_elbow_pitch(-0.44, block=True)
+2026-05-20 11:04:59,553 | INFO | [left_hand_pour_milk] Action 016 | sleep(0.60) | 左手保守拉花第 2/2 次左摆停顿
+2026-05-20 11:05:00,154 | INFO | [left_hand_pour_milk] Action 017 | 左手保守拉花第 2/2 次右摆 shoulder_roll | robot.left_arm.set_shoulder_roll(0.53, block=False)
+2026-05-20 11:05:00,154 | INFO | [left_hand_pour_milk] Action 017 使用 block=False
+2026-05-20 11:05:00,154 | INFO | [left_hand_pour_milk] Action 018 | 左手保守拉花第 2/2 次右摆 elbow_pitch | robot.left_arm.set_elbow_pitch(-0.4, block=True)
+2026-05-20 11:05:00,250 | WARNING | 收到 KeyboardInterrupt，中止执行。
+2026-05-20 11:05:00,250 | INFO | finally: 已尝试调用 robot.stop()
+2026-05-20 11:05:00,314 | INFO | finally: 已尝试调用 robot.disconnect()

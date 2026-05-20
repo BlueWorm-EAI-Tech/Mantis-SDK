@@ -42,16 +42,45 @@ GRIPPER_MIN = 0.0
 GRIPPER_MAX = 1.0
 LOG_DIR = Path(__file__).resolve().parent / "logs"
 
-# Source: coffee.py left-hand pour preparation stage, mirrored by
-# coffee_replay_safe.py::left_hand_move_to_pour_pose as the right-hand
-# receive-milk/cup-mouth pose. This command intentionally excludes the
-# surrounding left-arm moves, sleeps, gripper calls, and any home().
-RIGHT_CUP_POSE_STEPS = (
-    ("set_wrist_yaw", -0.7, False),
-    ("set_wrist_pitch", -0.5, False),
-    ("set_wrist_roll", 0.3, False),
-    ("set_shoulder_roll", 0.7, False),
-)
+# Source: coffee.py right-hand cup pickup and pour preparation snippets.
+# These staged commands intentionally exclude sleeps, gripper calls,
+# left-arm moves, full coffee flow, and any home().
+RIGHT_CUP_PICK_STAGES = {
+    "right_table_pregrasp": (
+        ("set_shoulder_pitch", 0.7, False),
+        ("set_shoulder_roll", -0.42, False),
+        ("set_wrist_roll", 0.1, True),
+    ),
+    "right_table_grasp_pose": (
+        ("set_elbow_pitch", 1.0, False),
+        ("set_wrist_pitch", 0.1, True),
+    ),
+    "right_lift_cup": (
+        ("set_elbow_pitch", 0.6, False),
+        ("set_shoulder_pitch", 0.6, True),
+    ),
+    "right_transfer_cup": (
+        ("set_shoulder_roll", 0.3, True),
+        ("set_shoulder_pitch", 0.7, False),
+        ("set_shoulder_roll", 0.65, False),
+        ("set_wrist_roll", -0.3, True),
+    ),
+    "right_transfer_cup_b": (
+        ("set_shoulder_pitch", 0.98, False),
+        ("set_elbow_pitch", 0.98, False),
+        ("set_wrist_roll", -0.68, False),
+        ("set_wrist_pitch", 0.0, True),
+    ),
+    "right_pour_ready": (
+        ("set_wrist_yaw", -0.7, False),
+        ("set_wrist_pitch", -0.5, False),
+        ("set_wrist_roll", 0.3, False),
+        ("set_shoulder_roll", 0.7, False),
+    ),
+}
+RIGHT_ARM_STAGE_ALIASES = {
+    "right_cup_pose": ("right_pour_ready",),
+}
 
 OBSERVATION_CHOICES = {
     "spout_in_cup",
@@ -350,6 +379,13 @@ Commands:
   right_grip           set right_gripper to configured cup position, default 0.80
   right_loose          loosen right_gripper by configured step
   right_tight          tighten right_gripper by configured step
+  right_table_pregrasp      move right arm near table cup pre-grasp pose
+  right_table_grasp_pose    move right arm to table cup grasp pose
+  right_lift_cup            lift right-hand cup from table after right_grip
+  right_transfer_cup        transfer right-hand cup toward pour-ready area
+  right_transfer_cup_b      finish right-hand cup transfer before pour-ready
+  right_pour_ready          move right-hand cup to pour-ready pose
+  right_cup_pose            alias/legacy command of right_pour_ready
   x+ / x-              left_arm relative IK X +/- step
   y+ / y-              left_arm relative IK Y +/- small step
   z+ / z-              left_arm relative IK Z +/- step
@@ -357,7 +393,6 @@ Commands:
   roll03               set left wrist_roll target to 0.3
   roll05               set left wrist_roll target to 0.5
   roll07               set left wrist_roll target to 0.7
-  right_cup_pose       set right arm to coffee.py pour-stage cup pose
   yaw+ / yaw-          small left wrist_yaw target step when SDK supports it
   pitch+ / pitch-      small left wrist_pitch target step when SDK supports it
   obs [value]          record observation: spout_in_cup / edge / outside / near_collision / unsafe / uncertain
@@ -372,7 +407,7 @@ def print_startup_banner(args: argparse.Namespace, state: SessionState) -> None:
     print("=" * 72)
     print(f"[Pour Align Calib] {mode}")
     print(f"log: {pretty_path(state.log_path)}")
-    print("空壶标定：固定右手杯子位置后，用左手 relative IK 小步对位。")
+    print("空壶标定：先分阶段确认右手取杯到倒奶前姿态，再用左手 relative IK 小步对位。")
     if args.execute:
         print("实机模式：每个真实动作都需要输入 y 二次确认。")
     else:
@@ -404,33 +439,53 @@ def safe_shutdown(robot) -> None:
         print(f"finally: robot.disconnect() 失败: {exc}")
 
 
-def right_cup_pose_joint_targets() -> str:
-    return json.dumps(
-        [
-            {"joint": name.removeprefix("set_"), "target": target, "block": block}
-            for name, target, block in RIGHT_CUP_POSE_STEPS
-        ],
-        ensure_ascii=False,
-        separators=(",", ":"),
-    )
+def get_right_arm_stage_steps(stage_name: str):
+    return RIGHT_CUP_PICK_STAGES[stage_name]
 
 
-def build_right_cup_pose_action() -> Action:
+def right_arm_stage_sequence(command: str) -> tuple[str, ...]:
+    if command in RIGHT_CUP_PICK_STAGES:
+        return (command,)
+    return RIGHT_ARM_STAGE_ALIASES[command]
+
+
+def right_arm_stage_joint_targets(command: str) -> str:
+    payload = []
+    for stage_name in right_arm_stage_sequence(command):
+        for method_name, target, block in get_right_arm_stage_steps(stage_name):
+            payload.append(
+                {
+                    "stage": stage_name,
+                    "joint": method_name.removeprefix("set_"),
+                    "target": target,
+                    "block": block,
+                }
+            )
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def build_right_arm_stage_action(command: str) -> Action:
     return Action(
-        command="right_cup_pose",
-        command_type="right_arm_joint_pose",
+        command=command,
+        command_type="right_arm_stage",
         arm="right",
-        joint_targets=right_cup_pose_joint_targets(),
+        joint_targets=right_arm_stage_joint_targets(command),
     )
+
+
+def right_arm_stage_calls(command: str) -> list[str]:
+    calls = []
+    for stage_name in right_arm_stage_sequence(command):
+        for method_name, target, block in get_right_arm_stage_steps(stage_name):
+            calls.append(
+                f"robot.right_arm.{method_name}({target:.6f}, block={block})"
+            )
+    return calls
 
 
 def describe_action(action: Action) -> str:
-    if action.command_type == "right_arm_joint_pose":
-        calls = [
-            f"robot.right_arm.{method}({target:.6f}, block={block})"
-            for method, target, block in RIGHT_CUP_POSE_STEPS
-        ]
-        return "\n  ".join(calls)
+    if action.command_type == "right_arm_stage":
+        return "\n  ".join(right_arm_stage_calls(action.command))
     if action.command_type == "relative_ik":
         return (
             "robot.left_arm.ik("
@@ -515,37 +570,43 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
     append_log(state, action, user_confirmed=True, status=status)
 
 
-def execute_right_cup_pose(robot, args: argparse.Namespace, state: SessionState) -> None:
-    action = build_right_cup_pose_action()
-    print("[plan] right_cup_pose will run:")
+def execute_right_arm_stage(
+    stage_name: str,
+    robot,
+    args: argparse.Namespace,
+    state: SessionState,
+) -> None:
+    action = build_right_arm_stage_action(stage_name)
+    print(f"[plan] {stage_name} will run:")
     print(f"  {describe_action(action)}")
 
     if state.dry_run:
         append_log(state, action, user_confirmed=None, status="dry_run")
-        print("[dry-run] 已记录，不连接机器人，不移动右臂。")
+        print("[dry-run] 已记录，不连接机器人，不移动右臂，不控制夹爪。")
         return
 
     confirmed = confirm_real_action(action)
     if not confirmed:
         append_log(state, action, user_confirmed=False, status="skipped_by_user")
-        print("[skip] 用户未确认，right_cup_pose 已跳过。")
+        print(f"[skip] 用户未确认，{stage_name} 已跳过。")
         return
 
     status = "ok"
     user_observation = ""
     try:
         start_time = time.perf_counter()
-        for method_name, target, block in RIGHT_CUP_POSE_STEPS:
-            getattr(robot.right_arm, method_name)(target, block=block)
+        for sub_stage_name in right_arm_stage_sequence(stage_name):
+            for method_name, target, block in get_right_arm_stage_steps(sub_stage_name):
+                getattr(robot.right_arm, method_name)(target, block=block)
         wait_status = wait_for_right_arm(robot)
         duration_s = time.perf_counter() - start_time
         if wait_status == "ok":
-            print(f"[ok] right_cup_pose 已完成/已等待完成，用时 {duration_s:.3f}s。")
+            print(f"[ok] {stage_name} 已完成/已等待完成，用时 {duration_s:.3f}s。")
         else:
             status = wait_status
             user_observation = "wait_unsupported"
             print(
-                "[warning] right_cup_pose 关节命令已发送，但 SDK 不支持已知等待接口；"
+                f"[warning] {stage_name} 关节命令已发送，但 SDK 不支持已知等待接口；"
                 "CSV 已记录 wait_unsupported。"
             )
     except Exception as exc:  # pragma: no cover - real SDK/runtime only
@@ -817,8 +878,8 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
     if command in {"right_open", "right_grip", "right_loose", "right_tight"}:
         execute_action(robot, build_right_gripper_action(command, args, state), args, state)
         return True
-    if command == "right_cup_pose":
-        execute_right_cup_pose(robot, args, state)
+    if command in RIGHT_CUP_PICK_STAGES or command in RIGHT_ARM_STAGE_ALIASES:
+        execute_right_arm_stage(command, robot, args, state)
         return True
     if command in {"x+", "x-", "y+", "y-", "z+", "z-"}:
         execute_action(robot, build_linear_action(command, args), args, state)
