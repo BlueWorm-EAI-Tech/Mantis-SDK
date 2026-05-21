@@ -96,6 +96,22 @@
 6. 不要用 `shoulder_roll` 大幅拉开间距，除非 relative IK 小步调整不够。
 7. 每次只动一个方向，每次 `0.003~0.005 m`。
 8. 任何 `near_collision` / `unsafe` 立即停止。
+9. 使用 `right_x+` / `right_x-` / `left_x+` 等 relative IK 小步调到合适后，必须执行 `show_state` 和 `save candidate_xxx`，这样 CSV 会记录累计偏移，方便下次复现。
+
+累计偏移复现示例：
+
+```text
+show_state
+save right_spacing_candidate_001
+```
+
+如果 `show_state` 显示：
+
+```text
+right: dx=+0.015000, dy=+0.000000, dz=+0.000000
+```
+
+则下次从 `replay_right_pour_ready` 后执行 3 次 `right_x+`，即可复现同样的右臂 relative IK 累计偏移。后续也可以实现 `right_apply_offset` 类命令做统一复现。
 
 左手腕调试方法：
 
@@ -170,6 +186,8 @@ save right_clearance_candidate_xxx
 - `help right`：显示右手 replay、右夹爪、右腕和右臂间隙微调命令。
 - `help left`：显示左夹爪、左手 relative IK 和左腕命令。
 - `help replay`：只显示 `replay_right_*` 相关命令。
+- `show_state`：显示当前左右臂累计 relative IK 偏移、左右手腕估计值、右肘和左右夹爪估计值，并写入 CSV。
+- `save [note]`：保存备注时会同时写入 `right_offset=(dx=..., dy=..., dz=...)` 和 `left_offset=(dx=..., dy=..., dz=...)`。
 
 显式记录左右夹爪目标值：
 

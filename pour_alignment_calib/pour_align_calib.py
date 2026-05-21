@@ -632,6 +632,12 @@ CSV_FIELDNAMES = [
     "dx",
     "dy",
     "dz",
+    "cumulative_right_dx",
+    "cumulative_right_dy",
+    "cumulative_right_dz",
+    "cumulative_left_dx",
+    "cumulative_left_dy",
+    "cumulative_left_dz",
     "joint_targets",
     "wrist_roll_target",
     "wrist_yaw_delta_or_target",
@@ -668,6 +674,12 @@ class SessionState:
     current_left_wrist_roll: Optional[float] = None
     current_left_gripper_position: Optional[float] = None
     current_right_gripper_position: Optional[float] = None
+    current_right_dx: float = 0.0
+    current_right_dy: float = 0.0
+    current_right_dz: float = 0.0
+    current_left_dx: float = 0.0
+    current_left_dy: float = 0.0
+    current_left_dz: float = 0.0
     last_observed_alignment: str = ""
     last_user_observation: str = ""
     risk_detected: bool = False
@@ -1047,6 +1059,12 @@ def append_log(
         "dx": fmt_float(action.dx),
         "dy": fmt_float(action.dy),
         "dz": fmt_float(action.dz),
+        "cumulative_right_dx": fmt_float(state.current_right_dx),
+        "cumulative_right_dy": fmt_float(state.current_right_dy),
+        "cumulative_right_dz": fmt_float(state.current_right_dz),
+        "cumulative_left_dx": fmt_float(state.current_left_dx),
+        "cumulative_left_dy": fmt_float(state.current_left_dy),
+        "cumulative_left_dz": fmt_float(state.current_left_dz),
         "joint_targets": action.joint_targets,
         "wrist_roll_target": fmt_float(action.wrist_roll_target),
         "wrist_yaw_delta_or_target": fmt_float(action.wrist_yaw_delta_or_target),
@@ -1082,6 +1100,7 @@ Expert help:
   help right   show right-arm replay/gripper/wrist/clearance commands
   help left    show left gripper/alignment/wrist commands
   help replay  show replay_right_* commands
+  show_state   print cumulative offsets and tracked calibration state
 """.strip()
 
 
@@ -1183,6 +1202,7 @@ Commands:
   help right           show right-side commands
   help left            show left-side commands
   help replay          show right replay commands
+  show_state           print cumulative offsets and tracked calibration state
   left_open            set left_gripper to configured open position
   left_grip            set left_gripper to configured pitcher position, default 0.70
   left_loose           loosen left_gripper by configured step
@@ -1532,7 +1552,10 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
     if state.dry_run:
         append_log(state, action, user_confirmed=None, status="dry_run")
         print("[dry-run] 已记录，不连接机器人。")
-        update_tracked_state(action, state)
+        if action.command_type == "arm_relative_ik":
+            print("[dry-run] relative IK 累计偏移不更新；实机成功执行后才累计。")
+        else:
+            update_tracked_state(action, state)
         return
 
     confirmed = confirm_real_action(action)
@@ -1639,6 +1662,7 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
         if status == "ok":
             print(f"[ok] 动作完成，用时 {duration_s:.3f}s。")
             update_tracked_state(action, state)
+            status = "success"
     except Exception as exc:  # pragma: no cover - real SDK/runtime only
         status = f"error: {exc}"
         print(f"[error] {exc}")
@@ -1787,7 +1811,16 @@ def wait_for_right_arm(robot) -> str:
 
 
 def update_tracked_state(action: Action, state: SessionState) -> None:
-    if action.command_type == "wrist_roll":
+    if action.command_type == "arm_relative_ik":
+        if action.arm == "right":
+            state.current_right_dx += action.dx or 0.0
+            state.current_right_dy += action.dy or 0.0
+            state.current_right_dz += action.dz or 0.0
+        else:
+            state.current_left_dx += action.dx or 0.0
+            state.current_left_dy += action.dy or 0.0
+            state.current_left_dz += action.dz or 0.0
+    elif action.command_type == "wrist_roll":
         state.current_wrist_roll = action.wrist_roll_target
         state.current_left_wrist_roll = action.wrist_roll_target
     elif action.command_type == "wrist_yaw":
@@ -2328,19 +2361,88 @@ def handle_observation(parts: list[str], state: SessionState) -> None:
     print(f"[obs] recorded: {observed_alignment}")
 
 
+def offset_summary(state: SessionState) -> str:
+    return (
+        "right_offset=("
+        f"dx={state.current_right_dx:+.6f}, "
+        f"dy={state.current_right_dy:+.6f}, "
+        f"dz={state.current_right_dz:+.6f}) "
+        "left_offset=("
+        f"dx={state.current_left_dx:+.6f}, "
+        f"dy={state.current_left_dy:+.6f}, "
+        f"dz={state.current_left_dz:+.6f})"
+    )
+
+
+def print_current_offset(state: SessionState) -> None:
+    print("[current offset]")
+    print(
+        "right: "
+        f"dx={state.current_right_dx:+.6f}, "
+        f"dy={state.current_right_dy:+.6f}, "
+        f"dz={state.current_right_dz:+.6f}"
+    )
+    print(
+        "left:  "
+        f"dx={state.current_left_dx:+.6f}, "
+        f"dy={state.current_left_dy:+.6f}, "
+        f"dz={state.current_left_dz:+.6f}"
+    )
+
+
+def fmt_state_value(value: Optional[float]) -> str:
+    if value is None:
+        return "unknown"
+    return f"{value:+.6f}"
+
+
+def handle_show_state(state: SessionState) -> None:
+    print_current_offset(state)
+    print("[tracked joints]")
+    print(
+        "right_wrist: "
+        f"roll={fmt_state_value(state.current_right_wrist_roll)}, "
+        f"pitch={fmt_state_value(state.current_right_wrist_pitch)}, "
+        f"yaw={fmt_state_value(state.current_right_wrist_yaw)}"
+    )
+    print(
+        "left_wrist:  "
+        f"roll={fmt_state_value(state.current_left_wrist_roll)}, "
+        f"pitch={fmt_state_value(state.current_left_wrist_pitch)}, "
+        f"yaw={fmt_state_value(state.current_left_wrist_yaw)}"
+    )
+    print(f"right_elbow_pitch={fmt_state_value(state.current_right_elbow_pitch)}")
+    print(
+        "gripper: "
+        f"right={fmt_state_value(state.current_right_gripper_position)}, "
+        f"left={fmt_state_value(state.current_left_gripper_position)}"
+    )
+    append_log(
+        state,
+        Action(command="show_state", command_type="show_state"),
+        user_confirmed=None,
+        status="shown",
+        observed_alignment=state.last_observed_alignment,
+        user_observation=offset_summary(state),
+    )
+
+
 def handle_save(parts: list[str], state: SessionState) -> None:
     if len(parts) > 1:
         note = " ".join(parts[1:]).strip()
     else:
         note = input("save note> ").strip()
+    summary = offset_summary(state)
+    user_observation = f"{note} | {summary}" if note else summary
     append_log(
         state,
         Action(command="save", command_type="save"),
         user_confirmed=None,
         status="saved",
         observed_alignment=state.last_observed_alignment,
-        user_observation=note,
+        user_observation=user_observation,
     )
+    print_current_offset(state)
     print("[save] 当前标定备注已写入 CSV。")
 
 
@@ -2363,6 +2465,9 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
         return True
     if command in {"quit", "exit", "q"}:
         return False
+    if command == "show_state":
+        handle_show_state(state)
+        return True
     if command == "obs":
         handle_observation(parts, state)
         return True
@@ -2673,7 +2778,8 @@ SUBMENUS = {
         "items": [
             ("1", "obs", "obs"),
             ("2", "save", "save"),
-            ("3", "显示当前 log_path", "__show_log_path__"),
+            ("3", "show_state", "show_state"),
+            ("4", "显示当前 log_path", "__show_log_path__"),
         ],
     },
     "7": {
