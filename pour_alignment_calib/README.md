@@ -68,7 +68,7 @@
   - `right_elbow_pitch = 0.25`
 - 如果杯口姿态已经基本合适，但右手杯子与左手 home 位垂直距离太近，先调 `right_elbow_pitch`，再调 `right_shoulder_pitch`，最后才考虑 `shoulder_roll`。
 - 如果倒奶位左右手横向间距太近，优先小步试 `right_x+` / `right_x-`、`right_y+` / `right_y-`；每次 0.003~0.005 m，找到能增大间距且杯口姿态仍可接受的方向后再保存候选。
-- 推荐现场测试顺序：`replay_right_pour_ready` -> `obs before_clearance_adjust` -> `right_elbow+` -> `obs check_right_elbow_plus` -> `right_elbow-` -> `obs check_right_elbow_minus` -> `save right_clearance_candidate_xxx`。
+- 推荐现场测试顺序：`replay_right_pour_ready` -> `obs before_clearance_adjust` -> `right_elbow+` -> `obs check_right_elbow_plus` -> `right_elbow-` -> `obs check_right_elbow_minus` -> `save_pose right_clearance_candidate_xxx`。
 - `right_x+` / `right_x-`、`right_z+` / `right_z-` 按 `--right-linear-step` 做右臂 relative IK，默认 `0.005 m`。
 - `right_y+` / `right_y-` 按 `--right-linear-step-small` 做右臂 relative IK，默认 `0.003 m`。
 - `right_elbow+` / `right_elbow-` 按 `--right-arm-clearance-step` 微调右肘俯仰，默认 `0.05 rad`。
@@ -90,19 +90,31 @@
 
 1. 先固定右手杯子目标位，再调左手空壶。
 2. 如果倒奶位左右手横向间距太近，先在右手接奶位执行 `right_x+` / `right_x-` / `right_y+` / `right_y-` 小步试方向。
-3. 找到能增大间距且杯口姿态仍可接受的方向后，执行 `save right_spacing_candidate_xxx` 保存右手候选。
+3. 找到能增大间距且杯口姿态仍可接受的方向后，执行 `save_pose right_spacing_candidate_xxx` 保存右手候选。
 4. 再让左手进入倒奶预备位，用 `left_x+` / `left_x-` / `left_y+` / `left_y-` / `left_z+` / `left_z-` 对壶嘴进行微调。
 5. 不要一开始左右手同时调。
 6. 不要用 `shoulder_roll` 大幅拉开间距，除非 relative IK 小步调整不够。
 7. 每次只动一个方向，每次 `0.003~0.005 m`。
 8. 任何 `near_collision` / `unsafe` 立即停止。
-9. 使用 `right_x+` / `right_x-` / `left_x+` 等 relative IK 小步调到合适后，必须执行 `show_state` 和 `save candidate_xxx`，这样 CSV 会记录累计偏移，方便下次复现。
+9. 使用 `right_x+` / `right_x-` / `left_x+` 等 relative IK 小步调到合适后，必须执行 `show_state` 和 `save_pose candidate_xxx`，这样 CSV 和候选 JSONL 会记录累计偏移，方便下次复现。
+
+批量小步命令：
+
+```text
+right_x+ 14
+left_z- 3
+right_roll+ 2
+```
+
+`right_x+ 14` 表示连续执行 14 次 `right_x+`，每次仍是 `0.005 m` 安全小步，累计 `+0.070 m`。它不是一次性大步 `ik(0.070, 0, 0)`。批量命令只支持小步命令，不支持 `replay_right_*`、`save`、`obs`、`show_state`、`save_pose` 或 `quit`。重复次数必须是正整数，默认最多 20 次，可用 `--max-repeat-count` 调整。
+
+execute 模式下，批量命令执行前只做一次总确认；确认后内部逐步调用原来的单步动作逻辑，每一步都会写 CSV，并且每一步成功后才累计 offset。dry-run 模式只打印计划并写日志，不连接机器人。
 
 累计偏移复现示例：
 
 ```text
 show_state
-save right_spacing_candidate_001
+save_pose right_spacing_candidate_001
 ```
 
 如果 `show_state` 显示：
@@ -112,6 +124,35 @@ right: dx=+0.015000, dy=+0.000000, dz=+0.000000
 ```
 
 则下次从 `replay_right_pour_ready` 后执行 3 次 `right_x+`，即可复现同样的右臂 relative IK 累计偏移。后续也可以实现 `right_apply_offset` 类命令做统一复现。
+
+候选位姿保存与复现：
+
+推荐流程：
+
+1. 调到满意位置。
+2. 输入 `show_state` 查看当前累计偏移和关键关节。
+3. 输入 `save_pose right_clearance_candidate_01` 保存完整候选状态。
+4. 实验结束后查看 `pour_alignment_calib/logs/pour_align_candidates.jsonl`。
+5. 下次复现时参考候选记录里的 `suggested_replay_commands`。
+
+示例候选如果显示：
+
+```text
+right_offset dx=+0.070
+linear_step=0.005
+suggested replay:
+  replay_right_pour_ready
+  right_x+ 14
+```
+
+则下次复现：
+
+```text
+replay_right_pour_ready
+right_x+ 14
+```
+
+`save [note]` 用于普通备注，会把当前 offset 和关键关节状态一起打印并写入 CSV；`save_pose <candidate_name>` 用于保存可复现候选位姿，会额外追加一行 JSONL 到 `pour_align_candidates.jsonl`。调到满意位置后优先用 `save_pose`。
 
 左手腕调试方法：
 
@@ -176,7 +217,7 @@ left_grip
 left_x+
 roll07
 obs edge
-save right_clearance_candidate_xxx
+save_pose right_clearance_candidate_xxx
 ```
 
 帮助命令区别：
@@ -187,7 +228,9 @@ save right_clearance_candidate_xxx
 - `help left`：显示左夹爪、左手 relative IK 和左腕命令。
 - `help replay`：只显示 `replay_right_*` 相关命令。
 - `show_state`：显示当前左右臂累计 relative IK 偏移、左右手腕估计值、右肘和左右夹爪估计值，并写入 CSV。
-- `save [note]`：保存备注时会同时写入 `right_offset=(dx=..., dy=..., dz=...)` 和 `left_offset=(dx=..., dy=..., dz=...)`。
+- `save [note]`：保存普通备注时会同时写入 `right_offset=(dx=..., dy=..., dz=...)` 和 `left_offset=(dx=..., dy=..., dz=...)`。
+- `save_pose <candidate_name>`：保存完整候选位姿快照，并写入 `pour_alignment_calib/logs/pour_align_candidates.jsonl`。
+- `list_candidates`：显示最近 10 条候选位姿记录。
 
 显式记录左右夹爪目标值：
 

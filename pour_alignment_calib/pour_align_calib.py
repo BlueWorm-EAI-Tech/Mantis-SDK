@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import difflib
 import json
+import re
 import shlex
+import subprocess
 import sys
 import time
 from dataclasses import dataclass
@@ -44,6 +47,7 @@ DEFAULT_LEFT_WRIST_STEP = 0.05
 DEFAULT_RIGHT_ARM_CLEARANCE_STEP = 0.05
 DEFAULT_RIGHT_LINEAR_STEP = 0.005
 DEFAULT_RIGHT_LINEAR_STEP_SMALL = 0.003
+DEFAULT_MAX_REPEAT_COUNT = 20
 DEFAULT_RIGHT_POUR_READY_WRIST_YAW = -0.70
 DEFAULT_RIGHT_POUR_READY_WRIST_PITCH = 0.10
 DEFAULT_RIGHT_POUR_READY_WRIST_ROLL = 0.20
@@ -59,6 +63,8 @@ DEFAULT_MAX_WRIST_ROLL = 0.70
 GRIPPER_MIN = 0.0
 GRIPPER_MAX = 1.0
 LOG_DIR = Path(__file__).resolve().parent / "logs"
+CANDIDATE_FILE = LOG_DIR / "pour_align_candidates.jsonl"
+CANDIDATE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
 # Source: coffee_replay_safe.py right-hand replay stages only.
 # Do not import or call coffee_replay_safe.py; these are explicit SDK calls
@@ -638,6 +644,11 @@ CSV_FIELDNAMES = [
     "cumulative_left_dx",
     "cumulative_left_dy",
     "cumulative_left_dz",
+    "repeat_command",
+    "repeat_index",
+    "repeat_total",
+    "repeat_status",
+    "completed_steps",
     "joint_targets",
     "wrist_roll_target",
     "wrist_yaw_delta_or_target",
@@ -650,12 +661,54 @@ CSV_FIELDNAMES = [
     "observed_alignment",
     "user_observation",
     "risk_detected",
+    "candidate_name",
+    "candidate_file",
 ]
+
+LINEAR_STEP_COMMANDS = {
+    "x+",
+    "x-",
+    "y+",
+    "y-",
+    "z+",
+    "z-",
+    "left_x+",
+    "left_x-",
+    "left_y+",
+    "left_y-",
+    "left_z+",
+    "left_z-",
+    "right_x+",
+    "right_x-",
+    "right_y+",
+    "right_y-",
+    "right_z+",
+    "right_z-",
+}
+REPEATABLE_SMALL_STEP_COMMANDS = LINEAR_STEP_COMMANDS | {
+    "right_roll+",
+    "right_roll-",
+    "right_pitch+",
+    "right_pitch-",
+    "right_yaw+",
+    "right_yaw-",
+    "right_elbow+",
+    "right_elbow-",
+    "right_shoulder_pitch+",
+    "right_shoulder_pitch-",
+    "left_roll+",
+    "left_roll-",
+    "left_pitch+",
+    "left_pitch-",
+    "left_yaw+",
+    "left_yaw-",
+}
 
 
 @dataclass
 class SessionState:
     log_path: Path
+    candidate_path: Path
     dry_run: bool
     execute: bool
     current_wrist_roll: Optional[float] = None
@@ -666,6 +719,7 @@ class SessionState:
     current_right_wrist_pitch: Optional[float] = None
     current_right_elbow_pitch: Optional[float] = None
     current_right_shoulder_pitch: Optional[float] = None
+    current_right_shoulder_roll: Optional[float] = None
     current_left_shoulder_pitch: Optional[float] = None
     current_left_elbow_pitch: Optional[float] = None
     current_left_shoulder_roll: Optional[float] = None
@@ -925,6 +979,12 @@ def parse_args() -> argparse.Namespace:
         help=f"允许的最大 wrist_roll 目标，默认 {DEFAULT_MAX_WRIST_ROLL}",
     )
     parser.add_argument(
+        "--max-repeat-count",
+        type=int,
+        default=DEFAULT_MAX_REPEAT_COUNT,
+        help=f"批量小步命令最大重复次数，默认 {DEFAULT_MAX_REPEAT_COUNT}",
+    )
+    parser.add_argument(
         "--log-file",
         default=None,
         help="CSV 日志路径；默认写入 pour_alignment_calib/logs/。",
@@ -1003,6 +1063,8 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--left-arm-pour-adjust-step 必须大于 0")
     if args.max_wrist_roll < 0.0:
         raise SystemExit("--max-wrist-roll 必须大于等于 0")
+    if args.max_repeat_count <= 0:
+        raise SystemExit("--max-repeat-count 必须是正整数")
 
 
 def resolve_log_path(log_file: Optional[str]) -> Path:
@@ -1050,6 +1112,13 @@ def append_log(
     status: str,
     observed_alignment: str = "",
     user_observation: str = "",
+    repeat_command: str = "",
+    repeat_index: Optional[int] = None,
+    repeat_total: Optional[int] = None,
+    repeat_status: str = "",
+    completed_steps: Optional[int] = None,
+    candidate_name: str = "",
+    candidate_file: str = "",
 ) -> None:
     row = {
         "timestamp": now_iso(),
@@ -1065,6 +1134,11 @@ def append_log(
         "cumulative_left_dx": fmt_float(state.current_left_dx),
         "cumulative_left_dy": fmt_float(state.current_left_dy),
         "cumulative_left_dz": fmt_float(state.current_left_dz),
+        "repeat_command": repeat_command,
+        "repeat_index": "" if repeat_index is None else str(repeat_index),
+        "repeat_total": "" if repeat_total is None else str(repeat_total),
+        "repeat_status": repeat_status,
+        "completed_steps": "" if completed_steps is None else str(completed_steps),
         "joint_targets": action.joint_targets,
         "wrist_roll_target": fmt_float(action.wrist_roll_target),
         "wrist_yaw_delta_or_target": fmt_float(action.wrist_yaw_delta_or_target),
@@ -1077,6 +1151,8 @@ def append_log(
         "observed_alignment": observed_alignment,
         "user_observation": user_observation,
         "risk_detected": fmt_bool(state.risk_detected),
+        "candidate_name": candidate_name,
+        "candidate_file": candidate_file,
     }
     with state.log_path.open("a", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDNAMES)
@@ -1090,10 +1166,102 @@ def pretty_path(path: Path) -> str:
         return str(path)
 
 
+def git_value(args: list[str]) -> str:
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=PROJECT_ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+        )
+    except Exception:
+        return ""
+    if result.returncode != 0:
+        return ""
+    return result.stdout.strip()
+
+
+def step_count_for_offset(offset: float, step: float, positive: str, negative: str) -> str:
+    if abs(offset) < 1e-9:
+        return ""
+    count = offset / step
+    rounded = round(count)
+    command = positive if offset > 0 else negative
+    if abs(count - rounded) < 1e-6:
+        return f"{command} {abs(rounded)}"
+    return f"# approximate {command}: offset={offset:+.6f}, step={step:.6f}"
+
+
+def suggested_replay_commands(state: SessionState, args: Optional[argparse.Namespace] = None) -> list[str]:
+    commands = ["replay_right_pour_ready"]
+    right_linear_step = args.right_linear_step if args is not None else DEFAULT_RIGHT_LINEAR_STEP
+    right_linear_step_small = (
+        args.right_linear_step_small if args is not None else DEFAULT_RIGHT_LINEAR_STEP_SMALL
+    )
+    left_linear_step = args.left_linear_step if args is not None else DEFAULT_LINEAR_STEP
+    left_linear_step_small = (
+        args.left_linear_step_small if args is not None else DEFAULT_LINEAR_STEP_SMALL
+    )
+    offset_commands = [
+        step_count_for_offset(state.current_right_dx, right_linear_step, "right_x+", "right_x-"),
+        step_count_for_offset(state.current_right_dy, right_linear_step_small, "right_y+", "right_y-"),
+        step_count_for_offset(state.current_right_dz, right_linear_step, "right_z+", "right_z-"),
+        step_count_for_offset(state.current_left_dx, left_linear_step, "left_x+", "left_x-"),
+        step_count_for_offset(state.current_left_dy, left_linear_step_small, "left_y+", "left_y-"),
+        step_count_for_offset(state.current_left_dz, left_linear_step, "left_z+", "left_z-"),
+    ]
+    commands.extend(command for command in offset_commands if command)
+    return commands
+
+
+def state_snapshot(
+    state: SessionState,
+    args: Optional[argparse.Namespace] = None,
+    *,
+    candidate_name: str = "",
+    user_note: str = "",
+) -> dict:
+    return {
+        "timestamp": now_iso(),
+        "candidate_name": candidate_name,
+        "robot_sn": getattr(args, "sn", "") if args is not None else "",
+        "robot_ip": getattr(args, "real_ip", "") if args is not None else "",
+        "git_branch": git_value(["rev-parse", "--abbrev-ref", "HEAD"]),
+        "git_commit": git_value(["rev-parse", "HEAD"]),
+        "dry_run": state.dry_run,
+        "execute": state.execute,
+        "right_offset_dx": state.current_right_dx,
+        "right_offset_dy": state.current_right_dy,
+        "right_offset_dz": state.current_right_dz,
+        "left_offset_dx": state.current_left_dx,
+        "left_offset_dy": state.current_left_dy,
+        "left_offset_dz": state.current_left_dz,
+        "right_wrist_yaw": state.current_right_wrist_yaw,
+        "right_wrist_pitch": state.current_right_wrist_pitch,
+        "right_wrist_roll": state.current_right_wrist_roll,
+        "right_elbow_pitch": state.current_right_elbow_pitch,
+        "right_shoulder_pitch": state.current_right_shoulder_pitch,
+        "right_shoulder_roll": state.current_right_shoulder_roll,
+        "left_wrist_yaw": state.current_left_wrist_yaw,
+        "left_wrist_pitch": state.current_left_wrist_pitch,
+        "left_wrist_roll": state.current_left_wrist_roll,
+        "left_elbow_pitch": state.current_left_elbow_pitch,
+        "left_shoulder_pitch": state.current_left_shoulder_pitch,
+        "left_shoulder_roll": state.current_left_shoulder_roll,
+        "right_gripper_position": state.current_right_gripper_position,
+        "left_gripper_position": state.current_left_gripper_position,
+        "suggested_replay_commands": suggested_replay_commands(state, args),
+        "user_note": user_note,
+    }
+
+
 HELP_SHORT = """
 Help:
   默认界面是二级菜单；输入 1-7 进入分组菜单，输入 q 退出。
   也可以直接输入专家命令，例如 replay_right_pour_ready / x+ / obs edge。
+  批量小步命令示例：right_x+ 14 / left_z- 3 / right_roll+ 2。
 
 Expert help:
   help all     show full expert command list
@@ -1101,6 +1269,7 @@ Expert help:
   help left    show left gripper/alignment/wrist commands
   help replay  show replay_right_* commands
   show_state   print cumulative offsets and tracked calibration state
+  save_pose <candidate_name>  save reproducible candidate pose snapshot
 """.strip()
 
 
@@ -1203,6 +1372,7 @@ Commands:
   help left            show left-side commands
   help replay          show right replay commands
   show_state           print cumulative offsets and tracked calibration state
+  save_pose <candidate_name> save reproducible candidate pose snapshot
   left_open            set left_gripper to configured open position
   left_grip            set left_gripper to configured pitcher position, default 0.70
   left_loose           loosen left_gripper by configured step
@@ -1275,6 +1445,8 @@ Commands:
   pitch+ / pitch-      small left wrist_pitch target step when SDK supports it
   obs [value]          record observation: spout_in_cup / edge / outside / near_collision / unsafe / uncertain
   save [note]          save current calibration note
+  save_pose <candidate_name> save full candidate state to candidates jsonl
+  list_candidates      show last 10 saved candidates
   quit                 exit
 
 Clearance tuning:
@@ -1305,6 +1477,7 @@ def print_startup_banner(args: argparse.Namespace, state: SessionState) -> None:
     print("=" * 72)
     print(f"[Pour Align Calib] {mode}")
     print(f"log: {pretty_path(state.log_path)}")
+    print(f"candidate_log: {pretty_path(state.candidate_path)}")
     print("空壶标定：先分阶段确认右手取杯到倒奶前姿态，再用左手 relative IK 小步对位。")
     if args.execute:
         print("实机模式：每个真实动作都需要输入 y 二次确认。")
@@ -1547,22 +1720,56 @@ def confirm_replay_stage(action: Action, args: argparse.Namespace) -> bool:
 
 
 def execute_action(robot, action: Action, args: argparse.Namespace, state: SessionState) -> None:
+    execute_action_once(robot, action, args, state)
+
+
+def execute_action_once(
+    robot,
+    action: Action,
+    args: argparse.Namespace,
+    state: SessionState,
+    *,
+    skip_confirm: bool = False,
+    repeat_command: str = "",
+    repeat_index: Optional[int] = None,
+    repeat_total: Optional[int] = None,
+) -> str:
     print(f"[plan] {describe_action(action)}")
 
     if state.dry_run:
-        append_log(state, action, user_confirmed=None, status="dry_run")
+        append_log(
+            state,
+            action,
+            user_confirmed=None,
+            status="dry_run",
+            repeat_command=repeat_command,
+            repeat_index=repeat_index,
+            repeat_total=repeat_total,
+            repeat_status="dry_run" if repeat_command else "",
+            completed_steps=repeat_index if repeat_command else None,
+        )
         print("[dry-run] 已记录，不连接机器人。")
         if action.command_type == "arm_relative_ik":
             print("[dry-run] relative IK 累计偏移不更新；实机成功执行后才累计。")
         else:
             update_tracked_state(action, state)
-        return
+        return "dry_run"
 
-    confirmed = confirm_real_action(action)
+    confirmed = True if skip_confirm else confirm_real_action(action)
     if not confirmed:
-        append_log(state, action, user_confirmed=False, status="skipped_by_user")
+        append_log(
+            state,
+            action,
+            user_confirmed=False,
+            status="skipped_by_user",
+            repeat_command=repeat_command,
+            repeat_index=repeat_index,
+            repeat_total=repeat_total,
+            repeat_status="skipped_by_user" if repeat_command else "",
+            completed_steps=(repeat_index - 1) if repeat_index else None,
+        )
         print("[skip] 用户未确认，动作已跳过。")
-        return
+        return "skipped_by_user"
 
     status = "ok"
     try:
@@ -1667,7 +1874,18 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
         status = f"error: {exc}"
         print(f"[error] {exc}")
 
-    append_log(state, action, user_confirmed=True, status=status)
+    append_log(
+        state,
+        action,
+        user_confirmed=True,
+        status=status,
+        repeat_command=repeat_command,
+        repeat_index=repeat_index,
+        repeat_total=repeat_total,
+        repeat_status=("ok" if status == "success" else "partial") if repeat_command else "",
+        completed_steps=repeat_index if status == "success" and repeat_index is not None else None,
+    )
+    return status
 
 
 def execute_replay_stage(
@@ -1783,6 +2001,7 @@ def update_tracked_state_from_replay_stage(
     state.current_right_wrist_yaw = args.right_pour_ready_wrist_yaw
     state.current_right_wrist_pitch = args.right_pour_ready_wrist_pitch
     state.current_right_wrist_roll = args.right_pour_ready_wrist_roll
+    state.current_right_shoulder_roll = args.right_pour_ready_shoulder_roll
     if args.right_pour_ready_elbow_pitch is not None:
         state.current_right_elbow_pitch = args.right_pour_ready_elbow_pitch
     if args.right_pour_ready_shoulder_pitch is not None:
@@ -2309,6 +2528,253 @@ def build_wrist_step_action(command: str, robot, args: argparse.Namespace, state
     return Action(command=command, command_type=command_type, **kwargs)
 
 
+def build_small_step_action(parts: list[str], robot, args: argparse.Namespace, state: SessionState) -> Action:
+    command = parts[0].lower()
+    if command in LINEAR_STEP_COMMANDS:
+        return build_linear_action(command, args)
+    if command in {
+        "right_roll+",
+        "right_roll-",
+        "right_pitch+",
+        "right_pitch-",
+        "right_yaw+",
+        "right_yaw-",
+    }:
+        return build_right_wrist_adjust_action(parts, args, state)
+    if command in {
+        "right_elbow+",
+        "right_elbow-",
+        "right_shoulder_pitch+",
+        "right_shoulder_pitch-",
+    }:
+        return build_right_arm_clearance_action(parts, args, state)
+    if command in {
+        "left_roll+",
+        "left_roll-",
+        "left_pitch+",
+        "left_pitch-",
+        "left_yaw+",
+        "left_yaw-",
+    }:
+        return build_left_wrist_adjust_action(parts, args, state)
+    if command in {"yaw+", "yaw-", "pitch+", "pitch-"}:
+        return build_wrist_step_action(command, robot, args, state)
+    raise ValueError(f"repeat is not supported for command: {command}")
+
+
+def repeat_delta_summary(action: Action, repeat_count: int) -> list[str]:
+    lines = []
+    if action.command_type == "arm_relative_ik":
+        if action.dx:
+            lines.append(f"per-step dx={action.dx:.3f}, total dx={action.dx * repeat_count:.3f}")
+        if action.dy:
+            lines.append(f"per-step dy={action.dy:.3f}, total dy={action.dy * repeat_count:.3f}")
+        if action.dz:
+            lines.append(f"per-step dz={action.dz:.3f}, total dz={action.dz * repeat_count:.3f}")
+    elif action.wrist_roll_target is not None:
+        lines.append(f"target will advance step-by-step to {action.wrist_roll_target:.6f} ...")
+    elif action.wrist_pitch_delta_or_target is not None:
+        lines.append(f"target will advance step-by-step to {action.wrist_pitch_delta_or_target:.6f} ...")
+    elif action.wrist_yaw_delta_or_target is not None:
+        lines.append(f"target will advance step-by-step to {action.wrist_yaw_delta_or_target:.6f} ...")
+    return lines
+
+
+def repeat_confirmation_text(action: Action, repeat_count: int) -> str:
+    if action.command_type == "arm_relative_ik":
+        parts = []
+        if action.dx:
+            parts.append(f"每步 {action.dx:.3f} m，累计 {action.dx * repeat_count:.3f} m")
+        if action.dy:
+            parts.append(f"每步 {action.dy:.3f} m，累计 {action.dy * repeat_count:.3f} m")
+        if action.dz:
+            parts.append(f"每步 {action.dz:.3f} m，累计 {action.dz * repeat_count:.3f} m")
+        return "，".join(parts)
+    return "每步使用当前小步逻辑逐次计算目标"
+
+
+def parse_repeat_count(command: str, value: str, args: argparse.Namespace) -> Optional[int]:
+    if not value.isdigit():
+        print(f"[blocked] repeat_count 必须是正整数: {value}")
+        return None
+    count = int(value)
+    if count <= 0:
+        print(f"[blocked] repeat_count 必须是正整数: {value}")
+        return None
+    if count > args.max_repeat_count:
+        print(
+            f"[blocked] repeat_count={count} 超过 --max-repeat-count={args.max_repeat_count}，"
+            "未执行。"
+        )
+        return None
+    return count
+
+
+def handle_repeat_command(
+    parts: list[str],
+    robot,
+    args: argparse.Namespace,
+    state: SessionState,
+) -> bool:
+    command = parts[0].lower()
+    if len(parts) != 2:
+        return False
+    if command in RIGHT_REPLAY_STAGES or command in RIGHT_REPLAY_STAGE_ALIASES or command in LEFT_REPLAY_STAGES:
+        print(f"[blocked] replay stage 不支持 repeat: {command}")
+        append_log(
+            state,
+            Action(command=" ".join(parts), command_type="repeat_blocked"),
+            user_confirmed=None,
+            status="repeat_not_supported_for_replay_stage",
+        )
+        return True
+    if command in {"save", "quit", "exit", "q", "obs", "show_state", "save_pose"}:
+        print(f"[blocked] {command} 不支持 repeat。")
+        append_log(
+            state,
+            Action(command=" ".join(parts), command_type="repeat_blocked"),
+            user_confirmed=None,
+            status="repeat_not_supported",
+        )
+        return True
+    if command not in REPEATABLE_SMALL_STEP_COMMANDS:
+        return False
+
+    repeat_count = parse_repeat_count(command, parts[1], args)
+    if repeat_count is None:
+        append_log(
+            state,
+            Action(command=" ".join(parts), command_type="repeat_blocked"),
+            user_confirmed=None,
+            status="invalid_repeat_count",
+            repeat_command=command,
+            repeat_total=None,
+            repeat_status="blocked",
+            completed_steps=0,
+        )
+        return True
+
+    try:
+        first_action = build_small_step_action([command], robot, args, state)
+    except ValueError as exc:
+        print(f"[blocked] {exc}")
+        append_log(
+            state,
+            Action(command=" ".join(parts), command_type="repeat_blocked"),
+            user_confirmed=None,
+            status=f"blocked: {exc}",
+        )
+        return True
+
+    print(f"[plan repeat] {command} × {repeat_count}")
+    for line in repeat_delta_summary(first_action, repeat_count):
+        print(line)
+
+    if state.dry_run:
+        dry_run_completed = 0
+        for index in range(1, repeat_count + 1):
+            action = build_small_step_action([command], robot, args, state)
+            execute_action_once(
+                robot,
+                action,
+                args,
+                state,
+                repeat_command=command,
+                repeat_index=index,
+                repeat_total=repeat_count,
+            )
+            dry_run_completed = index
+        append_log(
+            state,
+            Action(command=" ".join(parts), command_type="repeat"),
+            user_confirmed=None,
+            status="dry_run",
+            repeat_command=command,
+            repeat_total=repeat_count,
+            repeat_status="dry_run",
+            completed_steps=dry_run_completed,
+        )
+        return True
+
+    detail = repeat_confirmation_text(first_action, repeat_count)
+    print(f"即将执行 {command} × {repeat_count}，{detail}。输入 y 执行。")
+    if input("> ").strip().lower() != "y":
+        append_log(
+            state,
+            Action(command=" ".join(parts), command_type="repeat"),
+            user_confirmed=False,
+            status="skipped_by_user",
+            repeat_command=command,
+            repeat_total=repeat_count,
+            repeat_status="skipped_by_user",
+            completed_steps=0,
+        )
+        print("[skip] 用户未确认，repeat 已跳过。")
+        return True
+
+    completed_steps = 0
+    try:
+        for index in range(1, repeat_count + 1):
+            action = build_small_step_action([command], robot, args, state)
+            status = execute_action_once(
+                robot,
+                action,
+                args,
+                state,
+                skip_confirm=True,
+                repeat_command=command,
+                repeat_index=index,
+                repeat_total=repeat_count,
+            )
+            if status != "success":
+                append_log(
+                    state,
+                    Action(command=" ".join(parts), command_type="repeat"),
+                    user_confirmed=True,
+                    status=status,
+                    repeat_command=command,
+                    repeat_total=repeat_count,
+                    repeat_status="partial",
+                    completed_steps=completed_steps,
+                )
+                print(
+                    f"[repeat partial] {command}: completed_steps={completed_steps}, "
+                    f"requested_steps={repeat_count}"
+                )
+                return True
+            completed_steps = index
+    except KeyboardInterrupt:
+        append_log(
+            state,
+            Action(command="keyboard_interrupt", command_type="interrupt"),
+            user_confirmed=None,
+            status="keyboard_interrupt",
+            user_observation="interrupted_during_repeat=true",
+            repeat_command=command,
+            repeat_total=repeat_count,
+            repeat_status="interrupted",
+            completed_steps=completed_steps,
+        )
+        print(
+            f"\n[repeat interrupted] repeat_command={command}, "
+            f"completed_steps={completed_steps}, requested_steps={repeat_count}"
+        )
+        raise
+
+    append_log(
+        state,
+        Action(command=" ".join(parts), command_type="repeat"),
+        user_confirmed=True,
+        status="success",
+        repeat_command=command,
+        repeat_total=repeat_count,
+        repeat_status="ok",
+        completed_steps=completed_steps,
+    )
+    print(f"[repeat ok] {command}: completed_steps={completed_steps}")
+    return True
+
+
 def record_unsupported(command: str, command_type: str, state: SessionState) -> None:
     print(f"[unsupported] {command}: 没有可靠的 SDK 控制接口或当前目标不可读，未执行。")
     append_log(
@@ -2392,31 +2858,40 @@ def print_current_offset(state: SessionState) -> None:
 
 def fmt_state_value(value: Optional[float]) -> str:
     if value is None:
-        return "unknown"
+        return "?"
     return f"{value:+.6f}"
 
 
-def handle_show_state(state: SessionState) -> None:
+def handle_show_state(state: SessionState, args: argparse.Namespace) -> None:
     print_current_offset(state)
     print("[tracked joints]")
     print(
         "right_wrist: "
-        f"roll={fmt_state_value(state.current_right_wrist_roll)}, "
+        f"yaw={fmt_state_value(state.current_right_wrist_yaw)}, "
         f"pitch={fmt_state_value(state.current_right_wrist_pitch)}, "
-        f"yaw={fmt_state_value(state.current_right_wrist_yaw)}"
+        f"roll={fmt_state_value(state.current_right_wrist_roll)}"
     )
     print(
         "left_wrist:  "
-        f"roll={fmt_state_value(state.current_left_wrist_roll)}, "
+        f"yaw={fmt_state_value(state.current_left_wrist_yaw)}, "
         f"pitch={fmt_state_value(state.current_left_wrist_pitch)}, "
-        f"yaw={fmt_state_value(state.current_left_wrist_yaw)}"
+        f"roll={fmt_state_value(state.current_left_wrist_roll)}"
     )
     print(f"right_elbow_pitch={fmt_state_value(state.current_right_elbow_pitch)}")
+    print(f"right_shoulder_pitch={fmt_state_value(state.current_right_shoulder_pitch)}")
+    print(f"right_shoulder_roll={fmt_state_value(state.current_right_shoulder_roll)}")
+    print(f"left_elbow_pitch={fmt_state_value(state.current_left_elbow_pitch)}")
+    print(f"left_shoulder_pitch={fmt_state_value(state.current_left_shoulder_pitch)}")
+    print(f"left_shoulder_roll={fmt_state_value(state.current_left_shoulder_roll)}")
     print(
         "gripper: "
         f"right={fmt_state_value(state.current_right_gripper_position)}, "
         f"left={fmt_state_value(state.current_left_gripper_position)}"
     )
+    print(f"log_path: {pretty_path(state.log_path)}")
+    print("[suggested replay]")
+    for command in suggested_replay_commands(state, args):
+        print(f"  {command}")
     append_log(
         state,
         Action(command="show_state", command_type="show_state"),
@@ -2443,7 +2918,151 @@ def handle_save(parts: list[str], state: SessionState) -> None:
         user_observation=user_observation,
     )
     print_current_offset(state)
+    print("[tracked joints]")
+    print(
+        "right_wrist: "
+        f"yaw={fmt_state_value(state.current_right_wrist_yaw)}, "
+        f"pitch={fmt_state_value(state.current_right_wrist_pitch)}, "
+        f"roll={fmt_state_value(state.current_right_wrist_roll)}"
+    )
+    print(
+        "left_wrist:  "
+        f"yaw={fmt_state_value(state.current_left_wrist_yaw)}, "
+        f"pitch={fmt_state_value(state.current_left_wrist_pitch)}, "
+        f"roll={fmt_state_value(state.current_left_wrist_roll)}"
+    )
+    print(f"right_elbow_pitch={fmt_state_value(state.current_right_elbow_pitch)}")
+    print(f"right_shoulder_pitch={fmt_state_value(state.current_right_shoulder_pitch)}")
+    print(f"left_elbow_pitch={fmt_state_value(state.current_left_elbow_pitch)}")
+    print(f"left_shoulder_pitch={fmt_state_value(state.current_left_shoulder_pitch)}")
     print("[save] 当前标定备注已写入 CSV。")
+
+
+def handle_save_pose(parts: list[str], args: argparse.Namespace, state: SessionState) -> None:
+    if len(parts) != 2:
+        print("用法: save_pose <candidate_name>")
+        return
+    candidate_name = parts[1].strip()
+    if not CANDIDATE_NAME_RE.fullmatch(candidate_name):
+        print("[blocked] candidate_name 只允许字母、数字、下划线和短横线。")
+        return
+
+    note = state.last_user_observation
+    snapshot = state_snapshot(state, args, candidate_name=candidate_name, user_note=note)
+    state.candidate_path.parent.mkdir(parents=True, exist_ok=True)
+    with state.candidate_path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")) + "\n")
+
+    append_log(
+        state,
+        Action(command="save_pose", command_type="save_pose"),
+        user_confirmed=None,
+        status="saved",
+        observed_alignment=state.last_observed_alignment,
+        user_observation=offset_summary(state),
+        candidate_name=candidate_name,
+        candidate_file=pretty_path(state.candidate_path),
+    )
+    print(f"[saved candidate] {candidate_name}")
+    print_current_offset(state)
+    print("suggested replay:")
+    for command in snapshot["suggested_replay_commands"]:
+        print(f"  {command}")
+
+
+def handle_list_candidates(state: SessionState) -> None:
+    if not state.candidate_path.exists():
+        print(f"[list_candidates] no candidate file: {pretty_path(state.candidate_path)}")
+        return
+    lines = state.candidate_path.read_text(encoding="utf-8").splitlines()[-10:]
+    print(f"[list_candidates] last {len(lines)} from {pretty_path(state.candidate_path)}")
+    for line in lines:
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        right_offset = (
+            f"({item.get('right_offset_dx', '?'):+.6f}, "
+            f"{item.get('right_offset_dy', '?'):+.6f}, "
+            f"{item.get('right_offset_dz', '?'):+.6f})"
+            if isinstance(item.get("right_offset_dx"), (int, float))
+            else "(?, ?, ?)"
+        )
+        left_offset = (
+            f"({item.get('left_offset_dx', '?'):+.6f}, "
+            f"{item.get('left_offset_dy', '?'):+.6f}, "
+            f"{item.get('left_offset_dz', '?'):+.6f})"
+            if isinstance(item.get("left_offset_dx"), (int, float))
+            else "(?, ?, ?)"
+        )
+        commands = "; ".join(item.get("suggested_replay_commands", []))
+        print(
+            f"- {item.get('candidate_name', '?')} {item.get('timestamp', '?')} "
+            f"right={right_offset} left={left_offset} replay={commands}"
+        )
+
+
+def known_commands() -> set[str]:
+    return (
+        {
+            "help",
+            "quit",
+            "exit",
+            "q",
+            "show_state",
+            "obs",
+            "save",
+            "save_pose",
+            "list_candidates",
+            "grip",
+            "left_open",
+            "left_grip",
+            "left_loose",
+            "left_tight",
+            "right_open",
+            "right_grip",
+            "right_loose",
+            "right_tight",
+            "right_set_roll",
+            "right_set_pitch",
+            "right_set_yaw",
+            "right_set_elbow",
+            "right_set_shoulder_pitch",
+            "left_set_shoulder_pitch",
+            "left_set_elbow",
+            "left_set_shoulder_roll",
+            "left_set_wrist_pitch",
+            "left_set_wrist_roll",
+            "left_set_roll",
+            "left_set_pitch",
+            "left_set_yaw",
+            "roll0",
+            "roll03",
+            "roll05",
+            "roll07",
+            "yaw+",
+            "yaw-",
+            "pitch+",
+            "pitch-",
+        }
+        | REPEATABLE_SMALL_STEP_COMMANDS
+        | RIGHT_REPLAY_STAGES.keys()
+        | RIGHT_REPLAY_STAGE_ALIASES.keys()
+        | LEFT_REPLAY_STAGES.keys()
+        | DEPRECATED_RIGHT_STAGE_COMMANDS
+        | {
+            "left_shoulder_pitch+",
+            "left_shoulder_pitch-",
+            "left_elbow+",
+            "left_elbow-",
+            "left_shoulder_roll+",
+            "left_shoulder_roll-",
+            "left_wrist_pitch+",
+            "left_wrist_pitch-",
+            "left_wrist_roll+",
+            "left_wrist_roll-",
+        }
+    )
 
 
 def process_command(line: str, robot, args: argparse.Namespace, state: SessionState) -> bool:
@@ -2463,16 +3082,31 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
             topic = "short"
         print_help(topic)
         return True
+    if (
+        len(parts) == 2
+        and command in {"save", "quit", "exit", "q", "obs", "show_state", "save_pose"}
+        and (parts[1].isdigit() or parts[1].startswith("-"))
+        and handle_repeat_command(parts, robot, args, state)
+    ):
+        return True
     if command in {"quit", "exit", "q"}:
         return False
     if command == "show_state":
-        handle_show_state(state)
+        handle_show_state(state, args)
         return True
     if command == "obs":
         handle_observation(parts, state)
         return True
     if command == "save":
         handle_save(parts, state)
+        return True
+    if command == "save_pose":
+        handle_save_pose(parts, args, state)
+        return True
+    if command == "list_candidates":
+        handle_list_candidates(state)
+        return True
+    if len(parts) == 2 and handle_repeat_command(parts, robot, args, state):
         return True
     if command == "grip":
         print("[alias] grip 等价于 left_grip")
@@ -2650,7 +3284,11 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
         execute_action(robot, action, args, state)
         return True
 
-    print(f"未知命令: {command}；输入 help 查看命令。")
+    suggestion = difflib.get_close_matches(command, sorted(known_commands()), n=1, cutoff=0.78)
+    if suggestion:
+        print(f"未知命令: {command}；是否想输入 {suggestion[0]}？输入 help 查看命令。")
+    else:
+        print(f"未知命令: {command}；输入 help 查看命令。")
     append_log(
         state,
         Action(command=command, command_type="unknown"),
@@ -2777,9 +3415,11 @@ SUBMENUS = {
         "title": "记录与日志 / Observation & save",
         "items": [
             ("1", "obs", "obs"),
-            ("2", "save", "save"),
-            ("3", "show_state", "show_state"),
-            ("4", "显示当前 log_path", "__show_log_path__"),
+            ("2", "show_state", "show_state"),
+            ("3", "save [note]", "save"),
+            ("4", "输入 save_pose <candidate_name>", "save_pose"),
+            ("5", "list_candidates", "list_candidates"),
+            ("6", "显示当前 log_path", "__show_log_path__"),
         ],
     },
     "7": {
@@ -2809,6 +3449,7 @@ VALUE_PROMPTS = {
     "left_set_roll": "请输入 left wrist_roll target，例如 0.30：",
     "left_set_pitch": "请输入 left wrist_pitch target，例如 -0.20：",
     "left_set_yaw": "请输入 left wrist_yaw target，例如 0.10：",
+    "save_pose": "请输入 candidate_name，只能包含字母、数字、下划线、短横线：",
 }
 
 
@@ -2891,6 +3532,7 @@ def main() -> int:
     log_path = resolve_log_path(args.log_file)
     state = SessionState(
         log_path=log_path,
+        candidate_path=CANDIDATE_FILE,
         dry_run=bool(args.dry_run),
         execute=bool(args.execute),
     )
