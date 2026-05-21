@@ -40,11 +40,21 @@ DEFAULT_RIGHT_GRIPPER_CLOSED_POSITION = 0.00
 DEFAULT_RIGHT_GRIPPER_CUP_POSITION = 0.80
 DEFAULT_RIGHT_GRIPPER_STEP = 0.05
 DEFAULT_RIGHT_WRIST_STEP = 0.05
+DEFAULT_LEFT_WRIST_STEP = 0.05
 DEFAULT_RIGHT_ARM_CLEARANCE_STEP = 0.05
+DEFAULT_RIGHT_LINEAR_STEP = 0.005
+DEFAULT_RIGHT_LINEAR_STEP_SMALL = 0.003
 DEFAULT_RIGHT_POUR_READY_WRIST_YAW = -0.70
-DEFAULT_RIGHT_POUR_READY_WRIST_PITCH = -0.40
-DEFAULT_RIGHT_POUR_READY_WRIST_ROLL = 0.10
+DEFAULT_RIGHT_POUR_READY_WRIST_PITCH = 0.10
+DEFAULT_RIGHT_POUR_READY_WRIST_ROLL = 0.20
+DEFAULT_RIGHT_POUR_READY_ELBOW_PITCH = 0.25
 DEFAULT_RIGHT_POUR_READY_SHOULDER_ROLL = 0.70
+DEFAULT_LEFT_POUR_READY_SHOULDER_PITCH = -0.35
+DEFAULT_LEFT_POUR_READY_ELBOW_PITCH = -0.42
+DEFAULT_LEFT_POUR_READY_SHOULDER_ROLL = 0.50
+DEFAULT_LEFT_POUR_READY_WRIST_PITCH = -0.45
+DEFAULT_LEFT_POUR_WRIST_ROLL_PREP = 1.05
+DEFAULT_LEFT_ARM_POUR_ADJUST_STEP = 0.05
 DEFAULT_MAX_WRIST_ROLL = 0.70
 GRIPPER_MIN = 0.0
 GRIPPER_MAX = 1.0
@@ -470,6 +480,132 @@ RIGHT_REPLAY_STAGE_ALIASES = {
     "right_pour_ready": "replay_right_pour_ready",
     "right_cup_pose": "replay_right_pour_ready",
 }
+LEFT_REPLAY_STAGES = {
+    "replay_left_move_to_pour_pose_left_only": [
+        {
+            "kind": "arm",
+            "target": "left_arm",
+            "method": "set_elbow_pitch",
+            "value": 0.9,
+            "block": True,
+            "description": "左肘进入倒奶预备过渡位",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "068",
+        },
+        {
+            "kind": "arm",
+            "target": "left_arm",
+            "method": "set_shoulder_pitch",
+            "value": 0.2,
+            "block": False,
+            "description": "左肩俯仰进入倒奶预备区",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "069",
+        },
+        {
+            "kind": "arm",
+            "target": "left_arm",
+            "method": "set_elbow_pitch",
+            "value": 0.4,
+            "block": True,
+            "description": "左肘回到预备区中间姿态",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "070",
+        },
+        {
+            "kind": "arm",
+            "target": "left_arm",
+            "method": "home",
+            "value": None,
+            "block": False,
+            "description": "严格复现源阶段中的 left_arm.home(block=False)",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "071",
+        },
+        {
+            "kind": "arm",
+            "target": "left_arm",
+            "method": "set_wrist_pitch",
+            "value_arg": "left_pour_ready_wrist_pitch",
+            "block": True,
+            "description": "左腕俯仰接入倒奶预备位",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "072",
+        },
+        {
+            "kind": "wait",
+            "target": "robot",
+            "method": "wait",
+            "value": None,
+            "block": True,
+            "description": "阶段结束统一等待",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "073",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 0.5,
+            "block": True,
+            "description": "阶段结束后观察停稳",
+            "source_stage": "left_hand_move_to_pour_pose",
+            "source_action_id": "074",
+        },
+    ],
+    "replay_left_pour_prep_frame": [
+        {
+            "kind": "arm",
+            "target": "left_arm",
+            "method": "set_shoulder_pitch",
+            "value_arg": "left_pour_ready_shoulder_pitch",
+            "block": False,
+            "description": "左肩俯仰进入倒奶前姿态框架",
+            "source_stage": "left_hand_pour_milk",
+            "source_action_id": "075",
+        },
+        {
+            "kind": "arm",
+            "target": "left_arm",
+            "method": "set_elbow_pitch",
+            "value_arg": "left_pour_ready_elbow_pitch",
+            "block": False,
+            "description": "左肘进入倒奶前姿态框架",
+            "source_stage": "left_hand_pour_milk",
+            "source_action_id": "076",
+        },
+        {
+            "kind": "arm",
+            "target": "left_arm",
+            "method": "set_shoulder_roll",
+            "value_arg": "left_pour_ready_shoulder_roll",
+            "block": False,
+            "description": "左肩 roll 进入倒奶前姿态框架",
+            "source_stage": "left_hand_pour_milk",
+            "source_action_id": "077",
+        },
+        {
+            "kind": "wait",
+            "target": "robot",
+            "method": "wait",
+            "value": None,
+            "block": True,
+            "description": "阶段结束统一等待；不自动执行 wrist_roll=1.05",
+            "source_stage": "left_hand_pour_milk",
+            "source_action_id": "078",
+        },
+        {
+            "kind": "sleep",
+            "target": "robot",
+            "method": "sleep",
+            "value": 0.5,
+            "block": True,
+            "description": "阶段结束后观察停稳",
+            "source_stage": "left_hand_pour_milk",
+            "source_action_id": "079",
+        },
+    ],
+}
 DEPRECATED_RIGHT_STAGE_COMMANDS = {
     "right_table_pregrasp",
     "right_table_grasp_pose",
@@ -524,6 +660,12 @@ class SessionState:
     current_right_wrist_pitch: Optional[float] = None
     current_right_elbow_pitch: Optional[float] = None
     current_right_shoulder_pitch: Optional[float] = None
+    current_left_shoulder_pitch: Optional[float] = None
+    current_left_elbow_pitch: Optional[float] = None
+    current_left_shoulder_roll: Optional[float] = None
+    current_left_wrist_yaw: Optional[float] = None
+    current_left_wrist_pitch: Optional[float] = None
+    current_left_wrist_roll: Optional[float] = None
     current_left_gripper_position: Optional[float] = None
     current_right_gripper_position: Optional[float] = None
     last_observed_alignment: str = ""
@@ -577,6 +719,30 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=DEFAULT_LINEAR_STEP_SMALL,
         help=f"Y relative IK 小步长，默认 {DEFAULT_LINEAR_STEP_SMALL}",
+    )
+    parser.add_argument(
+        "--left-linear-step",
+        type=float,
+        default=None,
+        help="左臂 X/Z relative IK 步长；默认沿用 --linear-step。",
+    )
+    parser.add_argument(
+        "--left-linear-step-small",
+        type=float,
+        default=None,
+        help="左臂 Y relative IK 小步长；默认沿用 --linear-step-small。",
+    )
+    parser.add_argument(
+        "--right-linear-step",
+        type=float,
+        default=DEFAULT_RIGHT_LINEAR_STEP,
+        help=f"右臂 X/Z relative IK 步长，默认 {DEFAULT_RIGHT_LINEAR_STEP}",
+    )
+    parser.add_argument(
+        "--right-linear-step-small",
+        type=float,
+        default=DEFAULT_RIGHT_LINEAR_STEP_SMALL,
+        help=f"右臂 Y relative IK 小步长，默认 {DEFAULT_RIGHT_LINEAR_STEP_SMALL}",
     )
     parser.add_argument(
         "--rot-step",
@@ -654,6 +820,12 @@ def parse_args() -> argparse.Namespace:
         help=f"右手腕微调步长，默认 {DEFAULT_RIGHT_WRIST_STEP}",
     )
     parser.add_argument(
+        "--left-wrist-step",
+        type=float,
+        default=DEFAULT_LEFT_WRIST_STEP,
+        help=f"左手腕 roll/pitch/yaw 微调步长，默认 {DEFAULT_LEFT_WRIST_STEP}",
+    )
+    parser.add_argument(
         "--right-arm-clearance-step",
         type=float,
         default=DEFAULT_RIGHT_ARM_CLEARANCE_STEP,
@@ -686,14 +858,53 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--right-pour-ready-elbow-pitch",
         type=float,
-        default=None,
-        help="右手接奶位可选 elbow_pitch 覆盖；默认不主动设置该关节。",
+        default=DEFAULT_RIGHT_POUR_READY_ELBOW_PITCH,
+        help=f"右手接奶位 elbow_pitch，默认 {DEFAULT_RIGHT_POUR_READY_ELBOW_PITCH}",
     )
     parser.add_argument(
         "--right-pour-ready-shoulder-pitch",
         type=float,
         default=None,
         help="右手接奶位可选 shoulder_pitch 覆盖；默认不主动设置该关节。",
+    )
+    parser.add_argument(
+        "--left-pour-ready-shoulder-pitch",
+        type=float,
+        default=DEFAULT_LEFT_POUR_READY_SHOULDER_PITCH,
+        help=f"左手倒奶预备 shoulder_pitch，默认 {DEFAULT_LEFT_POUR_READY_SHOULDER_PITCH}",
+    )
+    parser.add_argument(
+        "--left-pour-ready-elbow-pitch",
+        type=float,
+        default=DEFAULT_LEFT_POUR_READY_ELBOW_PITCH,
+        help=f"左手倒奶预备 elbow_pitch，默认 {DEFAULT_LEFT_POUR_READY_ELBOW_PITCH}",
+    )
+    parser.add_argument(
+        "--left-pour-ready-shoulder-roll",
+        type=float,
+        default=DEFAULT_LEFT_POUR_READY_SHOULDER_ROLL,
+        help=f"左手倒奶预备 shoulder_roll，默认 {DEFAULT_LEFT_POUR_READY_SHOULDER_ROLL}",
+    )
+    parser.add_argument(
+        "--left-pour-ready-wrist-pitch",
+        type=float,
+        default=DEFAULT_LEFT_POUR_READY_WRIST_PITCH,
+        help=f"左手 move_to_pour_pose wrist_pitch，默认 {DEFAULT_LEFT_POUR_READY_WRIST_PITCH}",
+    )
+    parser.add_argument(
+        "--left-pour-wrist-roll-prep",
+        type=float,
+        default=DEFAULT_LEFT_POUR_WRIST_ROLL_PREP,
+        help=(
+            "左手倒奶 wrist_roll 预备参考值，默认 "
+            f"{DEFAULT_LEFT_POUR_WRIST_ROLL_PREP}；replay_left_pour_prep_frame 不会自动执行"
+        ),
+    )
+    parser.add_argument(
+        "--left-arm-pour-adjust-step",
+        type=float,
+        default=DEFAULT_LEFT_ARM_POUR_ADJUST_STEP,
+        help=f"左臂倒奶预备关节微调步长，默认 {DEFAULT_LEFT_ARM_POUR_ADJUST_STEP}",
     )
     parser.add_argument(
         "--max-wrist-roll",
@@ -719,6 +930,10 @@ def parse_args() -> argparse.Namespace:
     left_pitcher_arg_used = flag_present(argv, "--left-gripper-pitcher-position")
     if old_gripper_arg_used and not left_pitcher_arg_used:
         args.left_gripper_pitcher_position = args.gripper_position
+    if args.left_linear_step is None:
+        args.left_linear_step = args.linear_step
+    if args.left_linear_step_small is None:
+        args.left_linear_step_small = args.linear_step_small
     return args
 
 
@@ -738,6 +953,14 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--linear-step 必须大于 0")
     if args.linear_step_small <= 0.0:
         raise SystemExit("--linear-step-small 必须大于 0")
+    if args.left_linear_step <= 0.0:
+        raise SystemExit("--left-linear-step 必须大于 0")
+    if args.left_linear_step_small <= 0.0:
+        raise SystemExit("--left-linear-step-small 必须大于 0")
+    if args.right_linear_step <= 0.0:
+        raise SystemExit("--right-linear-step 必须大于 0")
+    if args.right_linear_step_small <= 0.0:
+        raise SystemExit("--right-linear-step-small 必须大于 0")
     if args.rot_step <= 0.0:
         raise SystemExit("--rot-step 必须大于 0")
     if not 0.0 <= args.gripper_position <= 1.0:
@@ -760,8 +983,12 @@ def validate_args(args: argparse.Namespace) -> None:
         raise SystemExit("--right-gripper-step 必须大于 0")
     if args.right_wrist_step <= 0.0:
         raise SystemExit("--right-wrist-step 必须大于 0")
+    if args.left_wrist_step <= 0.0:
+        raise SystemExit("--left-wrist-step 必须大于 0")
     if args.right_arm_clearance_step <= 0.0:
         raise SystemExit("--right-arm-clearance-step 必须大于 0")
+    if args.left_arm_pour_adjust_step <= 0.0:
+        raise SystemExit("--left-arm-pour-adjust-step 必须大于 0")
     if args.max_wrist_roll < 0.0:
         raise SystemExit("--max-wrist-roll 必须大于等于 0")
 
@@ -891,6 +1118,9 @@ Right commands:
   right_set_roll <value>         set right wrist_roll target
   right_set_pitch <value>        set right wrist_pitch target
   right_set_yaw <value>          set right wrist_yaw target
+  right_x+ / right_x-      right arm relative IK X +/- step
+  right_y+ / right_y-      right arm relative IK Y +/- small step
+  right_z+ / right_z-      right arm relative IK Z +/- step
   right_elbow+ / right_elbow-                  adjust right elbow_pitch by clearance step
   right_shoulder_pitch+ / right_shoulder_pitch- adjust right shoulder_pitch by clearance step
   right_set_elbow <value>                      set right elbow_pitch target
@@ -911,13 +1141,36 @@ Left commands:
   left_loose           loosen left_gripper by configured step
   left_tight           tighten left_gripper by configured step
   grip                 alias of left_grip
-  x+ / x-              left_arm relative IK X +/- step
-  y+ / y-              left_arm relative IK Y +/- small step
-  z+ / z-              left_arm relative IK Z +/- step
+  replay_left_move_to_pour_pose_left_only
+                       replay only left-arm actions from left_hand_move_to_pour_pose
+  replay_left_pour_prep_frame
+                       replay left pour-prep frame; does not set wrist_roll=1.05/1.25
+  left_set_shoulder_pitch <value>  set left shoulder_pitch
+  left_set_elbow <value>           set left elbow_pitch
+  left_set_shoulder_roll <value>   set left shoulder_roll
+  left_set_wrist_pitch <value>     set left wrist_pitch
+  left_set_wrist_roll <value>      set left wrist_roll
+  left_shoulder_pitch+ / left_shoulder_pitch- adjust left shoulder_pitch by step
+  left_elbow+ / left_elbow-                 adjust left elbow_pitch by step
+  left_shoulder_roll+ / left_shoulder_roll- adjust left shoulder_roll by step
+  left_wrist_pitch+ / left_wrist_pitch-     adjust left wrist_pitch by step
+  left_wrist_roll+ / left_wrist_roll-       adjust left wrist_roll by step
+  left_x+ / left_x-        left arm relative IK X +/- step
+  left_y+ / left_y-        left arm relative IK Y +/- small step
+  left_z+ / left_z-        left arm relative IK Z +/- step
+  x+ / x-                  alias of left_x+ / left_x-
+  y+ / y-                  alias of left_y+ / left_y-
+  z+ / z-                  alias of left_z+ / left_z-
   roll0                set left wrist_roll target to 0
   roll03               set left wrist_roll target to 0.3
   roll05               set left wrist_roll target to 0.5
   roll07               set left wrist_roll target to 0.7
+  left_roll+ / left_roll-  adjust left wrist_roll by step
+  left_pitch+ / left_pitch- adjust left wrist_pitch by step
+  left_yaw+ / left_yaw-    adjust left wrist_yaw by step
+  left_set_roll <value>
+  left_set_pitch <value>
+  left_set_yaw <value>
   yaw+ / yaw-          small left wrist_yaw target step when SDK supports it
   pitch+ / pitch-      small left wrist_pitch target step when SDK supports it
 """.strip()
@@ -935,6 +1188,20 @@ Commands:
   left_loose           loosen left_gripper by configured step
   left_tight           tighten left_gripper by configured step
   grip                 alias of left_grip
+  replay_left_move_to_pour_pose_left_only
+                       replay only left-arm actions from left_hand_move_to_pour_pose
+  replay_left_pour_prep_frame
+                       replay left pour-prep frame; does not set wrist_roll=1.05/1.25
+  left_set_shoulder_pitch <value>  set left shoulder_pitch
+  left_set_elbow <value>           set left elbow_pitch
+  left_set_shoulder_roll <value>   set left shoulder_roll
+  left_set_wrist_pitch <value>     set left wrist_pitch
+  left_set_wrist_roll <value>      set left wrist_roll
+  left_shoulder_pitch+ / left_shoulder_pitch- adjust left shoulder_pitch by step
+  left_elbow+ / left_elbow-                 adjust left elbow_pitch by step
+  left_shoulder_roll+ / left_shoulder_roll- adjust left shoulder_roll by step
+  left_wrist_pitch+ / left_wrist_pitch-     adjust left wrist_pitch by step
+  left_wrist_roll+ / left_wrist_roll-       adjust left wrist_roll by step
   right_open           set right_gripper to configured open position
   right_grip           set right_gripper to configured cup position, default 0.80
                        calibration override; pass --right-gripper-cup-position 0.6
@@ -959,19 +1226,31 @@ Commands:
   right_set_roll <value>         set right wrist_roll target
   right_set_pitch <value>        set right wrist_pitch target
   right_set_yaw <value>          set right wrist_yaw target
+  right_x+ / right_x-      right arm relative IK X +/- step
+  right_y+ / right_y-      right arm relative IK Y +/- small step
+  right_z+ / right_z-      right arm relative IK Z +/- step
   right_elbow+ / right_elbow-                  adjust right elbow_pitch by clearance step
   right_shoulder_pitch+ / right_shoulder_pitch- adjust right shoulder_pitch by clearance step
   right_set_elbow <value>                      set right elbow_pitch target
   right_set_shoulder_pitch <value>             set right shoulder_pitch target
   right_table_pregrasp / right_table_grasp_pose / right_lift_cup / right_transfer_cup
                        deprecated; no action, use replay_right_* commands
-  x+ / x-              left_arm relative IK X +/- step
-  y+ / y-              left_arm relative IK Y +/- small step
-  z+ / z-              left_arm relative IK Z +/- step
+  left_x+ / left_x-        left arm relative IK X +/- step
+  left_y+ / left_y-        left arm relative IK Y +/- small step
+  left_z+ / left_z-        left arm relative IK Z +/- step
+  x+ / x-                  alias of left_x+ / left_x-
+  y+ / y-                  alias of left_y+ / left_y-
+  z+ / z-                  alias of left_z+ / left_z-
   roll0                set left wrist_roll target to 0
   roll03               set left wrist_roll target to 0.3
   roll05               set left wrist_roll target to 0.5
   roll07               set left wrist_roll target to 0.7
+  left_roll+ / left_roll-  adjust left wrist_roll by step
+  left_pitch+ / left_pitch- adjust left wrist_pitch by step
+  left_yaw+ / left_yaw-    adjust left wrist_yaw by step
+  left_set_roll <value>
+  left_set_pitch <value>
+  left_set_yaw <value>
   yaw+ / yaw-          small left wrist_yaw target step when SDK supports it
   pitch+ / pitch-      small left wrist_pitch target step when SDK supports it
   obs [value]          record observation: spout_in_cup / edge / outside / near_collision / unsafe / uncertain
@@ -1043,7 +1322,10 @@ def replay_stage_name(command: str) -> str:
 
 
 def replay_stage_steps(command: str) -> list[dict]:
-    return RIGHT_REPLAY_STAGES[replay_stage_name(command)]
+    stage_name = replay_stage_name(command)
+    if stage_name in RIGHT_REPLAY_STAGES:
+        return RIGHT_REPLAY_STAGES[stage_name]
+    return LEFT_REPLAY_STAGES[stage_name]
 
 
 def step_enabled(step: dict, args: argparse.Namespace) -> bool:
@@ -1086,6 +1368,8 @@ def replay_step_payload(command: str, args: argparse.Namespace) -> str:
 def replay_stage_arm_label(command: str, args: argparse.Namespace) -> str:
     steps = replay_stage_steps(command)
     targets = {step["target"] for step in steps if step_enabled(step, args)}
+    if targets == {"left_arm"}:
+        return "left"
     if "left_gripper" in targets:
         return "right/left_gripper_init"
     return "right"
@@ -1118,6 +1402,8 @@ def format_replay_step(step: dict, args: argparse.Namespace) -> str:
     if kind == "wait":
         return prefix + "robot.wait()"
     if method == "home":
+        if block is not None:
+            return prefix + f"robot.{target}.home(block={block})"
         return prefix + f"robot.{target}.home()"
     if block is None:
         return prefix + f"robot.{target}.{method}({value:.6f})"
@@ -1139,6 +1425,13 @@ def describe_action(action: Action, args: Optional[argparse.Namespace] = None) -
         if args is None:
             return action.command
         return "\n  ".join(replay_stage_lines(action.command, args))
+    if action.command_type == "arm_relative_ik":
+        arm_name = "right_arm" if action.arm == "right" else "left_arm"
+        return (
+            f"robot.{arm_name}.ik("
+            f"{action.dx or 0.0:.6f}, {action.dy or 0.0:.6f}, {action.dz or 0.0:.6f}, "
+            "0, 0, 0, block=True, abs=False)"
+        )
     if action.command_type == "relative_ik":
         return (
             "robot.left_arm.ik("
@@ -1151,6 +1444,19 @@ def describe_action(action: Action, args: Optional[argparse.Namespace] = None) -
         return f"robot.left_arm.set_wrist_yaw({action.wrist_yaw_delta_or_target:.6f}, block=True)"
     if action.command_type == "wrist_pitch":
         return f"robot.left_arm.set_wrist_pitch({action.wrist_pitch_delta_or_target:.6f}, block=True)"
+    if action.command_type == "left_wrist_adjust":
+        if action.wrist_roll_target is not None:
+            return f"robot.left_arm.set_wrist_roll({action.wrist_roll_target:.6f}, block=True)"
+        if action.wrist_pitch_delta_or_target is not None:
+            return (
+                "robot.left_arm.set_wrist_pitch("
+                f"{action.wrist_pitch_delta_or_target:.6f}, block=True)"
+            )
+        if action.wrist_yaw_delta_or_target is not None:
+            return (
+                "robot.left_arm.set_wrist_yaw("
+                f"{action.wrist_yaw_delta_or_target:.6f}, block=True)"
+            )
     if action.command_type == "right_wrist_adjust":
         if action.wrist_roll_target is not None:
             return f"robot.right_arm.set_wrist_roll({action.wrist_roll_target:.6f}, block=True)"
@@ -1173,6 +1479,24 @@ def describe_action(action: Action, args: Optional[argparse.Namespace] = None) -
             return action.command
         method_name = "set_elbow_pitch" if joint == "elbow_pitch" else "set_shoulder_pitch"
         return f"robot.right_arm.{method_name}({target:.6f}, block=True)"
+    if action.command_type == "left_arm_pour_adjust":
+        try:
+            payload = json.loads(action.joint_targets)
+            joint = payload["joint"]
+            target = float(payload["target"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            return action.command
+        method_by_joint = {
+            "left_shoulder_pitch": "set_shoulder_pitch",
+            "left_elbow_pitch": "set_elbow_pitch",
+            "left_shoulder_roll": "set_shoulder_roll",
+            "left_wrist_pitch": "set_wrist_pitch",
+            "left_wrist_roll": "set_wrist_roll",
+        }
+        method_name = method_by_joint.get(joint)
+        if method_name is None:
+            return action.command
+        return f"robot.left_arm.{method_name}({target:.6f}, block=True)"
     if action.command_type == "gripper":
         if action.arm == "left":
             gripper_name = "left_gripper"
@@ -1193,6 +1517,10 @@ def confirm_real_action(action: Action) -> bool:
 def confirm_replay_stage(action: Action, args: argparse.Namespace) -> bool:
     if action.command == "replay_right_retreat_after_coffee":
         print("[warning] replay_right_retreat_after_coffee 包含 robot.right_arm.home()，请重点确认路径安全。")
+    if action.command == "replay_left_move_to_pour_pose_left_only":
+        print("[warning] replay_left_move_to_pour_pose_left_only 只控制左臂，但包含 left_arm.home(block=False)。")
+    if action.command == "replay_left_pour_prep_frame":
+        print("[info] replay_left_pour_prep_frame 不会自动执行 wrist_roll=1.05、1.25 或左右摆动。")
     print(f"[confirm] {describe_action(action, args)}")
     user_input = input("输入 y 执行该 replay stage，其他任意输入跳过：").strip().lower()
     return user_input == "y"
@@ -1216,8 +1544,9 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
     status = "ok"
     try:
         start_time = time.perf_counter()
-        if action.command_type == "relative_ik":
-            robot.left_arm.ik(
+        if action.command_type in {"relative_ik", "arm_relative_ik"}:
+            arm = robot.right_arm if action.arm == "right" else robot.left_arm
+            arm.ik(
                 action.dx or 0.0,
                 action.dy or 0.0,
                 action.dz or 0.0,
@@ -1233,6 +1562,21 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
             robot.left_arm.set_wrist_yaw(action.wrist_yaw_delta_or_target, block=True)
         elif action.command_type == "wrist_pitch":
             robot.left_arm.set_wrist_pitch(action.wrist_pitch_delta_or_target, block=True)
+        elif action.command_type == "left_wrist_adjust":
+            if action.wrist_roll_target is not None:
+                robot.left_arm.set_wrist_roll(action.wrist_roll_target, block=True)
+            elif action.wrist_pitch_delta_or_target is not None:
+                robot.left_arm.set_wrist_pitch(
+                    action.wrist_pitch_delta_or_target,
+                    block=True,
+                )
+            elif action.wrist_yaw_delta_or_target is not None:
+                robot.left_arm.set_wrist_yaw(
+                    action.wrist_yaw_delta_or_target,
+                    block=True,
+                )
+            else:
+                status = "unsupported"
         elif action.command_type == "right_wrist_adjust":
             if action.wrist_roll_target is not None:
                 robot.right_arm.set_wrist_roll(action.wrist_roll_target, block=True)
@@ -1260,6 +1604,26 @@ def execute_action(robot, action: Action, args: argparse.Namespace, state: Sessi
                     robot.right_arm.set_elbow_pitch(target, block=True)
                 elif joint == "shoulder_pitch":
                     robot.right_arm.set_shoulder_pitch(target, block=True)
+                else:
+                    status = "unsupported"
+        elif action.command_type == "left_arm_pour_adjust":
+            try:
+                payload = json.loads(action.joint_targets)
+                joint = payload["joint"]
+                target = float(payload["target"])
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                status = "unsupported"
+            else:
+                if joint == "left_shoulder_pitch":
+                    robot.left_arm.set_shoulder_pitch(target, block=True)
+                elif joint == "left_elbow_pitch":
+                    robot.left_arm.set_elbow_pitch(target, block=True)
+                elif joint == "left_shoulder_roll":
+                    robot.left_arm.set_shoulder_roll(target, block=True)
+                elif joint == "left_wrist_pitch":
+                    robot.left_arm.set_wrist_pitch(target, block=True)
+                elif joint == "left_wrist_roll":
+                    robot.left_arm.set_wrist_roll(target, block=True)
                 else:
                     status = "unsupported"
         elif action.command_type == "gripper":
@@ -1355,7 +1719,10 @@ def execute_replay_step(robot, step: dict, args: argparse.Namespace) -> None:
     target = getattr(robot, target_name)
     method = getattr(target, method_name)
     if method_name == "home":
-        method()
+        if block is None:
+            method()
+        else:
+            method(block=block)
     elif block is None:
         method(value)
     else:
@@ -1367,8 +1734,25 @@ def update_tracked_state_from_replay_stage(
     args: argparse.Namespace,
     state: SessionState,
 ) -> None:
-    if replay_stage_name(command) != "replay_right_pour_ready":
-        if replay_stage_name(command) == "replay_right_retreat_after_coffee":
+    stage_name = replay_stage_name(command)
+    if stage_name == "replay_left_move_to_pour_pose_left_only":
+        state.current_left_elbow_pitch = 0.4
+        state.current_left_shoulder_pitch = 0.0
+        state.current_left_shoulder_roll = 0.0
+        state.current_left_wrist_pitch = args.left_pour_ready_wrist_pitch
+        state.current_left_wrist_roll = 0.0
+        state.current_left_wrist_yaw = 0.0
+        state.current_wrist_pitch = args.left_pour_ready_wrist_pitch
+        state.current_wrist_roll = 0.0
+        state.current_wrist_yaw = 0.0
+        return
+    if stage_name == "replay_left_pour_prep_frame":
+        state.current_left_shoulder_pitch = args.left_pour_ready_shoulder_pitch
+        state.current_left_elbow_pitch = args.left_pour_ready_elbow_pitch
+        state.current_left_shoulder_roll = args.left_pour_ready_shoulder_roll
+        return
+    if stage_name != "replay_right_pour_ready":
+        if stage_name == "replay_right_retreat_after_coffee":
             state.current_right_elbow_pitch = 0.0
             state.current_right_shoulder_pitch = 0.0
         return
@@ -1405,10 +1789,23 @@ def wait_for_right_arm(robot) -> str:
 def update_tracked_state(action: Action, state: SessionState) -> None:
     if action.command_type == "wrist_roll":
         state.current_wrist_roll = action.wrist_roll_target
+        state.current_left_wrist_roll = action.wrist_roll_target
     elif action.command_type == "wrist_yaw":
         state.current_wrist_yaw = action.wrist_yaw_delta_or_target
+        state.current_left_wrist_yaw = action.wrist_yaw_delta_or_target
     elif action.command_type == "wrist_pitch":
         state.current_wrist_pitch = action.wrist_pitch_delta_or_target
+        state.current_left_wrist_pitch = action.wrist_pitch_delta_or_target
+    elif action.command_type == "left_wrist_adjust":
+        if action.wrist_roll_target is not None:
+            state.current_left_wrist_roll = action.wrist_roll_target
+            state.current_wrist_roll = action.wrist_roll_target
+        elif action.wrist_yaw_delta_or_target is not None:
+            state.current_left_wrist_yaw = action.wrist_yaw_delta_or_target
+            state.current_wrist_yaw = action.wrist_yaw_delta_or_target
+        elif action.wrist_pitch_delta_or_target is not None:
+            state.current_left_wrist_pitch = action.wrist_pitch_delta_or_target
+            state.current_wrist_pitch = action.wrist_pitch_delta_or_target
     elif action.command_type == "right_wrist_adjust":
         if action.wrist_roll_target is not None:
             state.current_right_wrist_roll = action.wrist_roll_target
@@ -1427,6 +1824,25 @@ def update_tracked_state(action: Action, state: SessionState) -> None:
             state.current_right_elbow_pitch = target
         elif joint == "shoulder_pitch":
             state.current_right_shoulder_pitch = target
+    elif action.command_type == "left_arm_pour_adjust":
+        try:
+            payload = json.loads(action.joint_targets)
+            joint = payload["joint"]
+            target = float(payload["target"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            return
+        if joint == "left_shoulder_pitch":
+            state.current_left_shoulder_pitch = target
+        elif joint == "left_elbow_pitch":
+            state.current_left_elbow_pitch = target
+        elif joint == "left_shoulder_roll":
+            state.current_left_shoulder_roll = target
+        elif joint == "left_wrist_pitch":
+            state.current_left_wrist_pitch = target
+            state.current_wrist_pitch = target
+        elif joint == "left_wrist_roll":
+            state.current_left_wrist_roll = target
+            state.current_wrist_roll = target
     elif action.command_type == "gripper":
         if action.arm == "left":
             state.current_left_gripper_position = action.gripper_position
@@ -1435,22 +1851,44 @@ def update_tracked_state(action: Action, state: SessionState) -> None:
 
 
 def build_linear_action(command: str, args: argparse.Namespace) -> Action:
+    alias_by_command = {
+        "x+": "left_x+",
+        "x-": "left_x-",
+        "y+": "left_y+",
+        "y-": "left_y-",
+        "z+": "left_z+",
+        "z-": "left_z-",
+    }
+    canonical_command = alias_by_command.get(command, command)
+    arm = "right" if canonical_command.startswith("right_") else "left"
+    axis_command = canonical_command.split("_", 1)[1]
+    linear_step = args.right_linear_step if arm == "right" else args.left_linear_step
+    linear_step_small = (
+        args.right_linear_step_small if arm == "right" else args.left_linear_step_small
+    )
     dx = dy = dz = 0.0
-    if command == "x+":
-        dx = args.linear_step
-    elif command == "x-":
-        dx = -args.linear_step
-    elif command == "y+":
-        dy = args.linear_step_small
-    elif command == "y-":
-        dy = -args.linear_step_small
-    elif command == "z+":
-        dz = args.linear_step
-    elif command == "z-":
-        dz = -args.linear_step
+    if axis_command == "x+":
+        dx = linear_step
+    elif axis_command == "x-":
+        dx = -linear_step
+    elif axis_command == "y+":
+        dy = linear_step_small
+    elif axis_command == "y-":
+        dy = -linear_step_small
+    elif axis_command == "z+":
+        dz = linear_step
+    elif axis_command == "z-":
+        dz = -linear_step
     else:
         raise ValueError(f"unsupported linear command: {command}")
-    return Action(command=command, command_type="relative_ik", dx=dx, dy=dy, dz=dz)
+    return Action(
+        command=command,
+        command_type="arm_relative_ik",
+        arm=arm,
+        dx=dx,
+        dy=dy,
+        dz=dz,
+    )
 
 
 def build_roll_action(command: str, args: argparse.Namespace) -> Action:
@@ -1465,7 +1903,18 @@ def build_roll_action(command: str, args: argparse.Namespace) -> Action:
         raise ValueError(
             f"{command} target {target:.3f} exceeds --max-wrist-roll {args.max_wrist_roll:.3f}"
         )
-    return Action(command=command, command_type="wrist_roll", wrist_roll_target=target)
+    joint_targets = json.dumps(
+        {"joint": "left_wrist_roll", "target": target},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return Action(
+        command=command,
+        command_type="left_wrist_adjust",
+        arm="left",
+        joint_targets=joint_targets,
+        wrist_roll_target=target,
+    )
 
 
 def build_right_gripper_action(
@@ -1645,6 +2094,145 @@ def build_right_arm_clearance_action(
         command_type="right_arm_clearance_adjust",
         arm="right",
         joint_targets=joint_targets,
+    )
+
+
+def build_left_arm_pour_adjust_action(
+    parts: list[str],
+    args: argparse.Namespace,
+    state: SessionState,
+) -> Action:
+    command = parts[0].lower()
+    direct_joint_by_command = {
+        "left_set_shoulder_pitch": "left_shoulder_pitch",
+        "left_set_elbow": "left_elbow_pitch",
+        "left_set_shoulder_roll": "left_shoulder_roll",
+        "left_set_wrist_pitch": "left_wrist_pitch",
+        "left_set_wrist_roll": "left_wrist_roll",
+    }
+    step_joint_by_command = {
+        "left_shoulder_pitch+": "left_shoulder_pitch",
+        "left_shoulder_pitch-": "left_shoulder_pitch",
+        "left_elbow+": "left_elbow_pitch",
+        "left_elbow-": "left_elbow_pitch",
+        "left_shoulder_roll+": "left_shoulder_roll",
+        "left_shoulder_roll-": "left_shoulder_roll",
+        "left_wrist_pitch+": "left_wrist_pitch",
+        "left_wrist_pitch-": "left_wrist_pitch",
+        "left_wrist_roll+": "left_wrist_roll",
+        "left_wrist_roll-": "left_wrist_roll",
+    }
+    defaults_by_joint = {
+        "left_shoulder_pitch": args.left_pour_ready_shoulder_pitch,
+        "left_elbow_pitch": args.left_pour_ready_elbow_pitch,
+        "left_shoulder_roll": args.left_pour_ready_shoulder_roll,
+        "left_wrist_pitch": args.left_pour_ready_wrist_pitch,
+        "left_wrist_roll": min(args.left_pour_wrist_roll_prep, args.max_wrist_roll),
+    }
+    current_by_joint = {
+        "left_shoulder_pitch": state.current_left_shoulder_pitch,
+        "left_elbow_pitch": state.current_left_elbow_pitch,
+        "left_shoulder_roll": state.current_left_shoulder_roll,
+        "left_wrist_pitch": state.current_left_wrist_pitch,
+        "left_wrist_roll": state.current_left_wrist_roll,
+    }
+
+    if command in direct_joint_by_command:
+        if len(parts) != 2:
+            raise ValueError(f"{command} requires exactly one numeric value")
+        joint = direct_joint_by_command[command]
+        try:
+            target = float(parts[1])
+        except ValueError as exc:
+            raise ValueError(f"{command} value must be numeric: {parts[1]}") from exc
+    elif command in step_joint_by_command:
+        joint = step_joint_by_command[command]
+        current = current_by_joint[joint]
+        if current is None:
+            current = defaults_by_joint[joint]
+            print(f"[info] {joint} 未知，以 {current:.3f} 作为微调基准。")
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.left_arm_pour_adjust_step
+    else:
+        raise ValueError(f"unsupported left arm pour adjust command: {command}")
+
+    joint_targets = json.dumps(
+        {"joint": joint, "target": target},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    kwargs = {}
+    if joint == "left_wrist_roll":
+        kwargs["wrist_roll_target"] = target
+    elif joint == "left_wrist_pitch":
+        kwargs["wrist_pitch_delta_or_target"] = target
+    return Action(
+        command=" ".join(parts),
+        command_type="left_arm_pour_adjust",
+        arm="left",
+        joint_targets=joint_targets,
+        **kwargs,
+    )
+
+
+def build_left_wrist_adjust_action(
+    parts: list[str],
+    args: argparse.Namespace,
+    state: SessionState,
+) -> Action:
+    command = parts[0].lower()
+    if command in {"left_set_roll", "left_set_pitch", "left_set_yaw"}:
+        if len(parts) != 2:
+            raise ValueError(f"{command} requires exactly one numeric value")
+        try:
+            target = float(parts[1])
+        except ValueError as exc:
+            raise ValueError(f"{command} value must be numeric: {parts[1]}") from exc
+    elif command in {"left_roll+", "left_roll-"}:
+        current = state.current_left_wrist_roll
+        if current is None:
+            current = 0.0
+            print("[info] current_left_wrist_roll 未知，以 0.000 作为微调基准。")
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.left_wrist_step
+    elif command in {"left_pitch+", "left_pitch-"}:
+        current = state.current_left_wrist_pitch
+        if current is None:
+            current = 0.0
+            print("[info] current_left_wrist_pitch 未知，以 0.000 作为微调基准。")
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.left_wrist_step
+    elif command in {"left_yaw+", "left_yaw-"}:
+        current = state.current_left_wrist_yaw
+        if current is None:
+            current = 0.0
+            print("[info] current_left_wrist_yaw 未知，以 0.000 作为微调基准。")
+        sign = 1.0 if command.endswith("+") else -1.0
+        target = current + sign * args.left_wrist_step
+    else:
+        raise ValueError(f"unsupported left wrist command: {command}")
+
+    if command in {"left_roll+", "left_roll-", "left_set_roll"}:
+        joint = "left_wrist_roll"
+        kwargs = {"wrist_roll_target": target}
+    elif command in {"left_pitch+", "left_pitch-", "left_set_pitch"}:
+        joint = "left_wrist_pitch"
+        kwargs = {"wrist_pitch_delta_or_target": target}
+    else:
+        joint = "left_wrist_yaw"
+        kwargs = {"wrist_yaw_delta_or_target": target}
+
+    joint_targets = json.dumps(
+        {"joint": joint, "target": target},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return Action(
+        command=" ".join(parts),
+        command_type="left_wrist_adjust",
+        arm="left",
+        joint_targets=joint_targets,
+        **kwargs,
     )
 
 
@@ -1840,13 +2428,92 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
             return True
         execute_action(robot, action, args, state)
         return True
-    if command in RIGHT_REPLAY_STAGES or command in RIGHT_REPLAY_STAGE_ALIASES:
+    if command in {
+        "left_set_shoulder_pitch",
+        "left_set_elbow",
+        "left_set_shoulder_roll",
+        "left_set_wrist_pitch",
+        "left_set_wrist_roll",
+        "left_shoulder_pitch+",
+        "left_shoulder_pitch-",
+        "left_elbow+",
+        "left_elbow-",
+        "left_shoulder_roll+",
+        "left_shoulder_roll-",
+        "left_wrist_pitch+",
+        "left_wrist_pitch-",
+        "left_wrist_roll+",
+        "left_wrist_roll-",
+    }:
+        try:
+            action = build_left_arm_pour_adjust_action(parts, args, state)
+        except ValueError as exc:
+            print(f"[blocked] {exc}")
+            append_log(
+                state,
+                Action(
+                    command=" ".join(parts),
+                    command_type="left_arm_pour_adjust",
+                    arm="left",
+                ),
+                user_confirmed=None,
+                status=f"blocked: {exc}",
+            )
+            return True
+        execute_action(robot, action, args, state)
+        return True
+    if command in {
+        "left_roll+",
+        "left_roll-",
+        "left_pitch+",
+        "left_pitch-",
+        "left_yaw+",
+        "left_yaw-",
+        "left_set_roll",
+        "left_set_pitch",
+        "left_set_yaw",
+    }:
+        try:
+            action = build_left_wrist_adjust_action(parts, args, state)
+        except ValueError as exc:
+            print(f"[blocked] {exc}")
+            append_log(
+                state,
+                Action(
+                    command=" ".join(parts),
+                    command_type="left_wrist_adjust",
+                    arm="left",
+                ),
+                user_confirmed=None,
+                status=f"blocked: {exc}",
+            )
+            return True
+        execute_action(robot, action, args, state)
+        return True
+    if command in RIGHT_REPLAY_STAGES or command in RIGHT_REPLAY_STAGE_ALIASES or command in LEFT_REPLAY_STAGES:
         execute_replay_stage(command, robot, args, state)
         return True
     if command in DEPRECATED_RIGHT_STAGE_COMMANDS:
         handle_deprecated_right_stage(command, state)
         return True
     if command in {"x+", "x-", "y+", "y-", "z+", "z-"}:
+        print(f"[alias] {command} 等价于 left_{command}")
+        execute_action(robot, build_linear_action(command, args), args, state)
+        return True
+    if command in {
+        "left_x+",
+        "left_x-",
+        "left_y+",
+        "left_y-",
+        "left_z+",
+        "left_z-",
+        "right_x+",
+        "right_x-",
+        "right_y+",
+        "right_y-",
+        "right_z+",
+        "right_z-",
+    }:
         execute_action(robot, build_linear_action(command, args), args, state)
         return True
     if command in {"roll0", "roll03", "roll05", "roll07"}:
@@ -1856,7 +2523,7 @@ def process_command(line: str, robot, args: argparse.Namespace, state: SessionSt
             print(f"[blocked] {exc}")
             append_log(
                 state,
-                Action(command=command, command_type="wrist_roll"),
+                Action(command=command, command_type="left_wrist_adjust", arm="left"),
                 user_confirmed=None,
                 status=f"blocked: {exc}",
             )
@@ -1934,15 +2601,21 @@ SUBMENUS = {
             ("4", "right_pitch-", "right_pitch-"),
             ("5", "right_yaw+", "right_yaw+"),
             ("6", "right_yaw-", "right_yaw-"),
-            ("7", "right_elbow+", "right_elbow+"),
-            ("8", "right_elbow-", "right_elbow-"),
-            ("9", "right_shoulder_pitch+", "right_shoulder_pitch+"),
-            ("10", "right_shoulder_pitch-", "right_shoulder_pitch-"),
-            ("11", "输入 right_set_roll <value>", "right_set_roll"),
-            ("12", "输入 right_set_pitch <value>", "right_set_pitch"),
-            ("13", "输入 right_set_yaw <value>", "right_set_yaw"),
-            ("14", "输入 right_set_elbow <value>", "right_set_elbow"),
-            ("15", "输入 right_set_shoulder_pitch <value>", "right_set_shoulder_pitch"),
+            ("7", "right_x+", "right_x+"),
+            ("8", "right_x-", "right_x-"),
+            ("9", "right_y+", "right_y+"),
+            ("10", "right_y-", "right_y-"),
+            ("11", "right_z+", "right_z+"),
+            ("12", "right_z-", "right_z-"),
+            ("13", "right_elbow+", "right_elbow+"),
+            ("14", "right_elbow-", "right_elbow-"),
+            ("15", "right_shoulder_pitch+", "right_shoulder_pitch+"),
+            ("16", "right_shoulder_pitch-", "right_shoulder_pitch-"),
+            ("17", "输入 right_set_roll <value>", "right_set_roll"),
+            ("18", "输入 right_set_pitch <value>", "right_set_pitch"),
+            ("19", "输入 right_set_yaw <value>", "right_set_yaw"),
+            ("20", "输入 right_set_elbow <value>", "right_set_elbow"),
+            ("21", "输入 right_set_shoulder_pitch <value>", "right_set_shoulder_pitch"),
         ],
     },
     "4": {
@@ -1957,20 +2630,42 @@ SUBMENUS = {
     "5": {
         "title": "左手空壶对杯口 / Left alignment",
         "items": [
-            ("1", "x+", "x+"),
-            ("2", "x-", "x-"),
-            ("3", "y+", "y+"),
-            ("4", "y-", "y-"),
-            ("5", "z+", "z+"),
-            ("6", "z-", "z-"),
-            ("7", "roll0", "roll0"),
-            ("8", "roll03", "roll03"),
-            ("9", "roll05", "roll05"),
-            ("10", "roll07", "roll07"),
-            ("11", "yaw+", "yaw+"),
-            ("12", "yaw-", "yaw-"),
-            ("13", "pitch+", "pitch+"),
-            ("14", "pitch-", "pitch-"),
+            ("1", "replay_left_move_to_pour_pose_left_only", "replay_left_move_to_pour_pose_left_only"),
+            ("2", "replay_left_pour_prep_frame", "replay_left_pour_prep_frame"),
+            ("3", "输入 left_set_shoulder_pitch <value>", "left_set_shoulder_pitch"),
+            ("4", "输入 left_set_elbow <value>", "left_set_elbow"),
+            ("5", "输入 left_set_shoulder_roll <value>", "left_set_shoulder_roll"),
+            ("6", "输入 left_set_wrist_pitch <value>", "left_set_wrist_pitch"),
+            ("7", "输入 left_set_wrist_roll <value>", "left_set_wrist_roll"),
+            ("8", "left_shoulder_pitch+", "left_shoulder_pitch+"),
+            ("9", "left_shoulder_pitch-", "left_shoulder_pitch-"),
+            ("10", "left_elbow+", "left_elbow+"),
+            ("11", "left_elbow-", "left_elbow-"),
+            ("12", "left_shoulder_roll+", "left_shoulder_roll+"),
+            ("13", "left_shoulder_roll-", "left_shoulder_roll-"),
+            ("14", "left_x+", "left_x+"),
+            ("15", "left_x-", "left_x-"),
+            ("16", "left_y+", "left_y+"),
+            ("17", "left_y-", "left_y-"),
+            ("18", "left_z+", "left_z+"),
+            ("19", "left_z-", "left_z-"),
+            ("20", "left_roll+", "left_roll+"),
+            ("21", "left_roll-", "left_roll-"),
+            ("22", "left_pitch+", "left_pitch+"),
+            ("23", "left_pitch-", "left_pitch-"),
+            ("24", "left_yaw+", "left_yaw+"),
+            ("25", "left_yaw-", "left_yaw-"),
+            ("26", "输入 left_set_roll <value>", "left_set_roll"),
+            ("27", "输入 left_set_pitch <value>", "left_set_pitch"),
+            ("28", "输入 left_set_yaw <value>", "left_set_yaw"),
+            ("29", "roll0", "roll0"),
+            ("30", "roll03", "roll03"),
+            ("31", "roll05", "roll05"),
+            ("32", "roll07", "roll07"),
+            ("33", "yaw+  [compat]", "yaw+"),
+            ("34", "yaw-  [compat]", "yaw-"),
+            ("35", "pitch+  [compat]", "pitch+"),
+            ("36", "pitch-  [compat]", "pitch-"),
         ],
     },
     "6": {
@@ -1996,10 +2691,18 @@ SUBMENUS = {
 
 VALUE_PROMPTS = {
     "right_set_roll": "请输入 right wrist_roll target，例如 0.10：",
-    "right_set_pitch": "请输入 right wrist_pitch target，例如 -0.40：",
+    "right_set_pitch": "请输入 right wrist_pitch target，例如 0.10：",
     "right_set_yaw": "请输入 right wrist_yaw target，例如 -0.70：",
     "right_set_elbow": "请输入 right elbow_pitch target，例如 0.05：",
     "right_set_shoulder_pitch": "请输入 right shoulder_pitch target，例如 -0.05：",
+    "left_set_shoulder_pitch": "请输入 left shoulder_pitch target，例如 -0.35：",
+    "left_set_elbow": "请输入 left elbow_pitch target，例如 -0.42：",
+    "left_set_shoulder_roll": "请输入 left shoulder_roll target，例如 0.50：",
+    "left_set_wrist_pitch": "请输入 left wrist_pitch target，例如 -0.45：",
+    "left_set_wrist_roll": "请输入 left wrist_roll target，例如 0.70：",
+    "left_set_roll": "请输入 left wrist_roll target，例如 0.30：",
+    "left_set_pitch": "请输入 left wrist_pitch target，例如 -0.20：",
+    "left_set_yaw": "请输入 left wrist_yaw target，例如 0.10：",
 }
 
 

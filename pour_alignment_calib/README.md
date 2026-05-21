@@ -19,9 +19,18 @@
 1. 先右手空载复现：`replay_right_grasp_cup` -> `replay_right_move_to_coffee_machine` -> `replay_right_retreat_after_coffee` -> `replay_right_pour_ready`。
 2. 再右手夹空杯复现同一条阶段链路，逐阶段确认杯子、桌面、手指、身体和周边间隙安全。
 3. 右手链路稳定后，使用 `left_grip` 或兼容别名 `grip` 夹住空奶壶。
-4. 用 `x+` / `x-` / `y+` / `y-` / `z+` / `z-` 做左手单步 relative IK，对准杯口。
+4. 用 `left_x+` / `left_x-` / `left_y+` / `left_y-` / `left_z+` / `left_z-` 做左手单步 relative IK，对准杯口；`x+` / `y+` / `z+` 等旧命令仍是左手兼容别名。
 5. 空壶壶嘴接近杯口后，再用 `roll03`、`roll05`、`roll07` 分步做空壶倾斜验证。
 6. 少量水测试前，必须先通过空壶 `roll07` 对杯口验证，并确认没有碰撞、卡住、打滑或杯口干涉。
+
+左右位姿联合标定流程：
+
+1. 右手完整链路：`replay_right_grasp_cup` -> `replay_right_move_to_coffee_machine` -> `replay_right_retreat_after_coffee` -> `replay_right_pour_ready`。
+2. 当前右手候选参数：`wrist_yaw=-0.70`、`wrist_pitch=0.10`、`wrist_roll=0.20`、`elbow_pitch=0.25`、`shoulder_roll=0.70`。
+3. 左手夹空壶：`left_open` -> `left_grip`。
+4. 左手进入倒奶预备区：`replay_left_move_to_pour_pose_left_only` -> `replay_left_pour_prep_frame`。
+5. 左手壶嘴对杯口：用 `left_x+` / `left_x-` / `left_y+` / `left_y-` / `left_z+` / `left_z-` 做小步 relative IK，再用 `left_yaw+` / `left_yaw-`、`left_pitch+` / `left_pitch-` 调壶嘴方向，最后用 `roll03`、`roll05`、`roll07`、`roll0` 做空壶倾斜阶梯验证和复位。
+6. 只有空壶 `roll07` 连续通过后，才考虑更大的 wrist_roll 或少量清水测试。
 
 右手 replay 阶段命令：
 
@@ -37,9 +46,8 @@
 
 - 它不是完整取杯流程，只设置倒奶前右手杯口姿态相关的部分右臂关节。
 - 它不是完整 `left_hand_move_to_pour_pose`，只复现其中右手接奶位动作子集，不会加入左臂动作。
-- `replay_right_pour_ready` / `right_pour_ready` / `right_cup_pose` 使用 `--right-pour-ready-wrist-yaw -0.70`、`--right-pour-ready-wrist-pitch -0.40`、`--right-pour-ready-wrist-roll 0.10`、`--right-pour-ready-shoulder-roll 0.70` 作为当前实机标定默认目标，可在启动脚本时覆盖。
-- 原始 `coffee_replay_safe.py` 接奶位中右腕候选为 `wrist_pitch=-0.5`、`wrist_roll=0.3`；当前标定脚本默认值已根据实机调整为 `wrist_pitch=-0.40`、`wrist_roll=0.10`。
-- `--right-pour-ready-elbow-pitch` 和 `--right-pour-ready-shoulder-pitch` 默认不设置；只有显式传入时，`replay_right_pour_ready` 才会在右手腕和 `shoulder_roll` 动作之后额外设置对应关节。
+- `replay_right_pour_ready` / `right_pour_ready` / `right_cup_pose` 使用 `--right-pour-ready-wrist-yaw -0.70`、`--right-pour-ready-wrist-pitch 0.10`、`--right-pour-ready-wrist-roll 0.20`、`--right-pour-ready-elbow-pitch 0.25`、`--right-pour-ready-shoulder-roll 0.70` 作为当前实机标定默认目标，可在启动脚本时覆盖。
+- `replay_right_pour_ready` 会在右手腕和 `shoulder_roll` 动作之后设置 `right_elbow_pitch`；`--right-pour-ready-shoulder-pitch` 仍默认不设置，只有显式传入时才额外设置。
 - 它要求右手已经稳定夹杯。
 - 它最好在 `replay_right_grasp_cup` -> `replay_right_move_to_coffee_machine` -> `replay_right_retreat_after_coffee` 之后使用。
 - 该命令只在本标定脚本内发送右臂关节目标，不会自动调用完整 `coffee.py` 流程。
@@ -53,9 +61,16 @@
 
 右手接奶位间隙调试：
 
-- 当前推荐手腕候选：`wrist_yaw=-0.70`、`wrist_pitch=-0.40`、`wrist_roll=0.10`、`shoulder_roll=0.70`。
+- 当前推荐候选：`wrist_yaw=-0.70`、`wrist_pitch=0.10`、`wrist_roll=0.20`、`elbow_pitch=0.25`、`shoulder_roll=0.70`。
+- 当前右手候选参数记录：
+  - `right_wrist_roll  = 0.20`
+  - `right_wrist_pitch = 0.10`
+  - `right_elbow_pitch = 0.25`
 - 如果杯口姿态已经基本合适，但右手杯子与左手 home 位垂直距离太近，先调 `right_elbow_pitch`，再调 `right_shoulder_pitch`，最后才考虑 `shoulder_roll`。
+- 如果倒奶位左右手横向间距太近，优先小步试 `right_x+` / `right_x-`、`right_y+` / `right_y-`；每次 0.003~0.005 m，找到能增大间距且杯口姿态仍可接受的方向后再保存候选。
 - 推荐现场测试顺序：`replay_right_pour_ready` -> `obs before_clearance_adjust` -> `right_elbow+` -> `obs check_right_elbow_plus` -> `right_elbow-` -> `obs check_right_elbow_minus` -> `save right_clearance_candidate_xxx`。
+- `right_x+` / `right_x-`、`right_z+` / `right_z-` 按 `--right-linear-step` 做右臂 relative IK，默认 `0.005 m`。
+- `right_y+` / `right_y-` 按 `--right-linear-step-small` 做右臂 relative IK，默认 `0.003 m`。
 - `right_elbow+` / `right_elbow-` 按 `--right-arm-clearance-step` 微调右肘俯仰，默认 `0.05 rad`。
 - `right_shoulder_pitch+` / `right_shoulder_pitch-` 按 `--right-arm-clearance-step` 微调右肩俯仰，默认 `0.05 rad`。
 - `right_set_elbow <value>` 和 `right_set_shoulder_pitch <value>` 可直接设置目标值。
@@ -70,6 +85,41 @@
 - `right_yaw+` / `right_yaw-` 基于当前记录或 `--right-pour-ready-wrist-yaw` 按 `--right-wrist-step` 微调右腕 yaw。
 - `right_set_roll <value>`、`right_set_pitch <value>`、`right_set_yaw <value>` 直接设置对应右腕目标。
 - 这些命令只控制右臂对应手腕关节，不控制夹爪，不移动左臂，不调用 home；真实执行前都需要人工输入 `y` 确认。
+
+左右横向间距调试方法：
+
+1. 先固定右手杯子目标位，再调左手空壶。
+2. 如果倒奶位左右手横向间距太近，先在右手接奶位执行 `right_x+` / `right_x-` / `right_y+` / `right_y-` 小步试方向。
+3. 找到能增大间距且杯口姿态仍可接受的方向后，执行 `save right_spacing_candidate_xxx` 保存右手候选。
+4. 再让左手进入倒奶预备位，用 `left_x+` / `left_x-` / `left_y+` / `left_y-` / `left_z+` / `left_z-` 对壶嘴进行微调。
+5. 不要一开始左右手同时调。
+6. 不要用 `shoulder_roll` 大幅拉开间距，除非 relative IK 小步调整不够。
+7. 每次只动一个方向，每次 `0.003~0.005 m`。
+8. 任何 `near_collision` / `unsafe` 立即停止。
+
+左手腕调试方法：
+
+1. `left_roll+` / `left_roll-` 控制空壶倾倒角，`left_set_roll <value>` 可直接设置左腕 roll。
+2. `left_pitch+` / `left_pitch-` 控制壶嘴前后俯仰，`left_set_pitch <value>` 可直接设置左腕 pitch。
+3. `left_yaw+` / `left_yaw-` 控制壶嘴朝向杯口方向，`left_set_yaw <value>` 可直接设置左腕 yaw。
+4. 先用 `left_x+` / `left_y+` / `left_z+` 等把壶嘴移动到杯口上方，再用 `left_yaw` / `left_pitch` 微调方向，最后用 `left_roll` 做 `roll03` / `roll05` / `roll07` 阶梯倾斜。
+5. 不要一开始直接大角度 `wrist_roll`。
+
+左手倒奶预备 replay 与微调命令：
+
+- `replay_left_move_to_pour_pose_left_only` 只复现 `coffee_replay_safe.py::left_hand_move_to_pour_pose` 中左手相关动作，不控制右臂，不控制左右夹爪，不执行倒奶 wrist_roll，也不执行 `left_hand_pour_milk`。
+- `replay_left_pour_prep_frame` 只复现 `left_hand_pour_milk` 的倒奶前姿态框架：`shoulder_pitch=-0.35`、`elbow_pitch=-0.42`、`shoulder_roll=0.50`，结束后 `robot.wait()` + `sleep(0.5)`。
+- `replay_left_pour_prep_frame` 不自动执行 `wrist_roll=1.05`，也不自动执行 `wrist_roll=1.25` 或左右摆动。
+- 左手倒奶预备参数可用 `--left-pour-ready-shoulder-pitch`、`--left-pour-ready-elbow-pitch`、`--left-pour-ready-shoulder-roll`、`--left-pour-ready-wrist-pitch`、`--left-pour-wrist-roll-prep`、`--left-arm-pour-adjust-step` 覆盖。
+- `left_set_shoulder_pitch <value>`、`left_set_elbow <value>`、`left_set_shoulder_roll <value>`、`left_set_wrist_pitch <value>`、`left_set_wrist_roll <value>` 可直接设置左臂对应关节。
+- `left_shoulder_pitch+` / `left_shoulder_pitch-`、`left_elbow+` / `left_elbow-`、`left_shoulder_roll+` / `left_shoulder_roll-`、`left_wrist_pitch+` / `left_wrist_pitch-`、`left_wrist_roll+` / `left_wrist_roll-` 按 `--left-arm-pour-adjust-step` 小步微调，默认 `0.05 rad`。
+- `left_x+` / `left_x-`、`left_z+` / `left_z-` 按 `--left-linear-step` 做左臂 relative IK；默认沿用 `--linear-step 0.005`。
+- `left_y+` / `left_y-` 按 `--left-linear-step-small` 做左臂 relative IK；默认沿用 `--linear-step-small 0.003`。
+- `x+` / `x-`、`y+` / `y-`、`z+` / `z-` 是 `left_x+` / `left_y+` / `left_z+` 的兼容别名。
+- `left_roll+` / `left_roll-`、`left_pitch+` / `left_pitch-`、`left_yaw+` / `left_yaw-` 按 `--left-wrist-step` 微调左手腕，默认 `0.05 rad`。
+- `left_set_roll <value>`、`left_set_pitch <value>`、`left_set_yaw <value>` 可直接设置左腕目标。
+- `roll0` / `roll03` / `roll05` / `roll07` 仍保留为左腕 `wrist_roll` 常用快捷命令。
+- 这些左臂直接设置和小步命令只控制左臂，不控制右臂，不控制夹爪，不调用 home，使用 `block=True`，真实执行前都需要人工输入 `y` 确认，并写入 CSV。
 
 左夹爪命令：
 
@@ -107,7 +157,7 @@ replay_right_pour_ready
 right_set_roll 0.10
 right_elbow+
 left_grip
-x+
+left_x+
 roll07
 obs edge
 save right_clearance_candidate_xxx
@@ -147,6 +197,10 @@ python3 pour_alignment_calib/pour_align_calib.py --execute --i-understand-real-r
 - 本工具不会自动做少量水测试。
 - 本工具不会自动连续执行多个 replay stage；每个阶段都需要手动输入命令。
 - 本工具不会自动执行左手倒奶动作。
+- `replay_left_pour_prep_frame` 不自动执行 `wrist_roll=1.05`。
+- 本工具不会自动执行 `wrist_roll=1.25`。
+- 本工具不会自动执行左右摆动。
+- 本工具不会自动加水测试。
 - 本工具不使用 SDK `open()` 或 `close()`，夹爪打开/闭合也使用 `set_position()`。
 - 本工具不使用 README 示例 absolute IK 点，不做大范围 absolute IK。
 - 左臂平移动作默认使用 `arm.ik(dx, dy, dz, 0, 0, 0, block=True, abs=False)`。
