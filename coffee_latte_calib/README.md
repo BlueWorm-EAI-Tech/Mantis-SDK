@@ -1,4 +1,31 @@
-# 空壶壶嘴对杯口标定
+# coffee_latte_calib
+
+咖啡拉花/倒奶实机调试脚本集合。这个目录集中保存近期咖啡流程安全复现、早期 IK/夹爪/手腕调试、早期倒奶段参数调试，以及当前主要使用的空壶壶嘴对杯口标定工具。
+
+## 脚本用途
+
+- `scripts/coffee_replay_safe.py`：前人 `coffee.py` 的安全复现脚本；保留原 `coffee.py` 不变，不建议直接跑完整 `coffee.py`。
+- `scripts/ik_tune_console.py`：早期 IK、夹爪、手腕单项调试控制台。
+- `scripts/latte_pour_tune.py`：早期倒奶/拉花段参数调试脚本。
+- `scripts/pour_align_calib.py`：当前推荐主入口，用于左右手壶嘴对杯口标定和候选位姿记录。
+
+推荐运行方式：
+
+```zsh
+cd /home/lanchong/BlueWorm_ws/Mantis-SDK-github
+python3 coffee_latte_calib/scripts/pour_align_calib.py --dry-run
+python3 coffee_latte_calib/scripts/pour_align_calib.py --execute --i-understand-real-robot-risk
+```
+
+根目录保留 `pour_align_calib.py`、`coffee_replay_safe.py`、`ik_tune_console.py`、`latte_pour_tune.py` 轻量 wrapper，兼容旧习惯：
+
+```zsh
+python3 pour_align_calib.py --dry-run
+```
+
+候选位姿记录建议使用 `show_state` 和 `save_pose <candidate_name>`；候选 JSONL 默认写入 `coffee_latte_calib/logs/pour_align_candidates.jsonl`。旧的历史 CSV/JSONL 仍保留在 `pour_alignment_calib/logs/`，本轮整理不移动这些历史运行日志。
+
+安全原则：不直接跑完整 `coffee.py`；不自动加水测试；不自动执行 `left_hand_pour_milk`；实机必须人工确认，并显式使用 `--execute --i-understand-real-robot-risk`。
 
 这个目录只用于倒奶/拉花前的右手取杯与空壶壶嘴对杯口标定，不接入正式 coffee 流程，也不执行少量水测试自动流程。右手杯子位姿必须从 `coffee_replay_safe.py` 的真实阶段链路复现，不再建议单独使用旧的猜测版 `right_table_*` 命令。
 
@@ -132,7 +159,7 @@ right: dx=+0.015000, dy=+0.000000, dz=+0.000000
 1. 调到满意位置。
 2. 输入 `show_state` 查看当前累计偏移和关键关节。
 3. 输入 `save_pose right_clearance_candidate_01` 保存完整候选状态。
-4. 实验结束后查看 `pour_alignment_calib/logs/pour_align_candidates.jsonl`。
+4. 实验结束后查看 `coffee_latte_calib/logs/pour_align_candidates.jsonl`。
 5. 下次复现时参考候选记录里的 `suggested_replay_commands`。
 
 示例候选如果显示：
@@ -200,7 +227,7 @@ right_x+ 14
 
 ```zsh
 cd /home/lanchong/BlueWorm_ws/Mantis-SDK-github
-python3 pour_alignment_calib/pour_align_calib.py --dry-run
+python3 coffee_latte_calib/scripts/pour_align_calib.py --dry-run
 ```
 
 启动后默认进入二级菜单模式，主菜单按功能分成右手流程复现、右手夹爪、右手接奶位微调、左手夹爪、左手空壶对杯口、记录与日志、专家命令帮助。普通现场调试建议使用二级菜单，降低误输入和长 help 翻找成本。
@@ -229,13 +256,13 @@ save_pose right_clearance_candidate_xxx
 - `help replay`：只显示 `replay_right_*` 相关命令。
 - `show_state`：显示当前左右臂累计 relative IK 偏移、左右手腕估计值、右肘和左右夹爪估计值，并写入 CSV。
 - `save [note]`：保存普通备注时会同时写入 `right_offset=(dx=..., dy=..., dz=...)` 和 `left_offset=(dx=..., dy=..., dz=...)`。
-- `save_pose <candidate_name>`：保存完整候选位姿快照，并写入 `pour_alignment_calib/logs/pour_align_candidates.jsonl`。
+- `save_pose <candidate_name>`：保存完整候选位姿快照，并写入 `coffee_latte_calib/logs/pour_align_candidates.jsonl`。
 - `list_candidates`：显示最近 10 条候选位姿记录。
 
 显式记录左右夹爪目标值：
 
 ```zsh
-python3 pour_alignment_calib/pour_align_calib.py --dry-run \
+python3 coffee_latte_calib/scripts/pour_align_calib.py --dry-run \
   --left-gripper-pitcher-position 0.70 \
   --right-gripper-cup-position 0.80
 ```
@@ -243,7 +270,7 @@ python3 pour_alignment_calib/pour_align_calib.py --dry-run \
 真实机器人执行必须显式传入：
 
 ```zsh
-python3 pour_alignment_calib/pour_align_calib.py --execute --i-understand-real-robot-risk
+python3 coffee_latte_calib/scripts/pour_align_calib.py --execute --i-understand-real-robot-risk
 ```
 
 安全注意事项：
@@ -273,5 +300,5 @@ python3 pour_alignment_calib/pour_align_calib.py --execute --i-understand-real-r
 日志会自动写入：
 
 ```zsh
-pour_alignment_calib/logs/
+coffee_latte_calib/logs/
 ```

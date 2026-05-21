@@ -22,9 +22,12 @@ from pathlib import Path
 from typing import Optional
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = REPO_ROOT
 
 from connection_selector import add_connection_args, connect_robot_with_selector  # noqa: E402
 
@@ -62,7 +65,7 @@ DEFAULT_LEFT_ARM_POUR_ADJUST_STEP = 0.05
 DEFAULT_MAX_WRIST_ROLL = 0.70
 GRIPPER_MIN = 0.0
 GRIPPER_MAX = 1.0
-LOG_DIR = Path(__file__).resolve().parent / "logs"
+LOG_DIR = BASE_DIR / "logs"
 CANDIDATE_FILE = LOG_DIR / "pour_align_candidates.jsonl"
 CANDIDATE_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 
@@ -987,7 +990,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--log-file",
         default=None,
-        help="CSV 日志路径；默认写入 pour_alignment_calib/logs/。",
+        help="CSV 日志路径；默认写入 coffee_latte_calib/logs/。",
     )
     parser.add_argument(
         "--include-left-gripper-init",

@@ -7,11 +7,15 @@ import sys
 import time
 from typing import Optional
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from connection_selector import add_connection_args, connect_robot_with_selector
 from mantis import Mantis
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_IP = "192.168.1.151"
 DEFAULT_SN = "BW_3N5CRT22"
 DEFAULT_LOG_FILE = "docs/latte_pour_tuning_log.csv"

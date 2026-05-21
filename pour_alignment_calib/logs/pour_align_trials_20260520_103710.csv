@@ -1,0 +1,6 @@
+timestamp,command,command_type,arm,dx,dy,dz,joint_targets,wrist_roll_target,wrist_yaw_delta_or_target,wrist_pitch_delta_or_target,gripper_position,dry_run,execute,user_confirmed,status,observed_alignment,user_observation,risk_detected
+2026-05-20T10:37:28+08:00,left_grip,gripper,left,,,,,,,,0.700000,false,true,true,ok,,,false
+2026-05-20T10:37:37+08:00,left_tight,gripper,left,,,,,,,,0.650000,false,true,true,ok,,,false
+2026-05-20T10:37:48+08:00,left_grip,gripper,left,,,,,,,,0.700000,false,true,true,ok,,,false
+2026-05-20T10:38:01+08:00,right_cup_pose,right_arm_joint_pose,right,,,,"[{""joint"":""wrist_yaw"",""target"":-0.7,""block"":false},{""joint"":""wrist_pitch"",""target"":-0.5,""block"":false},{""joint"":""wrist_roll"",""target"":0.3,""block"":false},{""joint"":""shoulder_roll"",""target"":0.7,""block"":false}]",,,,,false,true,true,ok,,,false
+2026-05-20T10:38:42+08:00,keyboard_interrupt,shutdown,,,,,,,,,,false,true,,keyboard_interrupt,,,false

@@ -1,0 +1,10 @@
+timestamp,command,command_type,dx,dy,dz,wrist_roll_target,wrist_yaw_delta_or_target,wrist_pitch_delta_or_target,gripper_position,dry_run,execute,user_confirmed,status,observed_alignment,user_observation,risk_detected
+2026-05-19T17:02:57+08:00,grip,gripper,,,,,,,0.700000,false,true,true,ok,,,false
+2026-05-19T17:03:17+08:00,roll03,wrist_roll,,,,0.300000,,,,false,true,true,ok,,,false
+2026-05-19T17:03:27+08:00,roll05,wrist_roll,,,,0.500000,,,,false,true,true,ok,,,false
+2026-05-19T17:03:33+08:00,roll07,wrist_roll,,,,0.700000,,,,false,true,true,ok,,,false
+2026-05-19T17:03:46+08:00,z+,relative_ik,0.000000,0.000000,0.005000,,,,,false,true,true,ok,,,false
+2026-05-19T17:03:52+08:00,z-,relative_ik,0.000000,0.000000,-0.005000,,,,,false,true,true,ok,,,false
+2026-05-19T17:03:59+08:00,x+,relative_ik,0.005000,0.000000,0.000000,,,,,false,true,true,ok,,,false
+2026-05-19T17:04:04+08:00,x-,relative_ik,-0.005000,0.000000,0.000000,,,,,false,true,true,ok,,,false
+2026-05-19T17:04:20+08:00,obs,observation,,,,,,,,false,true,,recorded,uncertain,测试均正常,false

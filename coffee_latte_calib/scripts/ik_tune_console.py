@@ -23,10 +23,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from connection_selector import add_connection_args, connect_robot_with_selector
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_ROBOT_VERSION = "3.0"
 DEFAULT_MAX_DELTA = 0.005
 DEFAULT_MAX_ROTATION_DELTA = 0.03

@@ -17,6 +17,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 from connection_selector import add_connection_args, connect_robot_with_selector
 
 
@@ -1420,7 +1424,7 @@ def build_log_path(raw_path: str | None) -> Path:
     if raw_path:
         return Path(raw_path)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    return Path("logs") / f"coffee_replay_safe_{timestamp}.log"
+    return Path(__file__).resolve().parents[1] / "logs" / f"coffee_replay_safe_{timestamp}.log"
 
 
 def main() -> int:

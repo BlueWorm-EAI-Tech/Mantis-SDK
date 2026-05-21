@@ -1,0 +1,10 @@
+timestamp,command,command_type,arm,dx,dy,dz,joint_targets,wrist_roll_target,wrist_yaw_delta_or_target,wrist_pitch_delta_or_target,gripper_position,dry_run,execute,user_confirmed,status,observed_alignment,user_observation,risk_detected
+2026-05-20T09:57:37+08:00,left_open,gripper,left,,,,,,,,1.000000,true,false,,dry_run,,,false
+2026-05-20T09:57:37+08:00,left_grip,gripper,left,,,,,,,,0.700000,true,false,,dry_run,,,false
+2026-05-20T09:57:37+08:00,left_loose,gripper,left,,,,,,,,0.750000,true,false,,dry_run,,,false
+2026-05-20T09:57:37+08:00,left_tight,gripper,left,,,,,,,,0.700000,true,false,,dry_run,,,false
+2026-05-20T09:57:37+08:00,grip,gripper,left,,,,,,,,0.700000,true,false,,dry_run,,,false
+2026-05-20T09:57:37+08:00,right_open,gripper,right,,,,,,,,1.000000,true,false,,dry_run,,,false
+2026-05-20T09:57:37+08:00,right_grip,gripper,right,,,,,,,,0.800000,true,false,,dry_run,,,false
+2026-05-20T09:57:37+08:00,right_loose,gripper,right,,,,,,,,0.850000,true,false,,dry_run,,,false
+2026-05-20T09:57:37+08:00,right_tight,gripper,right,,,,,,,,0.800000,true,false,,dry_run,,,false

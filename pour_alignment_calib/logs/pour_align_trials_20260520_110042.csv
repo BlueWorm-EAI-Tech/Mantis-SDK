@@ -1,0 +1,2 @@
+timestamp,command,command_type,arm,dx,dy,dz,joint_targets,wrist_roll_target,wrist_yaw_delta_or_target,wrist_pitch_delta_or_target,gripper_position,dry_run,execute,user_confirmed,status,observed_alignment,user_observation,risk_detected
+2026-05-20T11:00:54+08:00,keyboard_interrupt,shutdown,,,,,,,,,,true,false,,keyboard_interrupt,,,false

@@ -1,0 +1,25 @@
+timestamp,command,command_type,arm,dx,dy,dz,joint_targets,wrist_roll_target,wrist_yaw_delta_or_target,wrist_pitch_delta_or_target,gripper_position,dry_run,execute,user_confirmed,status,observed_alignment,user_observation,risk_detected
+2026-05-21T09:31:58+08:00,right_x+,arm_relative_ik,right,0.005000,0.000000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,right_x-,arm_relative_ik,right,-0.005000,0.000000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,right_y+,arm_relative_ik,right,0.000000,0.003000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,right_y-,arm_relative_ik,right,0.000000,-0.003000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,right_z+,arm_relative_ik,right,0.000000,0.000000,0.005000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,right_z-,arm_relative_ik,right,0.000000,0.000000,-0.005000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_x+,arm_relative_ik,left,0.005000,0.000000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_x-,arm_relative_ik,left,-0.005000,0.000000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_y+,arm_relative_ik,left,0.000000,0.003000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_y-,arm_relative_ik,left,0.000000,-0.003000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_z+,arm_relative_ik,left,0.000000,0.000000,0.005000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_z-,arm_relative_ik,left,0.000000,0.000000,-0.005000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,x+,arm_relative_ik,left,0.005000,0.000000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,y+,arm_relative_ik,left,0.000000,0.003000,0.000000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,z+,arm_relative_ik,left,0.000000,0.000000,0.005000,,,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_roll+,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_roll"",""target"":0.05}",0.050000,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_roll-,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_roll"",""target"":0.0}",0.000000,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_pitch+,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_pitch"",""target"":0.05}",,,0.050000,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_pitch-,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_pitch"",""target"":0.0}",,,0.000000,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_yaw+,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_yaw"",""target"":0.05}",,0.050000,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_yaw-,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_yaw"",""target"":0.0}",,0.000000,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_set_roll 0.30,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_roll"",""target"":0.3}",0.300000,,,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_set_pitch -0.20,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_pitch"",""target"":-0.2}",,,-0.200000,,true,false,,dry_run,,,false
+2026-05-21T09:31:58+08:00,left_set_yaw 0.10,left_wrist_adjust,left,,,,"{""joint"":""left_wrist_yaw"",""target"":0.1}",,0.100000,,,true,false,,dry_run,,,false
