@@ -183,6 +183,12 @@ class Topics:
     
     #: 底盘速度命令（SDK 发布，Python 桥接节点订阅）
     SDK_CHASSIS = "sdk/chassis"
+
+    #: 3.0 滑台绝对高度命令（SDK 发布，Python 桥接节点订阅）
+    SDK_PELVIS_HEIGHT = "sdk/pelvis_height"
+
+    #: 3.0 腰部前后弯腰绝对角度命令（SDK 发布，Python 桥接节点订阅）
+    SDK_WAIST_ANGLE = "sdk/waist_angle"
     
     #: 系统状态反馈（Python 桥接节点发布，SDK 订阅）
     SYSTEM_STATUS = "sdk/system_status"

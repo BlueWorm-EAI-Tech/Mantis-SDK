@@ -266,19 +266,28 @@ RUN_MODE=sdk
 
 ### Waist (腰部)
 
-腰部是 prismatic 直线关节，控制上半身高度：
+腰部控制接口对 SDK 用户保持统一单位：高度使用米，角度使用弧度。
 
-- **高度范围**: -0.62m ~ 0.24m
+- `2.0`: 腰部是 prismatic 直线关节，控制上半身高度。
+- `3.0`: 滑台控制上下位置，同时支持上半身前后弯腰。
+- **2.0 高度范围**: -0.62m ~ 0.24m
+- **3.0 滑台范围**: -0.30m ~ 0.10m（相对默认高度）
+- **3.0 弯腰范围**: -1.57rad ~ 0.087rad，负值前倾，正值后仰
 
 
-| 方法                             | 说明           |
-| -------------------------------- | -------------- |
-| `set_height(height, block=True)` | 设置高度（米） |
-| `up(delta=0.05, block=True)`     | 上升指定距离   |
-| `down(delta=0.05, block=True)`   | 下降指定距离   |
-| `home(block=True)`               | 回到默认高度   |
-| `wait()`                         | 等待运动完成   |
-| `is_moving`                      | 是否正在运动中 |
+| 方法                                  | 说明                              |
+| ------------------------------------- | --------------------------------- |
+| `set_height(height, block=True)`      | 设置滑台/腰部高度（m）            |
+| `set_speed(speed)`                    | 设置滑台最大速度（m/s）           |
+| `set_bend(angle, block=True)`         | 设置 3.0 前后弯腰角（rad）        |
+| `set_bend_speed(speed)`               | 设置 3.0 弯腰最大角速度（rad/s）  |
+| `bend_forward(angle=0.3, block=True)` | 3.0 前倾弯腰（rad）               |
+| `bend_backward(angle=0.2, block=True)`| 3.0 后仰（rad）                   |
+| `up(delta=0.05, block=True)`          | 上升指定距离                      |
+| `down(delta=0.05, block=True)`        | 下降指定距离                      |
+| `home(block=True)`                    | 回到默认高度并让 3.0 身体直立     |
+| `wait()`                              | 等待运动完成                      |
+| `is_moving`                           | 是否正在运动中                    |
 
 ### Chassis (底盘)
 

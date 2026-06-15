@@ -8,13 +8,13 @@
 """
 # 两点半开始
 import time
-    # robot.right_arm.set_shoulder_pitch(0.7, block=False) 大臂前后
-    # robot.right_arm.set_shoulder_yaw(0.6, block=False) 大臂内外
-    # robot.right_arm.set_shoulder_roll(-0.4) 大臂左右
-    # robot.right_arm.set_wrist_roll(0.5) 小臂中轴旋转
-    # robot.right_arm.set_wrist_yaw(0.5) 手腕左右
-    # robot.right_arm.set_wrist_pitch(0.5) 手腕上下
-    # robot.right_arm.set_elbow_pitch(-0.5) 手肘上下
+# robot.right_arm.set_shoulder_pitch(0.7, block=False) 大臂前后
+# robot.right_arm.set_shoulder_yaw(0.6, block=False) 大臂内外
+# robot.right_arm.set_shoulder_roll(-0.4) 大臂左右
+# robot.right_arm.set_wrist_roll(0.5) 小臂中轴旋转
+# robot.right_arm.set_wrist_yaw(0.5) 手腕左右
+# robot.right_arm.set_wrist_pitch(0.5) 手腕上下
+# robot.right_arm.set_elbow_pitch(-0.5) 手肘上下
     
 import sys
 import threading
@@ -26,15 +26,23 @@ from mantis import Mantis
 import time
 print("=== Mantis 全关节方向测试 ===\n")
 
-robot = Mantis(ip="192.168.1.111", robot_version="2.0")
+robot = Mantis(ip="192.168.1.151", robot_version="2.0")
 robot.connect()
-robot.home()
-robot.left_arm.ik(0.1, 0.0, 0.0, 0, 0, 0, abs=False)
 
-robot.left_arm.ik(0.1, 0.0, 0.0, 0, 0, 0, abs=False)
 
+while 1:
+    robot.home()
+    robot.left_gripper.open()
+    robot.right_gripper.open()
+    robot.left_arm.ik(0.2, 0.05 , 0.1, 0, 0, 0, abs=False)
+
+
+# robot.disconnect()
+# robot.right_arm.ik(0.2, 0.2, 0.1, 0, 0, 0, abs=False)
+
+# for i in range(10):
+#     robot.home()
+#     time.sleep(3)
 # robot.disconnect()
 
 
-
- 

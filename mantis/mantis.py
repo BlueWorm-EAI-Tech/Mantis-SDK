@@ -150,6 +150,7 @@ class Mantis:
         self._feedback_callback: Optional[Callable] = None
         self._status_callback: Optional[Callable] = None
         self._system_status = {}  # 存储最近一次系统状态
+        self._last_status_update_time = 0.0
         
         # 存储所有关节状态（用于完整发布）
         self._joint_states = {name: 0.0 for name in ALL_URDF_JOINTS}
@@ -425,11 +426,15 @@ class Mantis:
 
             joint_topic = self._topic_with_sn(self._target_sn, Topics.SDK_JOINT_STATES)
             chassis_topic = self._topic_with_sn(self._target_sn, Topics.SDK_CHASSIS)
+            pelvis_height_topic = self._topic_with_sn(self._target_sn, Topics.SDK_PELVIS_HEIGHT)
+            waist_angle_topic = self._topic_with_sn(self._target_sn, Topics.SDK_WAIST_ANGLE)
             self._status_topic = self._topic_with_sn(self._target_sn, Topics.SYSTEM_STATUS)
 
             # 创建发布者（SDK -> Zenoh，按 SN 前缀隔离）
             self._publishers['joints'] = self._session.declare_publisher(joint_topic)
             self._publishers['chassis'] = self._session.declare_publisher(chassis_topic)
+            self._publishers['pelvis_height'] = self._session.declare_publisher(pelvis_height_topic)
+            self._publishers['waist_angle'] = self._session.declare_publisher(waist_angle_topic)
 
             # 双重校验：收到匹配 SN 的状态机状态
             if verify:
@@ -452,6 +457,7 @@ class Mantis:
                     if recv_ip:
                         self._robot_ip = recv_ip
                     self._system_status = data
+                    self._last_status_update_time = time.monotonic()
                     received.append(True)
 
                 sub = self._session.declare_subscriber(self._status_topic, _check_callback)
@@ -556,6 +562,24 @@ class Mantis:
     def _publish_waist(self):
         self._check_connection()
         self._publish_full_state()
+        if self._robot_version == "3.0":
+            self._publish_pelvis_height()
+
+    def _publish_pelvis_height(self):
+        self._check_connection()
+        data = {
+            'height': float(self._waist._height),
+            'max_velocity': float(self._waist._speed)
+        }
+        self._publishers['pelvis_height'].put(json.dumps(data).encode('utf-8'))
+
+    def _publish_waist_angle(self):
+        self._check_connection()
+        data = {
+            'angle': float(self._waist._bend_angle),
+            'max_velocity': float(self._waist._bend_speed)
+        }
+        self._publishers['waist_angle'].put(json.dumps(data).encode('utf-8'))
 
     def _publish_full_state(self):
         """发送所有模块的当前目标状态。确保所有数据均为 float 类型。"""
@@ -687,19 +711,25 @@ class Mantis:
             pass
             
         # 阶段 2: 等待运动标志位变 0 (Waiting for motion to STOP)
-        consecutive_stops = 0
-        REQUIRED_STOPS = 5  # 增加到 20 次 (20 * 5ms = 100ms)，确保彻底停稳
+        stable_stop_start = None
+        last_seen_status_update_time = self._last_status_update_time
+        required_stop_duration = 0.12
         
         while True:
             is_moving = self.is_moving(joint_names)
+            current_status_update_time = self._last_status_update_time
+            has_fresh_status = current_status_update_time != last_seen_status_update_time
+            last_seen_status_update_time = current_status_update_time
             
             if not is_moving:
-                consecutive_stops += 1
+                if has_fresh_status:
+                    now = time.monotonic()
+                    if stable_stop_start is None:
+                        stable_stop_start = now
+                    elif now - stable_stop_start >= required_stop_duration:
+                        break
             else:
-                consecutive_stops = 0
-                
-            if consecutive_stops >= REQUIRED_STOPS:
-                break
+                stable_stop_start = None
                 
             time.sleep(0.001)
     
@@ -744,6 +774,8 @@ class Mantis:
         """
         if self._connected:
             self._chassis.stop()
+            if self._robot_version == "3.0" and self._waist.bend_angle != 0.0:
+                self._waist.set_bend(0.0, block=False)
     
     def subscribe_status(self, callback: Optional[Callable] = None):
         """订阅系统状态反馈。
@@ -761,6 +793,7 @@ class Mantis:
             try:
                 data = json.loads(sample.payload.to_bytes().decode('utf-8'))
                 self._system_status = data
+                self._last_status_update_time = time.monotonic()
                 if self._status_callback:
                     self._status_callback(data)
             except Exception as e:

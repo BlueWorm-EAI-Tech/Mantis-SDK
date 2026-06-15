@@ -1,6 +1,8 @@
 import json
+import math
 from pathlib import Path
 import sys
+import time
 
 import numpy as np
 import pytest
@@ -202,3 +204,113 @@ def test_direct_arm_joint_control_stays_available_for_robot_version_3_0():
     assert robot.left_arm.positions[0] == 0.3
     assert robot.right_arm.positions == [0.1] * 7
     assert not hasattr(robot, "_ik_solver_instance")
+
+
+def test_waist_bend_angle_control_is_available_for_robot_version_3_0():
+    robot = Mantis(robot_version="3.0")
+    robot._connected = True
+    publisher = _FakePublisher()
+    robot._publishers["waist_angle"] = publisher
+
+    robot.waist.set_bend_speed(0.25)
+    robot.waist.set_bend(-0.4)
+
+    assert robot.waist.bend_angle == pytest.approx(-0.4)
+    assert len(publisher.messages) == 1
+    msg = json.loads(publisher.messages[0].decode("utf-8"))
+    assert msg == {"angle": pytest.approx(-0.4), "max_velocity": pytest.approx(0.25)}
+
+
+def test_waist_bend_direction_helpers_match_forward_backward_semantics():
+    robot = Mantis(robot_version="3.0")
+    robot._connected = True
+    publisher = _FakePublisher()
+    robot._publishers["waist_angle"] = publisher
+
+    robot.waist.bend_forward(0.6)
+    robot.waist.bend_backward(0.25)
+    robot.waist.set_bend(0.0)
+
+    messages = [json.loads(payload.decode("utf-8")) for payload in publisher.messages]
+    assert messages == [
+        {"angle": pytest.approx(-0.6), "max_velocity": pytest.approx(math.radians(20.0))},
+        {
+            "angle": pytest.approx(math.radians(5.0)),
+            "max_velocity": pytest.approx(math.radians(20.0)),
+        },
+        {"angle": pytest.approx(0.0), "max_velocity": pytest.approx(math.radians(20.0))},
+    ]
+
+
+def test_waist_height_publishes_v3_pelvis_height_position_command():
+    robot = Mantis(robot_version="3.0")
+    robot._connected = True
+    robot._publishers["joints"] = _FakePublisher()
+    robot._publishers["pelvis_height"] = _FakePublisher()
+
+    robot.waist.set_speed(0.12)
+    robot.waist.set_height(0.05, block=False)
+
+    messages = [
+        json.loads(payload.decode("utf-8"))
+        for payload in robot._publishers["pelvis_height"].messages
+    ]
+    assert messages == [{"height": pytest.approx(0.05), "max_velocity": pytest.approx(0.12)}]
+
+
+def test_waist_bend_control_is_not_available_for_robot_version_2_0():
+    robot = Mantis()
+    robot._connected = True
+
+    with pytest.raises(NotImplementedError, match="弯腰"):
+        robot.waist.set_bend(0.5)
+
+
+def test_waist_home_resets_bend_angle_for_robot_version_3_0():
+    robot = Mantis(robot_version="3.0")
+    robot._connected = True
+    robot._publishers["joints"] = _FakePublisher()
+    robot._publishers["pelvis_height"] = _FakePublisher()
+    robot._publishers["waist_angle"] = _FakePublisher()
+    robot._publish_full_state = lambda: None
+
+    robot.waist.set_bend(-0.8, block=False)
+    robot.waist.home(block=False)
+
+    messages = [
+        json.loads(payload.decode("utf-8"))
+        for payload in robot._publishers["waist_angle"].messages
+    ]
+    assert messages[-1] == {
+        "angle": pytest.approx(0.0),
+        "max_velocity": pytest.approx(math.radians(20.0)),
+    }
+    assert robot.waist.bend_angle == pytest.approx(0.0)
+
+
+def test_wait_requires_fresh_stopped_status_samples_before_returning(monkeypatch):
+    robot = Mantis(robot_version="3.0")
+    robot._connected = True
+    robot._last_status_update_time = 0.0
+    robot._system_status = {
+        "motion_names": ["waist"],
+        "motion_states": [0],
+    }
+
+    time_calls = []
+    wait_calls = []
+
+    def fake_time():
+        time_calls.append(True)
+        return 0.0 if len(time_calls) == 1 else 2.0
+
+    def fake_sleep(duration):
+        wait_calls.append(duration)
+        if len(wait_calls) > 20:
+            raise TimeoutError("wait kept polling for fresh stopped samples")
+
+    monkeypatch.setattr(time, "time", fake_time)
+    monkeypatch.setattr(time, "sleep", fake_sleep)
+
+    with pytest.raises(TimeoutError):
+        robot.wait(["waist"])
