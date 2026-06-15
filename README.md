@@ -25,7 +25,7 @@
 
 - `robot_version="3.0"` 支持双臂直接关节角控制
 - `robot_version="3.0"` 支持双臂 `Arm.ik(...)`，`abs=True/False` 行为与 `2.0` 一致
-- `3.0` 的 SDK IK 当前只覆盖双臂 14 轴，内部按胸部固定 `0` 位处理
+- `Arm.ik(...)` 只发送末端 pose command，IK 在机器人 ROS 侧统一解算；SDK 客户端不再加载本地 IK 依赖
 - `3.0` 当前不包含胸部与腰部 whole-body 控制语义切换
 - SDK / RViz / IK 统一使用 URDF 关节语义；客户端不再做双臂方向映射
 - 如需让实机关节方向与仿真保持一致，方向修正应放在最终下发到硬件的链路处理
@@ -35,7 +35,7 @@
 
 - 🚀 **无 ROS2 依赖**: 客户端只需 Python + Zenoh
 - 🤖 **完整控制**: 双臂、夹爪、头部、腰部、底盘
-- 🦾 **逆运动学 (IK)**: 基于 Pinocchio 的高性能解算，支持绝对位姿与相对增量控制
+- 🦾 **逆运动学 (IK)**: SDK 发送末端目标点，机器人 ROS 侧统一解算，支持绝对位姿与相对增量控制
 - 🔒 **安全限位**: 自动限制在 URDF 定义范围内
 - 🎯 **统一驱动**: 同一套代码控制 RViz 仿真和实机
 - ⚡ **并行运动**: 阻塞/非阻塞模式，支持多部件同时运动
@@ -49,23 +49,7 @@
 pip install bw-mantis-sdk
 ```
 
-### 依赖安装 (IK 功能)
-
-如果需要使用 IK (逆运动学) 功能，请按照以下步骤安装 Pinocchio 依赖：
-
-```bash
-# Ensure you have some required installation dependencies 
-sudo apt install -qqy lsb-release curl 
-# Register the authentication certificate of robotpkg: 
-sudo mkdir -p /etc/apt/keyrings 
-curl http://robotpkg.openrobots.org/packages/debian/robotpkg.asc \
-  | sudo tee /etc/apt/keyrings/robotpkg.asc 
-# Add robotpkg as source repository to apt: 
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/robotpkg.asc] http://robotpkg.openrobots.org/packages/debian/pub $(lsb_release -cs) robotpkg" \
-  | sudo tee /etc/apt/sources.list.d/robotpkg.list 
-sudo apt update 
-sudo apt install -qqy robotpkg-py310-pinocchio
-```
+IK 不需要在 SDK 客户端安装 Pinocchio / CasADi。请确保机器人端 ROS 系统已启动 `bw_sdk_input`、`bw_control_router` 和 `bw_core::ArmCommandResolverNode`。
 
 ## 快速开始
 
@@ -224,9 +208,9 @@ RUN_MODE=sdk
 - `is_moving` - 是否正在运动中
 - `set_speed(speed)` - 设置关节速度 (rad/s)
 - `ik(x, y, z, roll, pitch, yaw, block=True, abs=True)` - 末端位姿控制 (IK)。
-  - `abs=True`: 绝对位姿 (位置: m, 姿态: rad)。会自动重置内部目标点。
-  - `abs=False`: 相对增量 (位置: 全局 m, 姿态: 局部 rad)。基于内部维护的目标位姿进行累积，支持连续调用。
-  - `robot_version="3.0"`: 当前支持双臂 IK，但只解双臂 14 轴；胸部按固定零位处理，不包含胸/腰 whole-body 语义。
+  - `abs=True`: 发布绝对位姿 (位置: m, 姿态: rad) 到机器人端 IK 链路。
+  - `abs=False`: 发布相对增量 (位置: 全局 m, 姿态: 局部 rad)，由机器人端 resolver 基于当前末端目标累积。
+  - SDK 不回传 IK 解算 ACK/错误；`block=True` 仅等待机器人运动状态。
 
 ### Gripper (夹爪)
 
@@ -572,7 +556,7 @@ mantis/
 │   ├── head.py         # 头部控制（俯仰/偏航）
 │   ├── waist.py        # 腰部控制（升降）
 │   ├── chassis.py      # 底盘控制（全向移动）
-│   ├── ik_solver.py    # ik求解器
+│   ├── ik_solver.py    # legacy 本地 IK 文件，当前 Arm.ik() 不再使用
 │   └── constants.py    # 关节限位常量
 ├── test_sim.py         # 仿真测试脚本
 ├── test_real.py        # 实机测试脚本

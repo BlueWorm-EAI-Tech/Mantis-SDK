@@ -99,8 +99,8 @@ class Mantis:
             sn: 机器人 SN，例如 "BW_4TEOGD"。
                 如果为 None，可在 connect() 时再指定。
             robot_version: 目标机器人版本，当前支持 ``"2.0"`` 和 ``"3.0"``。
-                ``"3.0"`` 支持双臂直接关节角控制与双臂 IK。
-                当前仍不包含胸部/腰部 whole-body 语义，IK 默认按胸部固定零位处理。
+                ``"3.0"`` 支持双臂直接关节角控制与机器人端 IK pose command。
+                IK 在机器人 ROS 侧执行，SDK 客户端不加载本地 IK 依赖。
         
         Example:
             .. code-block:: python
@@ -111,7 +111,7 @@ class Mantis:
                 # 也可只给 SN
                 robot = Mantis(sn="BW_4TEOGD")
 
-                # 3.0 机器人双臂控制（直控 / IK）
+                # 3.0 机器人双臂控制（直控 / 机器人端 IK）
                 robot = Mantis(sn="BW_4TEOGD", robot_version="3.0")
 
                 # 自动发现（后续 connect 时解析）
@@ -275,13 +275,13 @@ class Mantis:
 
     @property
     def supports_ik(self) -> bool:
-        """当前机器人版本是否支持 SDK 内置 IK。"""
+        """当前机器人版本是否支持机器人端 IK pose command。"""
         return self._robot_version in ("2.0", "3.0")
 
     @property
     def has_active_ik_solver(self) -> bool:
-        """IK 求解器是否已初始化。"""
-        return getattr(self, "_ik_solver_instance", None) is not None
+        """兼容旧属性；SDK 客户端不再初始化本地 IK 求解器。"""
+        return False
 
     def _ensure_ik_supported(self) -> None:
         """在使用 IK 相关能力前校验当前版本是否支持。"""
@@ -425,6 +425,7 @@ class Mantis:
             self._robot_sn = self._target_sn
 
             joint_topic = self._topic_with_sn(self._target_sn, Topics.SDK_JOINT_STATES)
+            arm_command_topic = self._topic_with_sn(self._target_sn, Topics.SDK_ARM_COMMAND)
             chassis_topic = self._topic_with_sn(self._target_sn, Topics.SDK_CHASSIS)
             pelvis_height_topic = self._topic_with_sn(self._target_sn, Topics.SDK_PELVIS_HEIGHT)
             waist_angle_topic = self._topic_with_sn(self._target_sn, Topics.SDK_WAIST_ANGLE)
@@ -432,6 +433,7 @@ class Mantis:
 
             # 创建发布者（SDK -> Zenoh，按 SN 前缀隔离）
             self._publishers['joints'] = self._session.declare_publisher(joint_topic)
+            self._publishers['arm_command'] = self._session.declare_publisher(arm_command_topic)
             self._publishers['chassis'] = self._session.declare_publisher(chassis_topic)
             self._publishers['pelvis_height'] = self._session.declare_publisher(pelvis_height_topic)
             self._publishers['waist_angle'] = self._session.declare_publisher(waist_angle_topic)
@@ -536,6 +538,14 @@ class Mantis:
         """
         self._check_connection()
         self._publish_full_state()
+
+    def _publish_arm_command(self, command: Dict[str, Any]):
+        """发布手臂统一命令。
+
+        SDK 只发送目标语义，IK 解算由机器人 ROS 侧统一链路完成。
+        """
+        self._check_connection()
+        self._publishers['arm_command'].put(json.dumps(command).encode('utf-8'))
 
     
     def _publish_grippers(self):
@@ -810,92 +820,6 @@ class Mantis:
         if callback:
             print("✅ 已订阅系统状态")
     
-    # ==================== IK Solver 接口 ====================
-
-    def _get_ik_solver(self):
-        self._ensure_ik_supported()
-        if not hasattr(self, '_ik_solver_instance') or self._ik_solver_instance is None:
-             from .ik_solver import MantisArmIK
-             self._ik_solver_instance = MantisArmIK()
-             # 初始化时同步 IK 状态到当前的指令位置
-             self.sync_ik_with_commands()
-        return self._ik_solver_instance
-
-    def _get_commanded_joint_config(self):
-        """获取基于当前指令位置的关节配置 (14维)。"""
-        solver = self._get_ik_solver()
-        names = solver.get_joint_names() # URDF names
-        
-        # 构建当前指令的映射
-        commanded_map = {}
-        
-        # 左臂
-        for i, serial_name in enumerate(self._left_arm.joint_names):
-            urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
-            commanded_map[urdf_name] = self._left_arm._positions[i]
-            
-        # 右臂
-        for i, serial_name in enumerate(self._right_arm.joint_names):
-            urdf_name = SERIAL_TO_URDF_MAP.get(serial_name, serial_name)
-            commanded_map[urdf_name] = self._right_arm._positions[i]
-            
-        config = []
-        for name in names:
-            config.append(commanded_map.get(name, 0.0))
-        return config
-
-    def sync_ik_with_commands(self):
-        """将 IK Solver 的内部状态和目标点同步到当前的指令位置。
-        
-        当手动控制关节 (如 home, set_joints) 时应调用此方法，
-        以防止 IK 增量控制基于过期的目标点。
-        """
-        self._ensure_ik_supported()
-        solver = self._get_ik_solver()
-        q_cmd = self._get_commanded_joint_config()
-        
-        # 1. 更新 IK 种子状态
-        solver.set_config(q_cmd)
-        
-        # 2. 强制重置目标点为当前指令位置
-        solver.reset_targets()
-
-    def _get_ordered_joint_config(self):
-        """获取 IK Solver 需要的当前关节配置（14维）。
-        
-        优先使用指令位置 (Open Loop)，因为目前 SDK 未订阅实时关节反馈。
-        """
-        return self._get_commanded_joint_config()
-
-    def solve_ik_abs(self, T_left, T_right):
-        """调用 IK Solver 解算关节角 (绝对模式)。"""
-        self._ensure_ik_supported()
-        solver = self._get_ik_solver()
-        
-        # 同步当前状态，确保热启动和正则化正确
-        q_current = self._get_ordered_joint_config()
-        solver.set_config(q_current)
-        
-        return solver.solve_ik_abs(T_left, T_right)
-
-    def solve_ik_rel(self, delta_left, delta_right):
-        """调用 IK Solver 解算关节角 (增量模式)。"""
-        self._ensure_ik_supported()
-        solver = self._get_ik_solver()
-        
-        # 同步当前状态
-        q_current = self._get_ordered_joint_config()
-        solver.set_config(q_current)
-        
-        return solver.solve_ik_rel(delta_left, delta_right)
-
-    def compute_fk(self):
-        """计算当前 FK。"""
-        self._ensure_ik_supported()
-        solver = self._get_ik_solver()
-        q_current = self._get_ordered_joint_config()
-        return solver.compute_fk(q_current)
-
     # ==================== 上下文管理 ====================
     
     def __enter__(self) -> "Mantis":
