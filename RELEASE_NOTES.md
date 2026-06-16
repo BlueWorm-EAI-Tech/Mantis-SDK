@@ -1,10 +1,22 @@
 # Mantis SDK Release Notes
 
-📅 最新版本: V1.3.10 (2026-06-16)
+📅 最新版本: V1.3.11 (2026-06-16)
 
 ## Changelog
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+### [1.3.11] - 2026-06-16
+
+**文档**
+
+- 新增 `examples/` 分组目录，按连接、发现、手臂、IK、夹爪、头部、腰部、底盘和 workflow 组织可运行示例。
+- 示例统一使用 `--ip` / `--sn` 参数，不再在可运行脚本中硬编码机器人目标。
+- 新增 examples 能力矩阵，方便按 SDK 功能查找对应示例。
+
+**测试**
+
+- 新增 examples 布局测试，防止根目录重新出现可运行示例脚本或 Python 3.8 不兼容 argparse 用法。
 
 ### [1.3.10] - 2026-06-16
 

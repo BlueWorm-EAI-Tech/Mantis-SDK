@@ -3,9 +3,9 @@
 诊断脚本：检查 Zenoh 侧是否能读到机器人身份话题 sn。
 
 用法：
-  /bin/python test_sn_read.py
-  /bin/python test_sn_read.py --topic /sn --duration 30
-  /bin/python test_sn_read.py --router-ip 192.168.1.111 --router-port 7447
+  python -m examples.discovery.sn_topic_diagnostic
+  python -m examples.discovery.sn_topic_diagnostic --topic /sn --duration 30
+  python -m examples.discovery.sn_topic_diagnostic --router-ip 192.168.1.100 --router-port 7447
 """
 
 from __future__ import annotations

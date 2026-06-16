@@ -1,7 +1,7 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.3.10-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.11-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
@@ -559,6 +559,7 @@ mantis/
 │   ├── chassis.py      # 底盘控制（全向移动）
 │   ├── ik_solver.py    # legacy 本地 IK 文件，当前 Arm.ik() 不再使用
 │   └── constants.py    # 关节限位常量
+├── examples/           # 可运行 SDK 示例（按功能分组）
 ├── tests/              # 自动化回归测试
 └── README.md
 ```
