@@ -42,16 +42,18 @@ EXPECTED_EXAMPLES = {
 }
 
 CAPABILITY_KEYWORDS = {
-    "connection",
-    "discovery",
-    "status",
-    "arm",
+    "通用参数",
+    "功能覆盖表",
+    "连接",
+    "发现",
+    "状态",
+    "手臂",
     "ik",
-    "gripper",
-    "head",
-    "waist",
-    "chassis",
-    "parallel",
+    "夹爪",
+    "头部",
+    "腰部",
+    "底盘",
+    "并行",
     "workflow",
 }
 
