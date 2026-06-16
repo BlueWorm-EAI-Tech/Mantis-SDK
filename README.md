@@ -1,7 +1,7 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.3.9-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.10-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
@@ -26,6 +26,7 @@
 - `robot_version="3.0"` 支持双臂直接关节角控制
 - `robot_version="3.0"` 支持双臂 `Arm.ik(...)`，`abs=True/False` 行为与 `2.0` 一致
 - `Arm.ik(...)` 只发送末端 pose command，IK 在机器人 ROS 侧统一解算；SDK 客户端不再加载本地 IK 依赖
+- SDK 包不再携带本地 IK URDF / mesh 资源，机器人端负责维护解算模型
 - `3.0` 当前不包含胸部与腰部 whole-body 控制语义切换
 - SDK / RViz / IK 统一使用 URDF 关节语义；客户端不再做双臂方向映射
 - 如需让实机关节方向与仿真保持一致，方向修正应放在最终下发到硬件的链路处理
@@ -558,10 +559,7 @@ mantis/
 │   ├── chassis.py      # 底盘控制（全向移动）
 │   ├── ik_solver.py    # legacy 本地 IK 文件，当前 Arm.ik() 不再使用
 │   └── constants.py    # 关节限位常量
-├── test_sim.py         # 仿真测试脚本
-├── test_real.py        # 实机测试脚本
-├── test_chassis.py     # 底盘测试脚本
-├── test_gripper.py     # 夹爪测试脚本
+├── tests/              # 自动化回归测试
 └── README.md
 ```
 

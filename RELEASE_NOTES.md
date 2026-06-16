@@ -1,10 +1,21 @@
 # Mantis SDK Release Notes
 
-📅 最新版本: V1.3.9 (2026-05-14)
+📅 最新版本: V1.3.10 (2026-06-16)
 
 ## Changelog
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+### [1.3.10] - 2026-06-16
+
+**清理**
+
+- 移除 SDK 包内不再使用的本地 IK URDF / mesh 资源，IK 模型由机器人 ROS 侧维护。
+- 移除 `MANIFEST.in` 中对 `mantis/model` 的打包规则，SDK 客户端安装包只保留运行时需要的 Python 代码。
+
+**测试**
+
+- 新增回归测试，防止 SDK 重新 vendor 本地 IK 模型资源或本地 IK 求解依赖。
 
 ### [1.3.9] - 2026-05-14
 
