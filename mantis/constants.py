@@ -178,6 +178,9 @@ class Topics:
 
     #: 手臂统一命令（SDK 发布，Python 桥接节点订阅）
     SDK_ARM_COMMAND = "sdk/arm_command"
+
+    #: 手臂统一命令状态（Python 桥接节点发布，SDK 订阅）
+    SDK_ARM_COMMAND_STATUS = "sdk/arm_command_status"
     
     #: 底盘速度命令（SDK 发布，Python 桥接节点订阅）
     SDK_CHASSIS = "sdk/chassis"

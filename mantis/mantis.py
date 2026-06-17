@@ -28,6 +28,7 @@ from typing import Optional, Callable, Dict, Any
 import time
 import json
 import threading
+import uuid
 
 try:
     import zenoh
@@ -136,6 +137,9 @@ class Mantis:
         self._robot_ip: Optional[str] = None
         self._robot_sn: Optional[str] = None
         self._status_topic = Topics.SYSTEM_STATUS
+        self._arm_command_status_topic = Topics.SDK_ARM_COMMAND_STATUS
+        self._arm_command_lock = threading.Lock()
+        self._pending_arm_commands: Dict[str, Dict[str, Any]] = {}
         
         # 创建子模块
         self._left_arm = Arm(self, "left")
@@ -289,6 +293,10 @@ class Mantis:
             return
         raise NotImplementedError(f"{self._robot_version} 当前 SDK 不支持 IK")
 
+    def _next_command_id(self) -> str:
+        """生成 SDK 手臂命令唯一 ID。"""
+        return f"sdk-{uuid.uuid4().hex}"
+
     def _resolve_identity(
         self,
         timeout: float,
@@ -430,6 +438,10 @@ class Mantis:
             pelvis_height_topic = self._topic_with_sn(self._target_sn, Topics.SDK_PELVIS_HEIGHT)
             waist_angle_topic = self._topic_with_sn(self._target_sn, Topics.SDK_WAIST_ANGLE)
             self._status_topic = self._topic_with_sn(self._target_sn, Topics.SYSTEM_STATUS)
+            self._arm_command_status_topic = self._topic_with_sn(
+                self._target_sn,
+                Topics.SDK_ARM_COMMAND_STATUS,
+            )
 
             # 创建发布者（SDK -> Zenoh，按 SN 前缀隔离）
             self._publishers['joints'] = self._session.declare_publisher(joint_topic)
@@ -487,6 +499,7 @@ class Mantis:
             
             # 自动订阅反馈和状态，用于更新内部状态 (robot_ip, system_status)
             self.subscribe_status(None)
+            self._subscribe_arm_command_status()
             
             return True
             
@@ -516,6 +529,8 @@ class Mantis:
             self._session = None
             self._publishers.clear()
             self._subscribers.clear()
+            with self._arm_command_lock:
+                self._pending_arm_commands.clear()
             self._connected = False
             print("✅ 已断开连接")
     
@@ -539,13 +554,186 @@ class Mantis:
         self._check_connection()
         self._publish_full_state()
 
-    def _publish_arm_command(self, command: Dict[str, Any]):
+    def _publish_arm_command(self, command: Dict[str, Any], wait_joint_names: Optional[list] = None):
         """发布手臂统一命令。
 
         SDK 只发送目标语义，IK 解算由机器人 ROS 侧统一链路完成。
         """
         self._check_connection()
-        self._publishers['arm_command'].put(json.dumps(command).encode('utf-8'))
+        command = dict(command)
+        command_id = str(command.get("command_id") or self._next_command_id())
+        command["command_id"] = command_id
+        self._register_pending_arm_command(command_id, command, wait_joint_names)
+        try:
+            self._publishers['arm_command'].put(json.dumps(command).encode('utf-8'))
+        except Exception:
+            with self._arm_command_lock:
+                self._pending_arm_commands.pop(command_id, None)
+            raise
+        return command_id
+
+    def _publish_arm_joint_command(
+        self,
+        wait_joint_names: Optional[list] = None,
+        motion_profile: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """通过统一手臂命令发布当前双臂 14 轴目标。"""
+        self._check_connection()
+        names = [SERIAL_TO_URDF_MAP.get(name, name) for name in JOINT_NAMES]
+        positions = self._left_arm._positions + self._right_arm._positions
+        command = {
+            "command_type": "joint",
+            "name": names,
+            "position": [float(value) for value in positions],
+        }
+        if motion_profile:
+            command["motion_profile"] = dict(motion_profile)
+        return self._publish_arm_command(command, wait_joint_names=wait_joint_names)
+
+    def _register_pending_arm_command(
+        self,
+        command_id: str,
+        command: Dict[str, Any],
+        wait_joint_names: Optional[list] = None,
+    ) -> None:
+        """登记一条 SDK 手臂命令，供 block=True 和 robot.wait() 精确等待。"""
+        event = threading.Event()
+        joint_names = (
+            self._with_urdf_aliases(wait_joint_names)
+            if wait_joint_names is not None
+            else self._arm_joint_names_for_command(command)
+        )
+        with self._arm_command_lock:
+            self._pending_arm_commands[command_id] = {
+                "event": event,
+                "status": None,
+                "message": "",
+                "target": {},
+                "joint_names": joint_names,
+                "created_at": time.monotonic(),
+            }
+
+    def _arm_joint_names_for_command(self, command: Dict[str, Any]) -> list:
+        """根据 SDK 命令估算其影响的手臂关节。"""
+        command_type = str(command.get("command_type", "joint"))
+        if command_type == "joint":
+            return self._with_urdf_aliases(JOINT_NAMES)
+
+        side = str(command.get("side", "both")).lower()
+        if side == "left":
+            return self._with_urdf_aliases(self._left_arm.joint_names)
+        if side == "right":
+            return self._with_urdf_aliases(self._right_arm.joint_names)
+        return self._with_urdf_aliases(JOINT_NAMES)
+
+    @staticmethod
+    def _with_urdf_aliases(joint_names: list) -> list:
+        """把 legacy snake_case 关节名扩展出 URDF CamelCase 别名。"""
+        expanded = list(joint_names)
+        for name in joint_names:
+            alias = SERIAL_TO_URDF_MAP.get(name)
+            if alias and alias not in expanded:
+                expanded.append(alias)
+        return expanded
+
+    def _handle_arm_command_status(self, data: Dict[str, Any]) -> None:
+        """处理机器人端回传的 SDK 手臂命令状态。"""
+        command_id = str(data.get("command_id") or "")
+        if not command_id:
+            return
+
+        status = self._parse_arm_command_status(data.get("status"))
+        target = data.get("target") or {}
+        target_names = list(target.get("name", [])) if isinstance(target, dict) else []
+
+        with self._arm_command_lock:
+            pending = self._pending_arm_commands.get(command_id)
+            if pending is None:
+                return
+            pending["status"] = status
+            pending["message"] = str(data.get("message") or "")
+            pending["target"] = target if isinstance(target, dict) else {}
+            if target_names:
+                pending["target_joint_names"] = target_names
+            if status in (4, 5, 6):
+                pending["event"].set()
+
+    @staticmethod
+    def _parse_arm_command_status(value) -> int:
+        """把状态数字或字符串统一为 ArmCommandStatus 枚举值。"""
+        if isinstance(value, str):
+            normalized = value.strip().upper()
+            mapping = {
+                "STATUS_RECEIVED": 1,
+                "RECEIVED": 1,
+                "STATUS_ROUTED": 2,
+                "ROUTED": 2,
+                "STATUS_RESOLVED": 3,
+                "RESOLVED": 3,
+                "STATUS_FAILED": 4,
+                "FAILED": 4,
+                "STATUS_COMPLETED": 5,
+                "COMPLETED": 5,
+                "STATUS_TIMEOUT": 6,
+                "TIMEOUT": 6,
+            }
+            if normalized in mapping:
+                return mapping[normalized]
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
+    def _wait_arm_command(self, command_id: str, timeout: float = 10.0) -> None:
+        """等待指定 SDK 手臂命令完成。"""
+        with self._arm_command_lock:
+            pending = self._pending_arm_commands.get(command_id)
+
+        if pending is None:
+            raise TimeoutError(f"SDK arm command {command_id} is not pending")
+
+        if not pending["event"].wait(timeout=max(float(timeout), 0.001)):
+            with self._arm_command_lock:
+                self._pending_arm_commands.pop(command_id, None)
+            raise TimeoutError(f"SDK arm command {command_id} timed out")
+
+        status = pending.get("status")
+        message = pending.get("message") or "no message"
+        with self._arm_command_lock:
+            self._pending_arm_commands.pop(command_id, None)
+
+        if status == 5:
+            return
+        if status == 4:
+            raise RuntimeError(f"SDK arm command {command_id} failed: {message}")
+        if status == 6:
+            raise TimeoutError(f"SDK arm command {command_id} timed out: {message}")
+        raise RuntimeError(
+            f"SDK arm command {command_id} ended with unexpected status {status}: {message}"
+        )
+
+    def _wait_pending_arm_commands(self, joint_names: Optional[list] = None) -> int:
+        """等待已发出的 SDK 手臂命令，返回实际等待的命令数量。"""
+        with self._arm_command_lock:
+            command_ids = [
+                command_id
+                for command_id, pending in self._pending_arm_commands.items()
+                if self._pending_arm_command_matches(pending, joint_names)
+            ]
+
+        waited = 0
+        for command_id in command_ids:
+            self._wait_arm_command(command_id)
+            waited += 1
+        return waited
+
+    @staticmethod
+    def _pending_arm_command_matches(pending: Dict[str, Any], joint_names: Optional[list]) -> bool:
+        if not joint_names:
+            return True
+        requested = set(joint_names)
+        pending_names = set(pending.get("joint_names") or [])
+        return bool(requested & pending_names)
 
     
     def _publish_grippers(self):
@@ -680,7 +868,7 @@ class Mantis:
         """等待部件运动完成。
         
         阻塞直到指定的部件完成运动。
-        基于机器人反馈的 system_status 进行判断。
+        SDK 手臂命令优先等待 command_id 精确闭环；非手臂仍基于 system_status 判断。
         
         Args:
             joint_names: 要等待的关节名称列表。如果为 None，则等待所有部件。
@@ -700,6 +888,11 @@ class Mantis:
                 robot.wait(robot.left_arm.joint_names)
         """
         import time
+
+        waited_arm_commands = self._wait_pending_arm_commands(joint_names)
+        if waited_arm_commands > 0 and self._only_arm_joints_requested(joint_names):
+            return
+
         # 初始等待，确保指令已发送且状态已更新
         # 即使在 100Hz 下，网络传输和 ROS 内部处理也需要时间
         time.sleep(0.01)
@@ -776,6 +969,13 @@ class Mantis:
                 if idx < len(motion_states) and motion_states[idx] == 1:
                     return True
         return False
+
+    @staticmethod
+    def _only_arm_joints_requested(joint_names: Optional[list]) -> bool:
+        """判断 wait() 是否只针对手臂关节。"""
+        if not joint_names:
+            return False
+        return set(joint_names).issubset(set(JOINT_NAMES))
     
     def stop(self):
         """停止所有运动。
@@ -819,6 +1019,25 @@ class Mantis:
         )
         if callback:
             print("✅ 已订阅系统状态")
+
+    def _subscribe_arm_command_status(self):
+        """订阅 SDK 手臂命令状态反馈。"""
+        self._check_connection()
+
+        def _on_arm_command_status(sample):
+            try:
+                data = json.loads(sample.payload.to_bytes().decode("utf-8"))
+                self._handle_arm_command_status(data)
+            except Exception as e:
+                print(f"⚠️ 解析手臂命令状态失败: {e}")
+
+        if "arm_command_status" in self._subscribers:
+            self._subscribers["arm_command_status"].undeclare()
+
+        self._subscribers["arm_command_status"] = self._session.declare_subscriber(
+            self._arm_command_status_topic,
+            _on_arm_command_status,
+        )
     
     # ==================== 上下文管理 ====================
     

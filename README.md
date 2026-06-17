@@ -26,6 +26,7 @@
 - `robot_version="3.0"` 支持双臂直接关节角控制
 - `robot_version="3.0"` 支持双臂 `Arm.ik(...)`，`abs=True/False` 行为与 `2.0` 一致
 - `Arm.ik(...)` 只发送末端 pose command，IK 在机器人 ROS 侧统一解算；SDK 客户端不再加载本地 IK 依赖
+- `Arm.ik(...)`、`Arm.set_joints(...)`、`Arm.set_joint(...)` 的 `block=True` 会等待同一条 `command_id` 在机器人端解析并由硬件反馈确认到位
 - SDK 包不再携带本地 IK URDF / mesh 资源，机器人端负责维护解算模型
 - `3.0` 当前不包含胸部与腰部 whole-body 控制语义切换
 - SDK / RViz / IK 统一使用 URDF 关节语义；客户端不再做双臂方向映射
@@ -177,7 +178,7 @@ RUN_MODE=sdk
 | ----------------------------------- | -------------------- |
 | `connect(timeout=5.0, verify=True)` | 连接机器人           |
 | `disconnect()`                      | 断开连接             |
-| `on_feedback(callback)`             | 注册关节反馈回调     |
+| `subscribe_status(callback)`        | 注册系统状态回调     |
 | `home(block=True)`                  | 所有关节归零         |
 | `stop()`                            | 停止所有运动         |
 | `wait()`                            | 等待所有部件运动完成 |
@@ -211,7 +212,7 @@ RUN_MODE=sdk
 - `ik(x, y, z, roll, pitch, yaw, block=True, abs=True)` - 末端位姿控制 (IK)。
   - `abs=True`: 发布绝对位姿 (位置: m, 姿态: rad) 到机器人端 IK 链路。
   - `abs=False`: 发布相对增量 (位置: 全局 m, 姿态: 局部 rad)，由机器人端 resolver 基于当前末端目标累积。
-  - SDK 不回传 IK 解算 ACK/错误；`block=True` 仅等待机器人运动状态。
+  - `block=True`: 等待同一条 `command_id` 的 `COMPLETED` 状态；收到 `FAILED` 抛 `RuntimeError`，等待超时抛 `TimeoutError`。
 
 ### Gripper (夹爪)
 
@@ -448,7 +449,7 @@ with Mantis(sim=True) as robot:
     robot.left_arm.set_shoulder_pitch(-0.5, block=False)   # 立即返回
     robot.right_arm.set_shoulder_pitch(-0.5, block=False)  # 立即返回
     robot.head.look_left(block=False)                      # 立即返回
-    robot.wait()  # 等待所有部件完成
+    robot.wait()  # 等待已发出的 SDK 手臂命令完成；非手臂仍等待系统运动状态
     # 总耗时 = 最慢动作的时间
   
     # ===== 分组运动 =====
@@ -468,22 +469,23 @@ with Mantis(sim=True) as robot:
     robot.wait()
 ```
 
-### 6. 关节反馈
+### 6. 系统状态订阅
 
 ```python
-from mantis_sdk import Mantis
+from mantis import Mantis
 import time
 
-def on_feedback(joint_names, positions):
-    print(f"关节反馈: {len(positions)} 个关节")
-    for name, pos in zip(joint_names, positions):
-        print(f"  {name}: {pos:.3f}")
+def on_status(data):
+    motion_names = data.get("motion_names", [])
+    motion_states = data.get("motion_states", [])
+    moving = [name for name, state in zip(motion_names, motion_states) if state == 1]
+    print(f"运动中: {moving}")
 
 with Mantis(ip="192.168.1.100") as robot:
-    # 注册反馈回调
-    robot.on_feedback(on_feedback)
+    # 注册系统状态回调
+    robot.subscribe_status(on_status)
   
-    # 保持运行，接收反馈
+    # 保持运行，接收状态
     time.sleep(10)
 ```
 
@@ -572,7 +574,7 @@ mantis/
 4. **腰部范围**：-0.62m ~ 0.24m
 5. **底盘安全**：运动完成后自动停止，无需手动调用 `stop()`
 6. **摩擦补偿**：地面摩擦力大时，使用 `set_friction()` 增加运动时间补偿
-7. **阻塞模式**：默认 `block=True`，使用 `block=False` 实现并行运动
+7. **阻塞模式**：手臂 joint/IK 命令默认 `block=True`，会等待机器人端同一 `command_id` 完成；使用 `block=False` 可并行发送后再 `robot.wait()`
 8. **连接超时**：默认 5 秒，可通过 `connect(timeout=10)` 调整
 9. **跳过验证**：调试时可用 `connect(verify=False)` 跳过连接验证
 

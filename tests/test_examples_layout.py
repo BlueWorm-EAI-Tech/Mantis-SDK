@@ -47,8 +47,12 @@ CAPABILITY_KEYWORDS = {
     "连接",
     "发现",
     "状态",
+    "subscribe_status",
     "手臂",
     "ik",
+    "block=true",
+    "block=false",
+    "robot.wait",
     "夹爪",
     "头部",
     "腰部",
@@ -73,6 +77,29 @@ def test_examples_cover_public_sdk_capabilities():
     missing_keywords = [word for word in CAPABILITY_KEYWORDS if word not in readme]
 
     assert missing_keywords == []
+
+
+def test_arm_ik_example_covers_blocking_nonblocking_and_both_arms():
+    text = (EXAMPLES_DIR / "arm" / "ik_pose_example.py").read_text(encoding="utf-8")
+
+    assert 'choices=("left", "right", "both")' in text
+    assert "add_common_motion_arguments(parser)" in text
+    assert "_wait_for_arms(robot, arms)" in text
+    assert "block=block and len(arms) == 1" in text
+    assert "abs=True" in text
+    assert "abs=False" in text
+    assert "REL_DELTA = (0.02, 0.00, 0.02" in text
+    assert "add_arm_motion_profile_arguments(parser)" in text
+    assert "**profile_kwargs" in text
+
+
+def test_arm_ik_example_applies_motion_profile_to_home_cleanup():
+    text = (EXAMPLES_DIR / "arm" / "ik_pose_example.py").read_text(encoding="utf-8")
+
+    assert "def _home_arms(robot, arms, block, **motion_profile_kwargs)" in text
+    assert "arm.home(block=True, **motion_profile_kwargs)" in text
+    assert "arm.home(block=False, **motion_profile_kwargs)" in text
+    assert "_home_arms(robot, arms, block=True, **profile_kwargs)" in text
 
 
 def test_examples_keep_python_3_8_argparse_compatibility():

@@ -180,6 +180,9 @@ class Arm:
         clamp: bool = True,
         block: bool = True,
         *,
+        max_velocity: float = None,
+        max_acceleration: float = None,
+        max_jerk: float = None,
         _sync_ik_targets: bool = True,
     ):
         """设置所有关节角度。
@@ -215,10 +218,16 @@ class Arm:
         # `_sync_ik_targets` 保留为兼容旧调用；IK 目标现在由机器人 ROS 侧维护。
         _ = _sync_ik_targets
         
-        self._robot._publish_joints()
-        
-        # 执行运动
-        self._execute_motion(block)
+        motion_profile = self._motion_profile_payload(
+            max_velocity=max_velocity,
+            max_acceleration=max_acceleration,
+            max_jerk=max_jerk,
+        )
+        command_id = self._robot._publish_arm_joint_command(
+            self._joint_names,
+            motion_profile=motion_profile,
+        )
+        self._execute_motion(block, command_id)
     
     def set_joint(
         self,
@@ -227,6 +236,9 @@ class Arm:
         clamp: bool = True,
         block: bool = True,
         *,
+        max_velocity: float = None,
+        max_acceleration: float = None,
+        max_jerk: float = None,
         _sync_ik_targets: bool = True,
     ):
         """设置单个关节角度。
@@ -250,16 +262,40 @@ class Arm:
         # `_sync_ik_targets` 保留为兼容旧调用；IK 目标现在由机器人 ROS 侧维护。
         _ = _sync_ik_targets
 
-        self._robot._publish_joints()
-        
-        # 执行运动
-        self._execute_motion(block)
+        motion_profile = self._motion_profile_payload(
+            max_velocity=max_velocity,
+            max_acceleration=max_acceleration,
+            max_jerk=max_jerk,
+        )
+        command_id = self._robot._publish_arm_joint_command(
+            self._joint_names,
+            motion_profile=motion_profile,
+        )
+        self._execute_motion(block, command_id)
+
+    @staticmethod
+    def _motion_profile_payload(
+        *,
+        max_velocity: float = None,
+        max_acceleration: float = None,
+        max_jerk: float = None,
+    ):
+        values = {
+            "max_velocity": max_velocity,
+            "max_acceleration": max_acceleration,
+            "max_jerk": max_jerk,
+        }
+        profile = {
+            key: float(value)
+            for key, value in values.items()
+            if value is not None
+        }
+        return profile or None
     
-    def _execute_motion(self, block: bool):
+    def _execute_motion(self, block: bool, command_id: str):
         """执行运动。"""
-        # 这里仅用于非阻塞模式下的即时返回
         if block:
-            self.wait()
+            self._robot._wait_arm_command(command_id)
 
     def wait(self):
         """等待当前运动完成。"""
@@ -270,17 +306,34 @@ class Arm:
         """是否正在运动中（基于整机状态）。"""
         return self._robot.is_moving(self.joint_names)
 
-    def home(self, block: bool = True):
+    def home(
+        self,
+        block: bool = True,
+        *,
+        max_velocity: float = None,
+        max_acceleration: float = None,
+        max_jerk: float = None,
+    ):
         """回到零位。
         
         Args:
             block: 是否阻塞等待完成，默认 True
         """
-        self.set_joints([0.0] * NUM_ARM_JOINTS, block=block)
+        self.set_joints(
+            [0.0] * NUM_ARM_JOINTS,
+            block=block,
+            max_velocity=max_velocity,
+            max_acceleration=max_acceleration,
+            max_jerk=max_jerk,
+        )
 
     def ik(self, x: float, y: float, z: float, 
                      roll: float, pitch: float, yaw: float, 
-                     block: bool = True, abs: bool = True):
+                     block: bool = True, abs: bool = True,
+                     *,
+                     max_velocity: float = None,
+                     max_acceleration: float = None,
+                     max_jerk: float = None):
         """Move arm end-effector to target pose.
 
         The SDK only publishes the target pose command. Inverse kinematics is
@@ -328,9 +381,17 @@ class Arm:
                 ],
             }
 
-        self._robot._publish_arm_command(command)
+        motion_profile = self._motion_profile_payload(
+            max_velocity=max_velocity,
+            max_acceleration=max_acceleration,
+            max_jerk=max_jerk,
+        )
+        if motion_profile is not None:
+            command["motion_profile"] = motion_profile
+
+        command_id = self._robot._publish_arm_command(command)
         if block:
-            self.wait()
+            self._robot._wait_arm_command(command_id)
 
     
     def __repr__(self) -> str:

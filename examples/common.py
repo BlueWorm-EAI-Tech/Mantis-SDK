@@ -71,6 +71,24 @@ def add_common_motion_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def add_arm_motion_profile_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--max-velocity", type=float, help="Override arm max velocity in rad/s.")
+    parser.add_argument("--max-acceleration", type=float, help="Override arm max acceleration in rad/s^2.")
+    parser.add_argument("--max-jerk", type=float, help="Override arm max jerk in rad/s^3.")
+
+
+def arm_motion_profile_kwargs(args: argparse.Namespace) -> dict:
+    return {
+        key: value
+        for key, value in {
+            "max_velocity": getattr(args, "max_velocity", None),
+            "max_acceleration": getattr(args, "max_acceleration", None),
+            "max_jerk": getattr(args, "max_jerk", None),
+        }.items()
+        if value is not None
+    }
+
+
 def print_robot_identity(robot: Mantis) -> None:
     print(f"connected={robot.is_connected}")
     print(f"robot_sn={robot.robot_sn}")

@@ -83,17 +83,43 @@ def test_arm_ik_absolute_control_publishes_robot_side_pose_command():
     assert not hasattr(robot, "_ik_solver_instance")
     assert len(publisher.messages) == 1
     msg = json.loads(publisher.messages[0].decode("utf-8"))
-    assert msg == {
-        "command_type": "pose_abs",
-        "side": "left",
-        "pose": {
-            "x": pytest.approx(0.1),
-            "y": pytest.approx(0.2),
-            "z": pytest.approx(0.3),
-            "roll": pytest.approx(0.0),
-            "pitch": pytest.approx(0.0),
-            "yaw": pytest.approx(0.0),
-        },
+    assert msg["command_type"] == "pose_abs"
+    assert msg["side"] == "left"
+    assert msg["command_id"].startswith("sdk-")
+    assert msg["pose"] == {
+        "x": pytest.approx(0.1),
+        "y": pytest.approx(0.2),
+        "z": pytest.approx(0.3),
+        "roll": pytest.approx(0.0),
+        "pitch": pytest.approx(0.0),
+        "yaw": pytest.approx(0.0),
+    }
+
+
+def test_arm_ik_can_publish_motion_profile_override():
+    robot = _make_connected_robot(robot_version="3.0")
+    publisher = _FakePublisher()
+    robot._publishers["arm_command"] = publisher
+
+    robot.left_arm.ik(
+        0.1,
+        0.2,
+        0.3,
+        0.0,
+        0.0,
+        0.0,
+        block=False,
+        abs=True,
+        max_velocity=2.0,
+        max_acceleration=4.0,
+        max_jerk=8.0,
+    )
+
+    msg = json.loads(publisher.messages[0].decode("utf-8"))
+    assert msg["motion_profile"] == {
+        "max_velocity": pytest.approx(2.0),
+        "max_acceleration": pytest.approx(4.0),
+        "max_jerk": pytest.approx(8.0),
     }
 
 
@@ -107,35 +133,51 @@ def test_arm_ik_relative_control_publishes_robot_side_delta_command():
     assert not hasattr(robot, "_ik_solver_instance")
     assert len(publisher.messages) == 1
     msg = json.loads(publisher.messages[0].decode("utf-8"))
-    assert msg == {
-        "command_type": "pose_rel",
-        "side": "right",
-        "delta": [
-            pytest.approx(0.01),
-            pytest.approx(-0.02),
-            pytest.approx(0.03),
-            pytest.approx(0.1),
-            pytest.approx(-0.2),
-            pytest.approx(0.3),
-        ],
-    }
+    assert msg["command_type"] == "pose_rel"
+    assert msg["side"] == "right"
+    assert msg["command_id"].startswith("sdk-")
+    assert msg["delta"] == [
+        pytest.approx(0.01),
+        pytest.approx(-0.02),
+        pytest.approx(0.03),
+        pytest.approx(0.1),
+        pytest.approx(-0.2),
+        pytest.approx(0.3),
+    ]
 
 
-def test_arm_ik_block_true_waits_without_requiring_solver_ack(monkeypatch):
+def test_arm_ik_block_true_waits_for_matching_command_status(monkeypatch):
     robot = _make_connected_robot(robot_version="3.0")
-    robot._publishers["arm_command"] = _FakePublisher()
-    waited = []
+    publisher = _FakePublisher()
+    robot._publishers["arm_command"] = publisher
+    waited_ids = []
 
-    monkeypatch.setattr(robot.left_arm, "wait", lambda: waited.append(True))
+    def fake_wait_command(command_id, **kwargs):
+        waited_ids.append(command_id)
 
+    monkeypatch.setattr(robot, "_wait_arm_command", fake_wait_command)
     robot.left_arm.ik(0.01, 0.0, 0.0, 0.0, 0.0, 0.0, block=True, abs=False)
 
-    assert waited == [True]
+    msg = json.loads(publisher.messages[0].decode("utf-8"))
+    assert waited_ids == [msg["command_id"]]
+
+
+def test_arm_ik_block_true_raises_failed_status(monkeypatch):
+    robot = _make_connected_robot(robot_version="3.0")
+    robot._publishers["arm_command"] = _FakePublisher()
+
+    def fake_wait_command(command_id, **kwargs):
+        raise RuntimeError(f"SDK arm command {command_id} failed: IK solver failed")
+
+    monkeypatch.setattr(robot, "_wait_arm_command", fake_wait_command)
+
+    with pytest.raises(RuntimeError, match="IK solver failed"):
+        robot.left_arm.ik(0.01, 0.0, 0.0, 0.0, 0.0, 0.0, block=True, abs=False)
 
 
 def test_manual_joint_control_does_not_initialize_local_ik_solver():
     robot = _make_connected_robot(robot_version="3.0")
-    robot._publish_full_state = lambda: None
+    robot._publishers["arm_command"] = _FakePublisher()
 
     robot.left_arm.set_joint(0, 0.2, block=False)
 
@@ -145,14 +187,64 @@ def test_manual_joint_control_does_not_initialize_local_ik_solver():
 def test_direct_arm_joint_control_stays_available_for_robot_version_3_0():
     robot = Mantis(robot_version="3.0")
     robot._connected = True
-    robot._publish_full_state = lambda: None
+    robot._publishers["arm_command"] = _FakePublisher()
 
     robot.left_arm.set_joint(0, 0.3, block=False)
     robot.right_arm.set_joints([0.1] * 7, block=False)
 
     assert robot.left_arm.positions[0] == 0.3
     assert robot.right_arm.positions == [0.1] * 7
+    messages = [
+        json.loads(payload.decode("utf-8"))
+        for payload in robot._publishers["arm_command"].messages
+    ]
+    assert messages[-1]["command_type"] == "joint"
+    assert messages[-1]["command_id"].startswith("sdk-")
+    assert messages[-1]["name"] == list(URDF_ARM_JOINT_NAMES)
     assert not hasattr(robot, "_ik_solver_instance")
+
+
+def test_direct_arm_joint_control_can_publish_motion_profile_override():
+    robot = Mantis(robot_version="3.0")
+    robot._connected = True
+    robot._publishers["arm_command"] = _FakePublisher()
+
+    robot.left_arm.set_joint(
+        0,
+        0.3,
+        block=False,
+        max_velocity=1.5,
+        max_acceleration=3.0,
+        max_jerk=6.0,
+    )
+
+    msg = json.loads(robot._publishers["arm_command"].messages[-1].decode("utf-8"))
+    assert msg["motion_profile"] == {
+        "max_velocity": pytest.approx(1.5),
+        "max_acceleration": pytest.approx(3.0),
+        "max_jerk": pytest.approx(6.0),
+    }
+
+
+def test_arm_home_can_publish_motion_profile_override():
+    robot = Mantis(robot_version="3.0")
+    robot._connected = True
+    robot._publishers["arm_command"] = _FakePublisher()
+
+    robot.left_arm.home(
+        block=False,
+        max_velocity=2.0,
+        max_acceleration=4.0,
+        max_jerk=8.0,
+    )
+
+    msg = json.loads(robot._publishers["arm_command"].messages[-1].decode("utf-8"))
+    assert msg["command_type"] == "joint"
+    assert msg["motion_profile"] == {
+        "max_velocity": pytest.approx(2.0),
+        "max_acceleration": pytest.approx(4.0),
+        "max_jerk": pytest.approx(8.0),
+    }
 
 
 def test_waist_bend_angle_control_is_available_for_robot_version_3_0():
