@@ -559,7 +559,6 @@ mantis/
 │   ├── head.py         # 头部控制（俯仰/偏航）
 │   ├── waist.py        # 腰部控制（升降）
 │   ├── chassis.py      # 底盘控制（全向移动）
-│   ├── ik_solver.py    # legacy 本地 IK 文件，当前 Arm.ik() 不再使用
 │   └── constants.py    # 关节限位常量
 ├── examples/           # 可运行 SDK 示例（按功能分组）
 ├── tests/              # 自动化回归测试

@@ -20,8 +20,6 @@ Example:
             robot.right_gripper.close(block=False)
 """
 
-import time
-import threading
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -138,7 +136,6 @@ class Gripper:
             position: 目标位置 (0.0-1.0)
             block: 是否阻塞等待完成，默认 True
         """
-        old_position = self._position
         self._position = max(0.0, min(1.0, position))
 
         self._robot._publish_grippers()
@@ -146,7 +143,7 @@ class Gripper:
     
     def __repr__(self) -> str:
         """返回夹爪的字符串表示。"""
-        status = "运动中" if self._is_moving else "停止"
+        status = "运动中" if self.is_moving else "停止"
         return f"Gripper('{self._side}', {status}, pos={self._position:.2f})"
 
 

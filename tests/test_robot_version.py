@@ -80,7 +80,6 @@ def test_arm_ik_absolute_control_publishes_robot_side_pose_command():
 
     robot.left_arm.ik(0.1, 0.2, 0.3, 0.0, 0.0, 0.0, block=False, abs=True)
 
-    assert not hasattr(robot, "_ik_solver_instance")
     assert len(publisher.messages) == 1
     msg = json.loads(publisher.messages[0].decode("utf-8"))
     assert msg["command_type"] == "pose_abs"
@@ -130,7 +129,6 @@ def test_arm_ik_relative_control_publishes_robot_side_delta_command():
 
     robot.right_arm.ik(0.01, -0.02, 0.03, 0.1, -0.2, 0.3, block=False, abs=False)
 
-    assert not hasattr(robot, "_ik_solver_instance")
     assert len(publisher.messages) == 1
     msg = json.loads(publisher.messages[0].decode("utf-8"))
     assert msg["command_type"] == "pose_rel"
@@ -175,15 +173,6 @@ def test_arm_ik_block_true_raises_failed_status(monkeypatch):
         robot.left_arm.ik(0.01, 0.0, 0.0, 0.0, 0.0, 0.0, block=True, abs=False)
 
 
-def test_manual_joint_control_does_not_initialize_local_ik_solver():
-    robot = _make_connected_robot(robot_version="3.0")
-    robot._publishers["arm_command"] = _FakePublisher()
-
-    robot.left_arm.set_joint(0, 0.2, block=False)
-
-    assert not hasattr(robot, "_ik_solver_instance")
-
-
 def test_direct_arm_joint_control_stays_available_for_robot_version_3_0():
     robot = Mantis(robot_version="3.0")
     robot._connected = True
@@ -201,7 +190,6 @@ def test_direct_arm_joint_control_stays_available_for_robot_version_3_0():
     assert messages[-1]["command_type"] == "joint"
     assert messages[-1]["command_id"].startswith("sdk-")
     assert messages[-1]["name"] == list(URDF_ARM_JOINT_NAMES)
-    assert not hasattr(robot, "_ik_solver_instance")
 
 
 def test_direct_arm_joint_control_can_publish_motion_profile_override():

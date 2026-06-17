@@ -14,7 +14,6 @@ def main() -> int:
     with connected_robot(args) as robot:
         print_robot_identity(robot)
         print("supports_ik=", robot.supports_ik)
-        print("has_active_ik_solver=", robot.has_active_ik_solver)
         print("system_status=")
         print(json.dumps(robot.system_status, ensure_ascii=False, indent=2))
 

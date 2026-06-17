@@ -30,7 +30,7 @@ Example:
 
 import time
 import math
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .mantis import Mantis
@@ -94,12 +94,6 @@ class Chassis:
         self._default_angular_speed = self.DEFAULT_ANGULAR_SPEED
         self._linear_friction = self.DEFAULT_LINEAR_FRICTION
         self._angular_friction = self.DEFAULT_ANGULAR_FRICTION
-        # self._is_moving = False # 移除
-    
-    # @property # 移除
-    # def is_moving(self) -> bool:
-    #     """是否正在运动中。"""
-    #     return self._is_moving
     
     def set_friction(self, linear: float = None, angular: float = None):
         """设置摩擦补偿系数。
@@ -242,7 +236,6 @@ class Chassis:
         self._vx = 0.0
         self._vy = 0.0
         self._omega = 0.0
-        # self._is_moving = False # 移除
         self._robot._publish_chassis()
     
     # ==================== 内部方法 ====================

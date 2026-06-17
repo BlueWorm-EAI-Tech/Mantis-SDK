@@ -282,11 +282,6 @@ class Mantis:
         """当前机器人版本是否支持机器人端 IK pose command。"""
         return self._robot_version in ("2.0", "3.0")
 
-    @property
-    def has_active_ik_solver(self) -> bool:
-        """兼容旧属性；SDK 客户端不再初始化本地 IK 求解器。"""
-        return False
-
     def _ensure_ik_supported(self) -> None:
         """在使用 IK 相关能力前校验当前版本是否支持。"""
         if self.supports_ik:

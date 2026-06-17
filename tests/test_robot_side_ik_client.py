@@ -8,12 +8,8 @@ MANIFEST = REPO_ROOT / "MANIFEST.in"
 MODEL_DIR = REPO_ROOT / "mantis" / "model"
 
 
-def test_sdk_ik_stub_does_not_import_local_ik_dependencies():
-    text = IK_SOLVER.read_text(encoding="utf-8")
-
-    assert "import pinocchio" not in text
-    assert "import casadi" not in text
-    assert "robot ROS side" in text
+def test_sdk_removes_local_ik_module():
+    assert not IK_SOLVER.exists()
 
 
 def test_arm_ik_publishes_pose_command_instead_of_solving_locally():
@@ -23,6 +19,7 @@ def test_arm_ik_publishes_pose_command_instead_of_solving_locally():
     assert "solve_ik_abs" not in text
     assert "solve_ik_rel" not in text
     assert "_get_ik_solver" not in text
+    assert "_sync_ik_targets" not in text
 
 
 def test_sdk_does_not_vendor_local_ik_model_assets():

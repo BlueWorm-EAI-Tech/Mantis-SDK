@@ -183,7 +183,6 @@ class Arm:
         max_velocity: float = None,
         max_acceleration: float = None,
         max_jerk: float = None,
-        _sync_ik_targets: bool = True,
     ):
         """设置所有关节角度。
         
@@ -214,10 +213,7 @@ class Arm:
         # 更新位置
         self._target_positions = new_positions
         self._positions = new_positions
-        
-        # `_sync_ik_targets` 保留为兼容旧调用；IK 目标现在由机器人 ROS 侧维护。
-        _ = _sync_ik_targets
-        
+
         motion_profile = self._motion_profile_payload(
             max_velocity=max_velocity,
             max_acceleration=max_acceleration,
@@ -239,7 +235,6 @@ class Arm:
         max_velocity: float = None,
         max_acceleration: float = None,
         max_jerk: float = None,
-        _sync_ik_targets: bool = True,
     ):
         """设置单个关节角度。
         
@@ -258,9 +253,6 @@ class Arm:
         # 更新位置
         self._positions[index] = position
         self._target_positions[index] = position
-
-        # `_sync_ik_targets` 保留为兼容旧调用；IK 目标现在由机器人 ROS 侧维护。
-        _ = _sync_ik_targets
 
         motion_profile = self._motion_profile_payload(
             max_velocity=max_velocity,

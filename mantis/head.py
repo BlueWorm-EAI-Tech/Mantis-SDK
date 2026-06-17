@@ -20,8 +20,6 @@ Example:
             robot.left_arm.set_shoulder_pitch(-0.5, block=False)
 """
 
-import time
-import threading
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -48,7 +46,6 @@ def _make_look_action(attr: str, sign: int, default: float, doc: str):
             angle: 角度大小（弧度），默认使用预设值
             block: 是否阻塞等待完成，默认 True
         """
-        old_value = getattr(self, f"_{attr}")
         new_value = sign * abs(angle)
         setattr(self, f"_{attr}", new_value)
         self._apply_limits()
@@ -203,7 +200,7 @@ class Head:
     
     def __repr__(self) -> str:
         """返回头部的字符串表示。"""
-        status = "运动中" if self._is_moving else "停止"
+        status = "运动中" if self.is_moving else "停止"
         return f"Head({status}, pitch={self._pitch:.2f}, yaw={self._yaw:.2f})"
 
 

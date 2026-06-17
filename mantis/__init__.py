@@ -59,7 +59,11 @@ from .discovery import (
     stop_robot_discovery,
     list_discovered_robots,
 )
-from .constants import *
+from .constants import (
+    JOINT_NAMES,
+    LEFT_ARM_JOINTS,
+    RIGHT_ARM_JOINTS,
+)
 
 #: SDK 版本号
 __version__ = "1.3.11"
