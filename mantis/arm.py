@@ -21,15 +21,10 @@ Example:
             robot.wait()  # 等待所有运动完成
 """
 
-import time
-import threading
-import math
-import numpy as np
 from typing import List, Tuple, TYPE_CHECKING
 from .constants import (
     LEFT_ARM_JOINTS, RIGHT_ARM_JOINTS, NUM_ARM_JOINTS,
     LEFT_ARM_LIMITS, RIGHT_ARM_LIMITS,
-    SERIAL_TO_URDF_MAP
 )
 
 if TYPE_CHECKING:
@@ -185,7 +180,9 @@ class Arm:
         clamp: bool = True,
         block: bool = True,
         *,
-        _sync_ik_targets: bool = True,
+        max_velocity: float = None,
+        max_acceleration: float = None,
+        max_jerk: float = None,
     ):
         """设置所有关节角度。
         
@@ -216,15 +213,17 @@ class Arm:
         # 更新位置
         self._target_positions = new_positions
         self._positions = new_positions
-        
-        # 仅在 IK 求解器已初始化后同步内部目标点，避免纯直控链路误触发 IK 初始化。
-        if _sync_ik_targets and self._robot.has_active_ik_solver:
-            self._robot.sync_ik_with_commands()
-        
-        self._robot._publish_joints()
-        
-        # 执行运动
-        self._execute_motion(block)
+
+        motion_profile = self._motion_profile_payload(
+            max_velocity=max_velocity,
+            max_acceleration=max_acceleration,
+            max_jerk=max_jerk,
+        )
+        command_id = self._robot._publish_arm_joint_command(
+            self._joint_names,
+            motion_profile=motion_profile,
+        )
+        self._execute_motion(block, command_id)
     
     def set_joint(
         self,
@@ -233,7 +232,9 @@ class Arm:
         clamp: bool = True,
         block: bool = True,
         *,
-        _sync_ik_targets: bool = True,
+        max_velocity: float = None,
+        max_acceleration: float = None,
+        max_jerk: float = None,
     ):
         """设置单个关节角度。
         
@@ -253,19 +254,40 @@ class Arm:
         self._positions[index] = position
         self._target_positions[index] = position
 
-        if _sync_ik_targets and self._robot.has_active_ik_solver:
-            self._robot.sync_ik_with_commands()
+        motion_profile = self._motion_profile_payload(
+            max_velocity=max_velocity,
+            max_acceleration=max_acceleration,
+            max_jerk=max_jerk,
+        )
+        command_id = self._robot._publish_arm_joint_command(
+            self._joint_names,
+            motion_profile=motion_profile,
+        )
+        self._execute_motion(block, command_id)
 
-        self._robot._publish_joints()
-        
-        # 执行运动
-        self._execute_motion(block)
+    @staticmethod
+    def _motion_profile_payload(
+        *,
+        max_velocity: float = None,
+        max_acceleration: float = None,
+        max_jerk: float = None,
+    ):
+        values = {
+            "max_velocity": max_velocity,
+            "max_acceleration": max_acceleration,
+            "max_jerk": max_jerk,
+        }
+        profile = {
+            key: float(value)
+            for key, value in values.items()
+            if value is not None
+        }
+        return profile or None
     
-    def _execute_motion(self, block: bool):
+    def _execute_motion(self, block: bool, command_id: str):
         """执行运动。"""
-        # 这里仅用于非阻塞模式下的即时返回
         if block:
-            self.wait()
+            self._robot._wait_arm_command(command_id)
 
     def wait(self):
         """等待当前运动完成。"""
@@ -276,20 +298,39 @@ class Arm:
         """是否正在运动中（基于整机状态）。"""
         return self._robot.is_moving(self.joint_names)
 
-    def home(self, block: bool = True):
+    def home(
+        self,
+        block: bool = True,
+        *,
+        max_velocity: float = None,
+        max_acceleration: float = None,
+        max_jerk: float = None,
+    ):
         """回到零位。
         
         Args:
             block: 是否阻塞等待完成，默认 True
         """
-        self.set_joints([0.0] * NUM_ARM_JOINTS, block=block)
+        self.set_joints(
+            [0.0] * NUM_ARM_JOINTS,
+            block=block,
+            max_velocity=max_velocity,
+            max_acceleration=max_acceleration,
+            max_jerk=max_jerk,
+        )
 
     def ik(self, x: float, y: float, z: float, 
                      roll: float, pitch: float, yaw: float, 
-                     block: bool = True, abs: bool = True):
+                     block: bool = True, abs: bool = True,
+                     *,
+                     max_velocity: float = None,
+                     max_acceleration: float = None,
+                     max_jerk: float = None):
         """Move arm end-effector to target pose.
-        
-        Uses Inverse Kinematics to find joint angles.
+
+        The SDK only publishes the target pose command. Inverse kinematics is
+        solved on the robot ROS side, so the client does not need Pinocchio or
+        CasADi installed.
         
         Args:
             x, y, z: Target position (meters) or Delta position (if abs=False)
@@ -298,7 +339,7 @@ class Arm:
             abs: Whether to use absolute coordinates (default), False for relative/incremental
             
         Raises:
-            RuntimeError: If IK fails or solution is invalid
+            RuntimeError: If the robot is not connected
         """
         if not self._robot.supports_ik:
             raise NotImplementedError(
@@ -306,79 +347,43 @@ class Arm:
             )
 
         if abs:
-            # Construct Rotation Matrix (RPY -> Matrix)
-            # R = Rz(yaw) * Ry(pitch) * Rx(roll)
-            cr = math.cos(roll); sr = math.sin(roll)
-            cp = math.cos(pitch); sp = math.sin(pitch)
-            cy = math.cos(yaw); sy = math.sin(yaw)
-            
-            Rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
-            Ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
-            Rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
-            
-            R = Rz @ Ry @ Rx
-            
-            # Construct Transformation Matrix
-            T_target = np.eye(4)
-            T_target[:3, :3] = R
-            T_target[:3, 3] = [x, y, z]
-            
-            # Get current poses for both arms (needed for IK solver to hold other arm still)
-            try:
-                T_cur_left, T_cur_right = self._robot.compute_fk()
-            except Exception as e:
-                raise RuntimeError(f"Failed to compute FK: {e}")
-                
-            # Prepare IK inputs
-            if self._side == 'left':
-                T_l = T_target
-                T_r = T_cur_right
-            else:
-                T_l = T_cur_left
-                T_r = T_target
-            # Solve IK
-            try:
-                q_sol = self._robot.solve_ik_abs(T_l, T_r)
-            except Exception as e:
-                raise RuntimeError(f"IK solver failed: {e}")
+            command = {
+                "command_type": "pose_abs",
+                "side": self._side,
+                "pose": {
+                    "x": float(x),
+                    "y": float(y),
+                    "z": float(z),
+                    "roll": float(roll),
+                    "pitch": float(pitch),
+                    "yaw": float(yaw),
+                },
+            }
+        else:
+            command = {
+                "command_type": "pose_rel",
+                "side": self._side,
+                "delta": [
+                    float(x),
+                    float(y),
+                    float(z),
+                    float(roll),
+                    float(pitch),
+                    float(yaw),
+                ],
+            }
 
-        else: # mode == 'rel'
-            # Construct Delta Vector [dx, dy, dz, droll, dpitch, dyaw]
-            delta = np.array([x, y, z, roll, pitch, yaw])
-            zeros = np.zeros(6)
-            
-            if self._side == 'left':
-                d_l = delta
-                d_r = zeros
-            else:
-                d_l = zeros
-                d_r = delta
-                
-            # Solve IK (Incremental)
-            try:
-                q_sol = self._robot.solve_ik_rel(d_l, d_r)
-            except Exception as e:
-                raise RuntimeError(f"Incremental IK solver failed: {e}")
-            
-        # Map solution to this arm's joints
-        solver = self._robot._get_ik_solver()
-        solver_names = solver.get_joint_names()
-        solution_dict = dict(zip(solver_names, q_sol))
-        
-        target_positions = []
-        for name in self._joint_names:
-            urdf_name = SERIAL_TO_URDF_MAP.get(name)
-            if not urdf_name:
-                raise RuntimeError(f"Mapping not found for joint {name}")
-                
-            if urdf_name not in solution_dict:
-                 raise RuntimeError(f"Joint {urdf_name} not in IK solution")
-            
-            target_positions.append(solution_dict[urdf_name])
-            
-        # Move
-        # IK 路径需要保留 solver 内部维护的目标位姿，不能在这里再次 reset_targets()。
-        self.set_joints(target_positions, block=block, _sync_ik_targets=False)
+        motion_profile = self._motion_profile_payload(
+            max_velocity=max_velocity,
+            max_acceleration=max_acceleration,
+            max_jerk=max_jerk,
+        )
+        if motion_profile is not None:
+            command["motion_profile"] = motion_profile
+
+        command_id = self._robot._publish_arm_command(command)
+        if block:
+            self._robot._wait_arm_command(command_id)
 
     
     def __repr__(self) -> str:

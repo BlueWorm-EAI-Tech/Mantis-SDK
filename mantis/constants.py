@@ -160,11 +160,6 @@ ALL_URDF_JOINTS = [
 #: Serial 名称 → URDF 名称映射
 SERIAL_TO_URDF_MAP = dict(zip(JOINT_NAMES, URDF_ARM_JOINT_NAMES))
 
-#: SDK IK 模型路径（相对 ``mantis/model/urdf`` 目录）。
-#:
-#: 当前直接对齐 VR 使用的 ``bw_core/assets/mantis_2_0_ik/mantis_2_0_ik.urdf``。
-IK_URDF_FILENAME = "../../../../bw_teleoperate_ws/src/bw_core/assets/mantis_2_0_ik/mantis_2_0_ik.urdf"
-
 # ==================== Zenoh 话题 ====================
 
 class Topics:
@@ -180,9 +175,21 @@ class Topics:
     
     #: 关节状态（SDK 发布，Python 桥接节点订阅）
     SDK_JOINT_STATES = "sdk/joint_states"
+
+    #: 手臂统一命令（SDK 发布，Python 桥接节点订阅）
+    SDK_ARM_COMMAND = "sdk/arm_command"
+
+    #: 手臂统一命令状态（Python 桥接节点发布，SDK 订阅）
+    SDK_ARM_COMMAND_STATUS = "sdk/arm_command_status"
     
     #: 底盘速度命令（SDK 发布，Python 桥接节点订阅）
     SDK_CHASSIS = "sdk/chassis"
+
+    #: 3.0 滑台绝对高度命令（SDK 发布，Python 桥接节点订阅）
+    SDK_PELVIS_HEIGHT = "sdk/pelvis_height"
+
+    #: 3.0 腰部前后弯腰绝对角度命令（SDK 发布，Python 桥接节点订阅）
+    SDK_WAIST_ANGLE = "sdk/waist_angle"
     
     #: 系统状态反馈（Python 桥接节点发布，SDK 订阅）
     SYSTEM_STATUS = "sdk/system_status"

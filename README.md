@@ -1,7 +1,7 @@
 # Mantis Robot SDK
 
 [![PyPI](https://img.shields.io/pypi/v/bw-mantis-sdk.svg)](https://pypi.org/project/bw-mantis-sdk/)
-[![Version](https://img.shields.io/badge/version-1.3.9-blue.svg)](./VERSION)
+[![Version](https://img.shields.io/badge/version-1.3.11-blue.svg)](./VERSION)
 [![Python](https://img.shields.io/badge/python-3.8+-green.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/license-MIT-orange.svg)](./LICENSE)
 
@@ -25,7 +25,9 @@
 
 - `robot_version="3.0"` 支持双臂直接关节角控制
 - `robot_version="3.0"` 支持双臂 `Arm.ik(...)`，`abs=True/False` 行为与 `2.0` 一致
-- `3.0` 的 SDK IK 当前只覆盖双臂 14 轴，内部按胸部固定 `0` 位处理
+- `Arm.ik(...)` 只发送末端 pose command，IK 在机器人 ROS 侧统一解算；SDK 客户端不再加载本地 IK 依赖
+- `Arm.ik(...)`、`Arm.set_joints(...)`、`Arm.set_joint(...)` 的 `block=True` 会等待同一条 `command_id` 在机器人端解析并由硬件反馈确认到位
+- SDK 包不再携带本地 IK URDF / mesh 资源，机器人端负责维护解算模型
 - `3.0` 当前不包含胸部与腰部 whole-body 控制语义切换
 - SDK / RViz / IK 统一使用 URDF 关节语义；客户端不再做双臂方向映射
 - 如需让实机关节方向与仿真保持一致，方向修正应放在最终下发到硬件的链路处理
@@ -35,7 +37,7 @@
 
 - 🚀 **无 ROS2 依赖**: 客户端只需 Python + Zenoh
 - 🤖 **完整控制**: 双臂、夹爪、头部、腰部、底盘
-- 🦾 **逆运动学 (IK)**: 基于 Pinocchio 的高性能解算，支持绝对位姿与相对增量控制
+- 🦾 **逆运动学 (IK)**: SDK 发送末端目标点，机器人 ROS 侧统一解算，支持绝对位姿与相对增量控制
 - 🔒 **安全限位**: 自动限制在 URDF 定义范围内
 - 🎯 **统一驱动**: 同一套代码控制 RViz 仿真和实机
 - ⚡ **并行运动**: 阻塞/非阻塞模式，支持多部件同时运动
@@ -49,23 +51,7 @@
 pip install bw-mantis-sdk
 ```
 
-### 依赖安装 (IK 功能)
-
-如果需要使用 IK (逆运动学) 功能，请按照以下步骤安装 Pinocchio 依赖：
-
-```bash
-# Ensure you have some required installation dependencies 
-sudo apt install -qqy lsb-release curl 
-# Register the authentication certificate of robotpkg: 
-sudo mkdir -p /etc/apt/keyrings 
-curl http://robotpkg.openrobots.org/packages/debian/robotpkg.asc \
-  | sudo tee /etc/apt/keyrings/robotpkg.asc 
-# Add robotpkg as source repository to apt: 
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/robotpkg.asc] http://robotpkg.openrobots.org/packages/debian/pub $(lsb_release -cs) robotpkg" \
-  | sudo tee /etc/apt/sources.list.d/robotpkg.list 
-sudo apt update 
-sudo apt install -qqy robotpkg-py310-pinocchio
-```
+IK 不需要在 SDK 客户端安装 Pinocchio / CasADi。请确保机器人端 ROS 系统已启动 `bw_sdk_input`、`bw_control_router` 和 `bw_core::ArmCommandResolverNode`。
 
 ## 快速开始
 
@@ -192,7 +178,7 @@ RUN_MODE=sdk
 | ----------------------------------- | -------------------- |
 | `connect(timeout=5.0, verify=True)` | 连接机器人           |
 | `disconnect()`                      | 断开连接             |
-| `on_feedback(callback)`             | 注册关节反馈回调     |
+| `subscribe_status(callback)`        | 注册系统状态回调     |
 | `home(block=True)`                  | 所有关节归零         |
 | `stop()`                            | 停止所有运动         |
 | `wait()`                            | 等待所有部件运动完成 |
@@ -224,9 +210,9 @@ RUN_MODE=sdk
 - `is_moving` - 是否正在运动中
 - `set_speed(speed)` - 设置关节速度 (rad/s)
 - `ik(x, y, z, roll, pitch, yaw, block=True, abs=True)` - 末端位姿控制 (IK)。
-  - `abs=True`: 绝对位姿 (位置: m, 姿态: rad)。会自动重置内部目标点。
-  - `abs=False`: 相对增量 (位置: 全局 m, 姿态: 局部 rad)。基于内部维护的目标位姿进行累积，支持连续调用。
-  - `robot_version="3.0"`: 当前支持双臂 IK，但只解双臂 14 轴；胸部按固定零位处理，不包含胸/腰 whole-body 语义。
+  - `abs=True`: 发布绝对位姿 (位置: m, 姿态: rad) 到机器人端 IK 链路。
+  - `abs=False`: 发布相对增量 (位置: 全局 m, 姿态: 局部 rad)，由机器人端 resolver 基于当前末端目标累积。
+  - `block=True`: 等待同一条 `command_id` 的 `COMPLETED` 状态；收到 `FAILED` 抛 `RuntimeError`，等待超时抛 `TimeoutError`。
 
 ### Gripper (夹爪)
 
@@ -266,19 +252,28 @@ RUN_MODE=sdk
 
 ### Waist (腰部)
 
-腰部是 prismatic 直线关节，控制上半身高度：
+腰部控制接口对 SDK 用户保持统一单位：高度使用米，角度使用弧度。
 
-- **高度范围**: -0.62m ~ 0.24m
+- `2.0`: 腰部是 prismatic 直线关节，控制上半身高度。
+- `3.0`: 滑台控制上下位置，同时支持上半身前后弯腰。
+- **2.0 高度范围**: -0.62m ~ 0.24m
+- **3.0 滑台范围**: -0.30m ~ 0.10m（相对默认高度）
+- **3.0 弯腰范围**: -1.57rad ~ 0.087rad，负值前倾，正值后仰
 
 
-| 方法                             | 说明           |
-| -------------------------------- | -------------- |
-| `set_height(height, block=True)` | 设置高度（米） |
-| `up(delta=0.05, block=True)`     | 上升指定距离   |
-| `down(delta=0.05, block=True)`   | 下降指定距离   |
-| `home(block=True)`               | 回到默认高度   |
-| `wait()`                         | 等待运动完成   |
-| `is_moving`                      | 是否正在运动中 |
+| 方法                                  | 说明                              |
+| ------------------------------------- | --------------------------------- |
+| `set_height(height, block=True)`      | 设置滑台/腰部高度（m）            |
+| `set_speed(speed)`                    | 设置滑台最大速度（m/s）           |
+| `set_bend(angle, block=True)`         | 设置 3.0 前后弯腰角（rad）        |
+| `set_bend_speed(speed)`               | 设置 3.0 弯腰最大角速度（rad/s）  |
+| `bend_forward(angle=0.3, block=True)` | 3.0 前倾弯腰（rad）               |
+| `bend_backward(angle=0.2, block=True)`| 3.0 后仰（rad）                   |
+| `up(delta=0.05, block=True)`          | 上升指定距离                      |
+| `down(delta=0.05, block=True)`        | 下降指定距离                      |
+| `home(block=True)`                    | 回到默认高度并让 3.0 身体直立     |
+| `wait()`                              | 等待运动完成                      |
+| `is_moving`                           | 是否正在运动中                    |
 
 ### Chassis (底盘)
 
@@ -454,7 +449,7 @@ with Mantis(sim=True) as robot:
     robot.left_arm.set_shoulder_pitch(-0.5, block=False)   # 立即返回
     robot.right_arm.set_shoulder_pitch(-0.5, block=False)  # 立即返回
     robot.head.look_left(block=False)                      # 立即返回
-    robot.wait()  # 等待所有部件完成
+    robot.wait()  # 等待已发出的 SDK 手臂命令完成；非手臂仍等待系统运动状态
     # 总耗时 = 最慢动作的时间
   
     # ===== 分组运动 =====
@@ -474,22 +469,23 @@ with Mantis(sim=True) as robot:
     robot.wait()
 ```
 
-### 6. 关节反馈
+### 6. 系统状态订阅
 
 ```python
-from mantis_sdk import Mantis
+from mantis import Mantis
 import time
 
-def on_feedback(joint_names, positions):
-    print(f"关节反馈: {len(positions)} 个关节")
-    for name, pos in zip(joint_names, positions):
-        print(f"  {name}: {pos:.3f}")
+def on_status(data):
+    motion_names = data.get("motion_names", [])
+    motion_states = data.get("motion_states", [])
+    moving = [name for name, state in zip(motion_names, motion_states) if state == 1]
+    print(f"运动中: {moving}")
 
 with Mantis(ip="192.168.1.100") as robot:
-    # 注册反馈回调
-    robot.on_feedback(on_feedback)
+    # 注册系统状态回调
+    robot.subscribe_status(on_status)
   
-    # 保持运行，接收反馈
+    # 保持运行，接收状态
     time.sleep(10)
 ```
 
@@ -563,12 +559,9 @@ mantis/
 │   ├── head.py         # 头部控制（俯仰/偏航）
 │   ├── waist.py        # 腰部控制（升降）
 │   ├── chassis.py      # 底盘控制（全向移动）
-│   ├── ik_solver.py    # ik求解器
 │   └── constants.py    # 关节限位常量
-├── test_sim.py         # 仿真测试脚本
-├── test_real.py        # 实机测试脚本
-├── test_chassis.py     # 底盘测试脚本
-├── test_gripper.py     # 夹爪测试脚本
+├── examples/           # 可运行 SDK 示例（按功能分组）
+├── tests/              # 自动化回归测试
 └── README.md
 ```
 
@@ -580,7 +573,7 @@ mantis/
 4. **腰部范围**：-0.62m ~ 0.24m
 5. **底盘安全**：运动完成后自动停止，无需手动调用 `stop()`
 6. **摩擦补偿**：地面摩擦力大时，使用 `set_friction()` 增加运动时间补偿
-7. **阻塞模式**：默认 `block=True`，使用 `block=False` 实现并行运动
+7. **阻塞模式**：手臂 joint/IK 命令默认 `block=True`，会等待机器人端同一 `command_id` 完成；使用 `block=False` 可并行发送后再 `robot.wait()`
 8. **连接超时**：默认 5 秒，可通过 `connect(timeout=10)` 调整
 9. **跳过验证**：调试时可用 `connect(verify=False)` 跳过连接验证
 

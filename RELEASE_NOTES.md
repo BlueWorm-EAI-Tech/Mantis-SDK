@@ -1,10 +1,33 @@
 # Mantis SDK Release Notes
 
-📅 最新版本: V1.3.9 (2026-05-14)
+📅 最新版本: V1.3.11 (2026-06-16)
 
 ## Changelog
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+
+### [1.3.11] - 2026-06-16
+
+**文档**
+
+- 新增 `examples/` 分组目录，按连接、发现、手臂、IK、夹爪、头部、腰部、底盘和 workflow 组织可运行示例。
+- 示例统一使用 `--ip` / `--sn` 参数，不再在可运行脚本中硬编码机器人目标。
+- 新增 examples 能力矩阵，方便按 SDK 功能查找对应示例。
+
+**测试**
+
+- 新增 examples 布局测试，防止根目录重新出现可运行示例脚本或 Python 3.8 不兼容 argparse 用法。
+
+### [1.3.10] - 2026-06-16
+
+**清理**
+
+- 移除 SDK 包内不再使用的本地 IK URDF / mesh 资源，IK 模型由机器人 ROS 侧维护。
+- 移除 `MANIFEST.in` 中对 `mantis/model` 的打包规则，SDK 客户端安装包只保留运行时需要的 Python 代码。
+
+**测试**
+
+- 新增回归测试，防止 SDK 重新 vendor 本地 IK 模型资源或本地 IK 求解依赖。
 
 ### [1.3.9] - 2026-05-14
 
