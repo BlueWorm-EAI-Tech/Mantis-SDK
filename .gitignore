@@ -23,6 +23,8 @@ frames*
 *.egg-info
 dist
 scripts
+!sdk_arm_mapping/scripts/
+!sdk_arm_mapping/scripts/*.py
 .githooks
 
 # Local Python virtual environment

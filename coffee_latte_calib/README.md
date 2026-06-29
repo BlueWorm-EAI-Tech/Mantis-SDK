@@ -2,6 +2,10 @@
 
 咖啡拉花/倒奶实机调试脚本集合。这个目录集中保存近期咖啡流程安全复现、早期 IK/夹爪/手腕调试、早期倒奶段参数调试，以及当前主要使用的空壶壶嘴对杯口标定工具。
 
+## 交接入口
+
+离职交接和复现步骤见 [`docs/latte_handoff.md`](docs/latte_handoff.md)。
+
 ## 脚本用途
 
 - `scripts/coffee_replay_safe.py`：前人 `coffee.py` 的安全复现脚本；保留原 `coffee.py` 不变，不建议直接跑完整 `coffee.py`。
